@@ -79,6 +79,11 @@ export async function apiGet(page: Page, path: string) {
 }
 
 export async function expectAccessible(page: Page, name: string) {
+  // axe mide el contraste con la opacidad actual: en un runner lento puede pillar el fundido de entrada
+  // (page-enter, 0→1) a medias. Se espera a que terminen las animaciones finitas antes de medir.
+  await page.evaluate(() =>
+    Promise.all(document.getAnimations().filter((a) => a.effect?.getComputedTiming().iterations !== Infinity).map((a) => a.finished.catch(() => undefined))),
+  )
   const res = await new AxeBuilder({ page: page as any }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze()
   const serious = res.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical')
   expect(serious.map((v) => `${name}: ${v.id} — ${v.help} (${v.nodes.length})\n  ${v.nodes.map((n) => n.target.join(' ')).slice(0, 3).join('\n  ')}`)).toEqual([])
