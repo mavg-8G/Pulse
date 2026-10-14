@@ -6,7 +6,7 @@
 #                                      si algo falla, restaura la base y vuelve a la versión anterior
 #   status                             qué versión corre y su estado
 #
-# Instalación y requisitos: deploy/CD.md. Este archivo vive en /opt/docker/pulse/deploy.sh,
+# Instalación y requisitos: deploy/README.md. Este archivo vive en /opt/docker/pulse/deploy.sh,
 # propiedad de root y sin permiso de escritura para "deploy".
 set -Eeuo pipefail
 umask 077
@@ -18,7 +18,7 @@ URL=https://pulse.espectro.uk
 # Solo se aceptan imágenes firmadas por el workflow de main de este repositorio.
 SIGNER='https://github.com/mavg-8G/Pulse/.github/workflows/ci.yml@refs/heads/main'
 ISSUER=https://token.actions.githubusercontent.com
-REQUIRE_SIGNATURE=1 # 0 solo mientras instalas cosign; ver deploy/CD.md
+REQUIRE_SIGNATURE=1 # 0 solo mientras instalas cosign; ver deploy/README.md
 KEEP_BACKUPS=15
 # ------------------------------------------------------------------------------
 
@@ -66,7 +66,7 @@ if command -v cosign >/dev/null; then
     die "la firma de la imagen NO es válida: no se despliega"
   log "✓ firma verificada"
 elif [[ "$REQUIRE_SIGNATURE" == 1 ]]; then
-  die "cosign no está instalado y se exige firma (ver deploy/CD.md)"
+  die "cosign no está instalado y se exige firma (ver deploy/README.md)"
 else
   log "! cosign no instalado: se despliega SIN verificar la firma"
 fi

@@ -22,7 +22,7 @@ deploy/              docker-compose, Caddy, smoke test, guía de despliegue
 ```
 
 ## Desarrollo
-Requisitos: Go 1.27+ con un compilador C (SQLite usa CGO), Node 24.
+Requisitos: Go 1.27.2+ con un compilador C (SQLite usa CGO), Node 24.22.0 LTS (ver `.node-version`). CI y Docker toman las versiones de `go.mod` y `.node-version`.
 En Windows puedes ejecutar `./scripts/dev.ps1`: compila el programa, prepara las claves locales y muestra una invitación. Si tienes Zig en `.tools/zig-x86_64-windows-0.15.2`, lo usa como compilador C; también puedes configurar `CC` con tu compilador.
 ```bash
 make dev                      # API en :8080

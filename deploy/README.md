@@ -18,6 +18,22 @@ git push (main)
 
 Ramas que no son `main`, pull requests y el fuzzing nocturno solo prueban; nunca despliegan.
 
+## Versiones de construcción — 14 de octubre de 2026
+
+| Componente | Versión | Fuente de configuración |
+|---|---|---|
+| Go | 1.27.2 | `go.mod`; CI la pasa como argumento a Docker |
+| Node LTS | 24.22.0 | `.node-version`; CI la pasa como argumento a Docker |
+| Imágenes de compilación | Alpine 3.24 | `Dockerfile` |
+| Imagen de ejecución | Distroless static Debian 13, nonroot | `Dockerfile` |
+| Trivy | 0.76.0 | `TRIVY_VERSION` y `TRIVY_SHA256` en CI |
+| Trivy Action | 0.36.0 | SHA completo en CI |
+| Cosign | 3.1.3 | `COSIGN_VERSION` en CI y paso 4 de esta guía |
+
+Trivy se descarga desde una release oficial de GitHub con reintentos y hash SHA-256 fijado; no ejecuta un instalador obtenido de `main`. Las acciones de CI están fijadas a commits de sus releases oficiales. El escaneo sigue bloqueando vulnerabilidades altas y críticas con corrección disponible.
+
+Antes de desplegar con este workflow, actualiza también Cosign en el VPS siguiendo el paso 4. Cambiar el instalador de CI no actualiza el ejecutable del servidor. Docker declara el mismo puerto 8080 que `PULSE_LISTEN` y Caddy.
+
 ---
 
 ## Primera vez
@@ -63,7 +79,7 @@ sudo cat secrets/pulse_kek   # → cópiala a tu gestor de contraseñas y no la 
 
 ### 4. cosign (verificación de firmas)
 ```bash
-VER=v2.6.5
+VER=v3.1.3 # misma versión que COSIGN_VERSION en .github/workflows/ci.yml
 cd /tmp
 curl -fsSLO https://github.com/sigstore/cosign/releases/download/$VER/cosign-linux-amd64
 curl -fsSLO https://github.com/sigstore/cosign/releases/download/$VER/cosign_checksums.txt

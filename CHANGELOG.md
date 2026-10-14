@@ -2,6 +2,19 @@
 
 Este registro compara el proyecto actual con `_to_delete/pulse-fases-0-4.tar.gz` y recoge el trabajo documentado en esta conversación. El proyecto no tiene historial Git: no se puede confirmar la autoría ni reconstruir cada edición intermedia. La fecha corresponde al registro local, no a una publicación oficial.
 
+## Sin publicar — CI y despliegue (14 oct 2026)
+
+- Trivy 0.65.0 → 0.76.0: descarga directa desde GitHub Releases con reintentos, errores HTTP visibles y verificación de un SHA-256 fijado. Se conserva Trivy Action 0.36.0, actualizada previamente, y se omite su instalador automático.
+- Acciones oficiales actualizadas a sus releases vigentes, conservando referencias por SHA completo: checkout 7.0.1, setup-go 7.0.0, setup-node 7.1.0, upload-artifact 7.0.2, CodeQL 4.38.3, Buildx 4.4.1, metadata 6.2.0, build-push 7.4.0, login 4.6.0 y cosign-installer 4.1.2.
+- Go 1.27.2 y Node LTS 24.22.0 alineados entre CI y Docker mediante `go.mod`, `.node-version` y argumentos de construcción.
+- Imágenes de compilación en Alpine 3.24 y ejecución en Distroless static Debian 13 nonroot; puerto declarado corregido a 8080.
+- Cosign fijado a 3.1.3 en CI y en la guía de instalación del VPS. La actualización del ejecutable del VPS requiere aplicar allí las instrucciones documentadas.
+- Dependencias Go compatibles actualizadas: `golang.org/x/crypto` 0.31.0 → 0.58.0 y `github.com/golang-jwt/jwt/v5` 5.2.1 → 5.3.1; versiones y sumas registradas.
+- Lockfile del frontend sincronizado con la versión 0.2.0 del paquete.
+- Contexto Docker excluye claves y datos locales, herramientas, binarios, archivos de entorno y artefactos. Scripts Bash conservan LF al clonar en Windows.
+- Prueba de respaldo compatible con los permisos de Windows, manteniendo la comprobación POSIX 0600 en Linux y cerrando la base también cuando falla una aserción.
+- Documentación de despliegue actualizada y referencias corregidas a `deploy/README.md`.
+
 ## Sin publicar — fases 6 y 7 (14 oct 2026)
 
 ### Fase 6: correos bancarios sin Gmail

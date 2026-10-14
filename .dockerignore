@@ -1,4 +1,14 @@
 .git
+.dev
+.tools
+bin
+_to_delete
+artifacts
+cover
+cover.out
+.env
+.env.*
+!deploy/.env.example
 **/node_modules
 web/.e2e
 web/test-results
@@ -6,5 +16,6 @@ web/playwright-report
 data
 secrets
 deploy/secrets
+deploy/data
 *.db
 *.db-*

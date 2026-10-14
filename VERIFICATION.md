@@ -63,3 +63,17 @@ Capturas con cuentas y gastos ficticios de prueba:
 Se reemplazó el acento azul/violeta por terracota, con superficies crema en claro y café en oscuro. Los colores del manifiesto, favicon, iconos instalables, controles nativos y color inicial de cuentas nuevas siguen la nueva paleta. El control de animaciones ahora está en Ajustes → Apariencia; conserva la pausa al navegar y recargar.
 
 Compilación TypeScript/Vite y del ejecutable Go correctas. Los dos escenarios focalizados de interfaz pasaron (escritorio y móvil), incluyendo accesibilidad en Inicio vacío/con gastos, modo oscuro y Ajustes, ausencia del control en Inicio, cambio de pausa desde Ajustes, persistencia y movimiento reducido. Las capturas de Ajustes están en `artifacts/ui/ajustes-apariencia-escritorio.png` y `artifacts/ui/ajustes-apariencia-movil.png`.
+
+## CI y versiones del despliegue — 14 de octubre de 2026
+
+- `actionlint` 1.7.12: workflow válido. Sintaxis Bash de `scripts/install-trivy.sh` y `deploy/deploy.sh` correcta; `git diff --check` correcto.
+- SHA completos de las once acciones distintas comprobados contra su metadata oficial. Versiones e imágenes oficiales disponibles verificadas: Go 1.27.2, Node LTS 24.22.0, Alpine 3.24, Distroless static Debian 13, Trivy 0.76.0 y Cosign 3.1.3.
+- Descarga real del archivo Linux x86_64 de Trivy 0.76.0 verificada contra el SHA-256 fijado en el workflow; el archivo contiene el ejecutable esperado. El instalador evita el script mutable y añade reintentos y errores HTTP visibles.
+- `go vet ./...` y `go test ./...`: todos los paquetes pasan con Go 1.27.2, `x/crypto` 0.58.0 y JWT 5.3.1. La prueba de respaldo comprueba 0600 en sistemas POSIX; Windows usa ACL.
+- `govulncheck` 1.9.0: cero vulnerabilidades alcanzables y cero en paquetes importados. Informa GO-2026-5932 en `x/crypto/openpgp`, que Pulse no importa; no tiene versión corregida.
+- TypeScript/Vite: compilación correcta. Vitest: 41 pruebas pasan con `--pool=forks --maxWorkers=1 --minWorkers=1`; el primer intento tuvo un fallo local al cerrar workers. Node local: 24.21.0; la versión fijada para CI y Docker es 24.22.0.
+- `npm audit --omit=dev`: cero alertas altas/críticas; dos moderadas de React Router requieren migración a versión 7.
+
+La primera comprobación Go coincidió con la regeneración de archivos embebidos; se repitió después de terminar el frontend. También se repitió la ejecución tras un bloqueo temporal de Windows al borrar un ejecutable de prueba. Los resultados anteriores corresponden a las ejecuciones finales correctas.
+
+No se construyó ni escaneó la imagen completa localmente porque Docker no está disponible. No se ejecutó el workflow remoto, no se publicó una imagen y no se actualizó Cosign en el VPS. La guía indica actualizar el VPS a Cosign 3.1.3 antes de desplegar con el nuevo workflow.
