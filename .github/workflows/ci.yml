@@ -1,19 +1,33 @@
-name: CI
+name: CI/CD
+
+# push a main → pruebas → imagen en GHCR (firmada) → despliegue en el VPS.
+# Otras ramas y PR: solo pruebas. Cada noche: fuzzing largo (sin desplegar).
 on:
   push:
   pull_request:
+  workflow_dispatch: # "Run workflow" en main: vuelve a construir y desplegar
   schedule:
-    - cron: '17 6 * * *' # fuzzing largo cada noche
+    - cron: '17 6 * * *'
+
+# Por defecto, el GITHUB_TOKEN solo puede leer. Cada job pide lo justo.
+permissions:
+  contents: read
+
+env:
+  IMAGE: ghcr.io/mavg-8g/pulse # GHCR exige minúsculas
 
 jobs:
   go:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with: { go-version: '1.27' }
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with: { persist-credentials: false }
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with: { go-version-file: go.mod }
       - name: Formato y vet
-        run: test -z "$(gofmt -l $(git ls-files '*.go'))" && go vet ./...
+        run: |
+          mkdir -p internal/webui/dist && touch internal/webui/dist/.gitkeep
+          test -z "$(gofmt -l $(git ls-files '*.go'))" && go vet ./...
       - name: Tests con detector de carreras
         run: go test -race -coverprofile=cover.out ./... && go tool cover -func=cover.out | tail -1
       - name: Fuzzing
@@ -27,18 +41,33 @@ jobs:
           go test ./internal/mailparse -run=^$ -fuzz=FuzzEML -fuzztime=$T
           go test ./internal/gmail -run=^$ -fuzz=FuzzVerifyJWT -fuzztime=$T
           go test ./internal/gmail -run=^$ -fuzz=FuzzCheckState -fuzztime=$T
-      - name: Vulnerabilidades conocidas (govulncheck)
-        run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
-      - name: Análisis estático de seguridad (gosec)
-        run: go run github.com/securego/gosec/v2/cmd/gosec@latest -exclude-dir=web ./...
+      - name: Vulnerabilidades conocidas alcanzables (bloquea el despliegue)
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
+
+  # gosec informa en la pestaña Security (Code scanning) sin bloquear: sus hallazgos se revisan a mano.
+  gosec:
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    permissions: { contents: read, security-events: write }
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with: { persist-credentials: false }
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with: { go-version-file: go.mod }
+      - run: |
+          mkdir -p internal/webui/dist && touch internal/webui/dist/.gitkeep
+          go run github.com/securego/gosec/v2/cmd/gosec@v2.29.0 -no-fail -fmt sarif -out gosec.sarif -exclude-dir=web ./...
+      - uses: github/codeql-action/upload-sarif@66e692051da0915b214c5158091a226015d453f4 # v3.38.3
+        with: { sarif_file: gosec.sarif, category: gosec }
 
   web:
     runs-on: ubuntu-latest
     defaults: { run: { working-directory: web } }
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: 22, cache: npm, cache-dependency-path: web/package-lock.json }
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with: { node-version: 24, cache: npm, cache-dependency-path: web/package-lock.json }
       - run: npm ci
       - run: npx tsc --noEmit
       - run: npx vitest run
@@ -48,37 +77,111 @@ jobs:
     runs-on: ubuntu-latest
     needs: [go, web]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with: { go-version: '1.27' }
-      - uses: actions/setup-node@v4
-        with: { node-version: 22, cache: npm, cache-dependency-path: web/package-lock.json }
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with: { persist-credentials: false }
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with: { go-version-file: go.mod }
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with: { node-version: 24, cache: npm, cache-dependency-path: web/package-lock.json }
       - run: cd web && npm ci && npm run build && npx playwright install --with-deps chromium
       - run: cd web && npx playwright test
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: failure()
-        with: { name: playwright, path: web/test-results }
+        with: { name: playwright, path: web/test-results, retention-days: 7 }
 
-  docker:
+  # Imagen: se construye y se prueba SIEMPRE; solo se publica y firma desde main.
+  image:
     runs-on: ubuntu-latest
     needs: [e2e]
-    permissions: { contents: read, packages: write }
+    if: github.event_name != 'schedule'
+    permissions:
+      contents: read
+      packages: write # publicar en GHCR
+      id-token: write # firma sin claves (cosign + OIDC de GitHub)
+    outputs:
+      digest: ${{ steps.push.outputs.digest }}
+    env:
+      PUBLISH: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
     steps:
-      - uses: actions/checkout@v4
-      - run: docker build -t pulse:ci .
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with: { persist-credentials: false }
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+      - id: meta
+        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5.10.0
+        with:
+          images: ${{ env.IMAGE }}
+          tags: |
+            type=sha,format=long,prefix=
+            type=raw,value=main,enable=${{ github.ref == 'refs/heads/main' }}
+          labels: |
+            org.opencontainers.image.title=Pulse
+            org.opencontainers.image.description=Registro de gastos personales
+      - name: Construir (los tests de Go corren dentro del Dockerfile)
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
+        with:
+          context: .
+          load: true
+          tags: pulse:ci
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
       - name: Escaneo de la imagen (Trivy)
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8 # v0.33.1
         with: { image-ref: 'pulse:ci', severity: 'CRITICAL,HIGH', exit-code: '1', ignore-unfixed: true }
-      - name: Arranca con sistema de archivos de solo lectura
+      - name: Arranca con sistema de archivos de solo lectura y sin capacidades
         run: |
           mkdir -p s d && head -c32 /dev/urandom | base64 > s/kek && sudo chown -R 65532:65532 s d
-          docker run -d --name p --read-only --cap-drop ALL -v $PWD/s:/run/secrets:ro -v $PWD/d:/data \
-            -e PULSE_BASE_URL=https://pulse.test -e PULSE_KEK_FILE=/run/secrets/kek -p 8080:8080 pulse:ci
-          sleep 3 && docker exec p /pulse healthcheck && docker logs p
-      - name: Publicar en GHCR
-        if: github.ref == 'refs/heads/main'
+          docker run -d --name p --read-only --cap-drop ALL --security-opt no-new-privileges -v $PWD/s:/run/secrets:ro -v $PWD/d:/data \
+            -e PULSE_BASE_URL=https://pulse.test -e PULSE_KEK_FILE=/run/secrets/kek pulse:ci
+          sleep 3 && docker exec p /pulse healthcheck
+          docker exec p /pulse backup /data/backups/ci.db
+          docker logs p
+      - name: Entrar en GHCR
+        if: env.PUBLISH == 'true'
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        with: { registry: ghcr.io, username: '${{ github.actor }}', password: '${{ secrets.GITHUB_TOKEN }}' }
+      - name: Publicar (misma construcción, desde la caché)
+        id: push
+        if: env.PUBLISH == 'true'
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          provenance: mode=max
+          sbom: true
+      - uses: sigstore/cosign-installer@7e8b541eb2e61bf99390e1afd4be13a184e9ebc5 # v3.10.1
+        if: env.PUBLISH == 'true'
+      - name: Firmar la imagen (el VPS solo despliega imágenes firmadas por este workflow)
+        if: env.PUBLISH == 'true'
+        run: cosign sign --yes "${IMAGE}@${{ steps.push.outputs.digest }}"
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: [image]
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    # Las credenciales del VPS solo existen en este entorno (Settings → Environments → production).
+    environment: { name: production, url: 'https://pulse.espectro.uk' }
+    concurrency: { group: deploy-production, cancel-in-progress: false }
+    steps:
+      - name: Desplegar en el VPS
+        env:
+          DIGEST: ${{ needs.image.outputs.digest }}
+          SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
+          HOST: ${{ secrets.VPS_HOST }}
+          PORT: ${{ secrets.VPS_PORT }}
         run: |
-          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-          IMG=ghcr.io/${{ github.repository_owner }}/pulse
-          docker tag pulse:ci $IMG:latest && docker tag pulse:ci $IMG:${{ github.sha }}
-          docker push $IMG:latest && docker push $IMG:${{ github.sha }}
+          set -euo pipefail
+          [[ "$DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]] || { echo "digest inválido"; exit 1; }
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy && chmod 600 ~/.ssh/deploy
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts # huella fija: nada de "aceptar cualquier servidor"
+          # La clave solo puede ejecutar deploy.sh en el VPS (comando forzado); esto son sus argumentos.
+          ssh -i ~/.ssh/deploy -p "${PORT:-22}" -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o BatchMode=yes \
+            -o ServerAliveInterval=15 "deploy@${HOST}" "deploy ${DIGEST} ${GITHUB_SHA}"
+      - name: Borrar la clave
+        if: always()
+        run: rm -f ~/.ssh/deploy

@@ -21,6 +21,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"sort"
 	"strings"
 	"syscall"
 	"text/tabwriter"
@@ -58,6 +59,10 @@ func main() {
 		err = userCmd(os.Args[2:])
 	case "genkeys":
 		err = genkeys(os.Args[2:])
+	case "backup":
+		err = backupCmd(os.Args[2:])
+	case "restore":
+		err = restoreCmd(os.Args[2:])
 	case "parse":
 		err = parseCmd(os.Args[2:])
 	case "vapid":
@@ -81,6 +86,8 @@ func usage() {
   user list | disable <email> | enable <email> | reset-mfa <email>
   genkeys --out <directorio>
   vapid --out <directorio>
+  backup [--keep N] <archivo.db>  respaldo en caliente (VACUUM INTO)
+  restore <archivo.db>     reemplaza la base por un respaldo (con el servidor detenido)
   parse [--texto] [--titular "NOMBRE"] correo.eml…`)
 	os.Exit(2)
 }
@@ -444,4 +451,62 @@ func readSecret(path string) (string, error) {
 		return "", errors.New("el archivo está vacío")
 	}
 	return v, nil
+}
+
+// backupCmd y restoreCmd los usa deploy/deploy.sh: respaldo antes de cada despliegue y
+// vuelta atrás si la versión nueva no arranca (sus migraciones ya cambiaron la base).
+func backupCmd(args []string) error {
+	fs := flag.NewFlagSet("backup", flag.ContinueOnError)
+	keep := fs.Int("keep", 0, "conservar solo los N respaldos .db más recientes de la carpeta (0 = todos)")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	args = fs.Args()
+	if len(args) != 1 {
+		return errors.New("uso: pulse backup [--keep N] <archivo.db>")
+	}
+	cfg, err := config.Load(os.Getenv)
+	if err != nil {
+		return fmt.Errorf("configuración inválida:\n%w", err)
+	}
+	d, err := db.Open(cfg.DBPath)
+	if err != nil {
+		return err
+	}
+	defer d.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+	if err := db.Backup(ctx, d, args[0]); err != nil {
+		return err
+	}
+	v, _ := db.Version(ctx, d)
+	fmt.Printf("respaldo listo: %s (esquema v%d)\n", args[0], v)
+	if *keep > 0 {
+		old, _ := filepath.Glob(filepath.Join(filepath.Dir(args[0]), "*.db"))
+		sort.Strings(old) // los nombres empiezan con la fecha: orden alfabético = cronológico
+		for len(old) > *keep {
+			if err := os.Remove(old[0]); err != nil {
+				return err
+			}
+			old = old[1:]
+		}
+	}
+	return nil
+}
+
+func restoreCmd(args []string) error {
+	if len(args) != 1 {
+		return errors.New("uso: pulse restore <archivo.db>")
+	}
+	cfg, err := config.Load(os.Getenv)
+	if err != nil {
+		return fmt.Errorf("configuración inválida:\n%w", err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+	if err := db.Restore(ctx, args[0], cfg.DBPath); err != nil {
+		return err
+	}
+	fmt.Printf("base restaurada desde %s\n", args[0])
+	return nil
 }

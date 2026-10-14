@@ -10,6 +10,8 @@ internal/webui/dist/*
 /.tools/
 /.dev/
 /cover.out
+/cover
+/_to_delete/
 /artifacts/ui/
 
 # datos y secretos: NUNCA al repositorio

@@ -2,9 +2,9 @@
 # Antes del primer arranque, ver deploy/README.md (clave maestra y permisos).
 services:
   pulse:
-    build:
-      context: ./src          # clon del repositorio
-    image: pulse:latest
+    # La imagen la construye y firma GitHub Actions; deploy.sh escribe el digest en release.env
+    # y arranca con: docker compose --env-file release.env up -d
+    image: ${PULSE_IMAGE:?falta PULSE_IMAGE: usa deploy.sh o --env-file release.env}
     container_name: pulse
     restart: unless-stopped
     env_file: .env            # solo configuración NO secreta
@@ -20,7 +20,7 @@ services:
       # - google_client_secret
       # - gemini_key
     volumes:
-      - ./data:/data          # pulse.db (propiedad de uid 65532)
+      - ./data:/data          # pulse.db y backups/ (propiedad de uid 65532)
     networks:
       - proxy                 # sin "ports:": solo Caddy llega al contenedor
     read_only: true

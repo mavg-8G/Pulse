@@ -1,0 +1,2 @@
+# Los .eml de prueba van tal cual (CRLF, como un correo real)
+internal/mailparse/testdata/*.eml -text
