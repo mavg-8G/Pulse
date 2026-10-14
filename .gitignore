@@ -1,0 +1,23 @@
+# dependencias y compilados
+web/node_modules/
+web/.e2e/
+web/test-results/
+web/playwright-report/
+internal/webui/dist/*
+!internal/webui/dist/.gitkeep
+/pulse
+/bin/
+/.tools/
+/.dev/
+/cover.out
+/artifacts/ui/
+
+# datos y secretos: NUNCA al repositorio
+data/
+secrets/
+deploy/secrets/
+deploy/data/
+*.db
+*.db-shm
+*.db-wal
+.env

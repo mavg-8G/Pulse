@@ -1,0 +1,17 @@
+{
+  "status": "expense",
+  "parser": "produbanco-consumo-v1",
+  "expense": {
+    "institution": "Produbanco",
+    "amount_cents": 125000,
+    "currency": "USD",
+    "merchant_raw": "KUSHKI*AEROLINEA DEL ECUADOR",
+    "merchant": "Aerolinea del Ecuador",
+    "card_suffix": "7828",
+    "card_type": "credit",
+    "occurred_at": "2026-09-01T13:05:00Z",
+    "kind": "purchase",
+    "parser": "produbanco-consumo-v1",
+    "confidence": 0.95
+  }
+}

@@ -1,0 +1,5 @@
+{
+  "status": "ignored",
+  "parser": "produbanco-consumo-v1",
+  "reason": "transferencia (aún no soportada)"
+}

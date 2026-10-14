@@ -1,0 +1,17 @@
+{
+  "status": "expense",
+  "parser": "diners-titanium-compra-v1",
+  "expense": {
+    "institution": "Titanium (Diners Club)",
+    "amount_cents": 812,
+    "currency": "USD",
+    "merchant_raw": "DLC* UBER EATS",
+    "merchant": "Uber Eats",
+    "card_suffix": "666",
+    "card_type": "credit",
+    "occurred_at": "2026-06-20T19:31:00Z",
+    "kind": "purchase",
+    "parser": "diners-titanium-compra-v1",
+    "confidence": 0.95
+  }
+}

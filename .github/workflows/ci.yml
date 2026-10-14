@@ -1,0 +1,84 @@
+name: CI
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: '17 6 * * *' # fuzzing largo cada noche
+
+jobs:
+  go:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: '1.27' }
+      - name: Formato y vet
+        run: test -z "$(gofmt -l $(git ls-files '*.go'))" && go vet ./...
+      - name: Tests con detector de carreras
+        run: go test -race -coverprofile=cover.out ./... && go tool cover -func=cover.out | tail -1
+      - name: Fuzzing
+        run: |
+          T=${{ github.event_name == 'schedule' && '10m' || '30s' }}
+          go test ./internal/crypto -run=^$ -fuzz=FuzzOpen -fuzztime=$T
+          go test ./internal/passkey -run=^$ -fuzz=FuzzCOSEyAuthData -fuzztime=$T
+          go test ./internal/budget -run=^$ -fuzz=FuzzCompute -fuzztime=$T
+          go test ./internal/mailparse -run=^$ -fuzz=FuzzParseAmount -fuzztime=$T
+          go test ./internal/mailparse -run=^$ -fuzz=FuzzParseDate -fuzztime=$T
+          go test ./internal/mailparse -run=^$ -fuzz=FuzzEML -fuzztime=$T
+          go test ./internal/gmail -run=^$ -fuzz=FuzzVerifyJWT -fuzztime=$T
+          go test ./internal/gmail -run=^$ -fuzz=FuzzCheckState -fuzztime=$T
+      - name: Vulnerabilidades conocidas (govulncheck)
+        run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+      - name: Análisis estático de seguridad (gosec)
+        run: go run github.com/securego/gosec/v2/cmd/gosec@latest -exclude-dir=web ./...
+
+  web:
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: web } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm, cache-dependency-path: web/package-lock.json }
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npx vitest run
+      - run: npm audit --omit=dev --audit-level=high
+
+  e2e:
+    runs-on: ubuntu-latest
+    needs: [go, web]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: '1.27' }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm, cache-dependency-path: web/package-lock.json }
+      - run: cd web && npm ci && npm run build && npx playwright install --with-deps chromium
+      - run: cd web && npx playwright test
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with: { name: playwright, path: web/test-results }
+
+  docker:
+    runs-on: ubuntu-latest
+    needs: [e2e]
+    permissions: { contents: read, packages: write }
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t pulse:ci .
+      - name: Escaneo de la imagen (Trivy)
+        uses: aquasecurity/trivy-action@0.28.0
+        with: { image-ref: 'pulse:ci', severity: 'CRITICAL,HIGH', exit-code: '1', ignore-unfixed: true }
+      - name: Arranca con sistema de archivos de solo lectura
+        run: |
+          mkdir -p s d && head -c32 /dev/urandom | base64 > s/kek && sudo chown -R 65532:65532 s d
+          docker run -d --name p --read-only --cap-drop ALL -v $PWD/s:/run/secrets:ro -v $PWD/d:/data \
+            -e PULSE_BASE_URL=https://pulse.test -e PULSE_KEK_FILE=/run/secrets/kek -p 8080:8080 pulse:ci
+          sleep 3 && docker exec p /pulse healthcheck && docker logs p
+      - name: Publicar en GHCR
+        if: github.ref == 'refs/heads/main'
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+          IMG=ghcr.io/${{ github.repository_owner }}/pulse
+          docker tag pulse:ci $IMG:latest && docker tag pulse:ci $IMG:${{ github.sha }}
+          docker push $IMG:latest && docker push $IMG:${{ github.sha }}

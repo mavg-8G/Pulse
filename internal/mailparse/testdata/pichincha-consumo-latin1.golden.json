@@ -1,0 +1,17 @@
+{
+  "status": "expense",
+  "parser": "pichincha-consumo-v1",
+  "expense": {
+    "institution": "Banco Pichincha",
+    "amount_cents": 123456,
+    "currency": "USD",
+    "merchant_raw": "DLC* SUPERMAXI CEIBOS",
+    "merchant": "Supermaxi Ceibos",
+    "card_suffix": "989",
+    "card_type": "credit",
+    "occurred_at": "2026-11-01T04:30:00Z",
+    "kind": "purchase",
+    "parser": "pichincha-consumo-v1",
+    "confidence": 0.95
+  }
+}

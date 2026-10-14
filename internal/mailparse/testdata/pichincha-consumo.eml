@@ -1,0 +1,31 @@
+From: Banco Pichincha <servicios@tarjetasbancopichincha.com>
+To: titular@example.com
+Subject: Notificación de consumo
+Date: Mon, 12 Oct 2026 18:24:51 -0500
+Message-ID: <pichincha-consumo@pruebas.pulse>
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="LIMITE"
+
+--LIMITE
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+
+<html><head><style>td{font-family:Arial}</style><title>Banco Pichincha</tit=
+le></head><body>
+<table width=3D"600"><tr><td align=3D"right">TITULAR DE PRUEBA</td><td><img=
+ src=3D"cid:candado"></td></tr></table>
+<table><tr><td><img alt=3D"Banco Pichincha" src=3D"cid:logo"></td></tr></ta=
+ble>
+<p style=3D"text-align:center">TARJETA DE CR&Eacute;DITO</p>
+<h1>Has realizado un consumo</h1>
+<table class=3D"detalle">
+<tr><td><b>Valor</b></td><td align=3D"right"><b>$&nbsp;17,68</b></td></tr>
+<tr><td>Establecimiento</td><td align=3D"right"><b>CARL S ALBAN BORJA</b></=
+td></tr>
+<tr><td>Tarjeta usada</td><td align=3D"right"><b>989</b></td></tr>
+<tr><td>Fecha</td><td align=3D"right"><b>2026-10-12 18:24</b></td></tr>
+</table>
+<p style=3D"font-size:10px">Si no reconoces este consumo comun&iacute;cate =
+al 02 2999 999.</p>
+</body></html>
+--LIMITE--

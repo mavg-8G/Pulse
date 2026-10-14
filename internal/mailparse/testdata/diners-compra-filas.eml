@@ -1,0 +1,20 @@
+From: servicios@titanium.com.ec
+To: titular@example.com
+Subject: Notificación de Consumos
+Date: Sun, 21 Jun 2026 09:05:00 -0500
+Message-ID: <diners-compra-filas@pruebas.pulse>
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="LIMITE"
+
+--LIMITE
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+
+<html><body><h2>&iexcl;Hola, TITULAR DE PRUEBA!</h2>
+<p>Realizaste una compra con tu TITANIUM Visa .</p><p>Este es el detalle:</=
+p>
+<p>Tarjeta terminada en 666</p>
+<table><tr><th>Fecha</th><th>Establecimiento</th><th>Valor</th></tr>
+<tr><td>2026-06-21 09:05</td><td>PAYPAL *SPOTIFY</td><td>5,99</td></tr></ta=
+ble></body></html>
+--LIMITE--

@@ -1,0 +1,16 @@
+From: servicios@tarjetasbancopichincha.com
+To: titular@example.com
+Subject: Pago recibido
+Date: Mon, 12 Oct 2026 18:24:51 -0500
+Message-ID: <pichincha-pago@pruebas.pulse>
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="LIMITE"
+
+--LIMITE
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+
+<html><body><p>TITULAR DE PRUEBA</p><h1>Hemos recibido tu pago</h1><table><=
+tr><td>Valor</td><td>$ 250,00</td></tr><tr><td>Fecha</td><td>2026-10-05 09:=
+10</td></tr></table></body></html>
+--LIMITE--

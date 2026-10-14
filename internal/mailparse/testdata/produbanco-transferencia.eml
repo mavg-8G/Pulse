@@ -1,0 +1,16 @@
+From: bancaenlinea@produbanco.com
+To: titular@example.com
+Subject: Transferencia exitosa
+Date: Mon, 12 Oct 2026 18:24:51 -0500
+Message-ID: <produbanco-transferencia@pruebas.pulse>
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="LIMITE"
+
+--LIMITE
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+
+<html><body><p>Estimado/a</p><p>TITULAR DE PRUEBA</p><p>Fecha y Hora: 9/Oct=
+ubre/2026 10:00</p><p>Transacci&oacute;n: <b>Transferencia a terceros</b></=
+p><p><b>Valor:</b> USD 50.00</p></body></html>
+--LIMITE--

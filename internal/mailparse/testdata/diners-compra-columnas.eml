@@ -1,0 +1,28 @@
+From: servicios@titanium.com.ec
+To: titular@example.com
+Subject: Notificación de Consumos
+Date: Sat, 20 Jun 2026 14:31:10 -0500
+Message-ID: <diners-compra-columnas@pruebas.pulse>
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="LIMITE"
+
+--LIMITE
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+
+<html><body><div style=3D"text-align:center"><img alt=3D"Diners Club" src=
+=3D"cid:logo">
+<h2>&iexcl;Hola, TITULAR DE PRUEBA!</h2>
+<p>Realizaste una compra con tu <b>TITANIUM Visa</b> .<br>Este es el detall=
+e:</p>
+<table><tr><td><img src=3D"cid:tarjeta"><br>Tarjeta terminada en <b>666</b>=
+</td></tr></table>
+<table><tr>
+<td>Fecha<br><b>2026-06-20<br>14:31</b></td>
+<td>Establecimiento<br><b>DLC* UBER EATS</b></td>
+<td>Valor<br><b>8,12</b></td>
+</tr></table>
+<p>Recuerda que con tus Tarjetas Diners Club ClubMiles<br>Por cada <b>USD 1=
+</b> de consumo acumulas <b>1 milla</b>.</p>
+</div></body></html>
+--LIMITE--

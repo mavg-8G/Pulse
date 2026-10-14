@@ -1,0 +1,17 @@
+{
+  "status": "expense",
+  "parser": "produbanco-consumo-v1",
+  "expense": {
+    "institution": "Produbanco",
+    "amount_cents": 434,
+    "currency": "USD",
+    "merchant_raw": "PEDIDOSYA GROCERIES",
+    "merchant": "Pedidosya Groceries",
+    "card_suffix": "7828",
+    "card_type": "credit",
+    "occurred_at": "2026-10-08T21:25:00Z",
+    "kind": "purchase",
+    "parser": "produbanco-consumo-v1",
+    "confidence": 0.95
+  }
+}

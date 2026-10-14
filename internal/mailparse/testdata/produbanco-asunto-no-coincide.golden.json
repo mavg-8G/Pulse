@@ -1,0 +1,5 @@
+{
+  "status": "unrecognized",
+  "parser": "produbanco-consumo-v1",
+  "reason": "el asunto dice 500 centavos y el cuerpo 434"
+}

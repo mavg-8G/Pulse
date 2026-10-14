@@ -1,0 +1,17 @@
+{
+  "status": "expense",
+  "parser": "pichincha-consumo-v1",
+  "expense": {
+    "institution": "Banco Pichincha",
+    "amount_cents": 1768,
+    "currency": "USD",
+    "merchant_raw": "CARL S ALBAN BORJA",
+    "merchant": "Carl S Alban Borja",
+    "card_suffix": "989",
+    "card_type": "credit",
+    "occurred_at": "2026-10-12T23:24:00Z",
+    "kind": "purchase",
+    "parser": "pichincha-consumo-v1",
+    "confidence": 0.95
+  }
+}

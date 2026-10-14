@@ -1,0 +1,17 @@
+{
+  "status": "expense",
+  "parser": "diners-titanium-compra-v1",
+  "expense": {
+    "institution": "Titanium (Diners Club)",
+    "amount_cents": 599,
+    "currency": "USD",
+    "merchant_raw": "PAYPAL *SPOTIFY",
+    "merchant": "Spotify",
+    "card_suffix": "666",
+    "card_type": "credit",
+    "occurred_at": "2026-06-21T14:05:00Z",
+    "kind": "purchase",
+    "parser": "diners-titanium-compra-v1",
+    "confidence": 0.95
+  }
+}

@@ -1,0 +1,10 @@
+.git
+**/node_modules
+web/.e2e
+web/test-results
+web/playwright-report
+data
+secrets
+deploy/secrets
+*.db
+*.db-*

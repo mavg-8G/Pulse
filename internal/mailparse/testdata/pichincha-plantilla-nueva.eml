@@ -1,0 +1,15 @@
+From: servicios@tarjetasbancopichincha.com
+To: titular@example.com
+Subject: Tu compra
+Date: Mon, 12 Oct 2026 18:24:51 -0500
+Message-ID: <pichincha-plantilla-nueva@pruebas.pulse>
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="LIMITE"
+
+--LIMITE
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+
+<html><body><h1>Compraste algo</h1><table><tr><td>Monto</td><td>$ 9,99</td>=
+</tr></table></body></html>
+--LIMITE--

@@ -1,0 +1,57 @@
+# /opt/docker/pulse/docker-compose.yml
+# Antes del primer arranque, ver deploy/README.md (clave maestra y permisos).
+services:
+  pulse:
+    build:
+      context: ./src          # clon del repositorio
+    image: pulse:latest
+    container_name: pulse
+    restart: unless-stopped
+    env_file: .env            # solo configuración NO secreta
+    environment:
+      PULSE_KEK_FILE: /run/secrets/pulse_kek
+      PULSE_VAPID_PRIVATE_FILE: /run/secrets/vapid_private
+      # Gmail (ver GMAIL.md): descomenta junto con los secretos de abajo.
+      # PULSE_GOOGLE_CLIENT_SECRET_FILE: /run/secrets/google_client_secret
+      # PULSE_GEMINI_KEY_FILE: /run/secrets/gemini_key
+    secrets:
+      - pulse_kek
+      - vapid_private
+      # - google_client_secret
+      # - gemini_key
+    volumes:
+      - ./data:/data          # pulse.db (propiedad de uid 65532)
+    networks:
+      - proxy                 # sin "ports:": solo Caddy llega al contenedor
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 256m
+    cpus: 1.0
+    pids_limit: 128
+    healthcheck:
+      test: ["CMD", "/pulse", "healthcheck"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+secrets:
+  pulse_kek:
+    file: ./secrets/pulse_kek
+  vapid_private:
+    file: ./secrets/vapid_private
+  # google_client_secret:
+  #   file: ./secrets/google_client_secret
+  # gemini_key:                 # opcional
+  #   file: ./secrets/gemini_key
+
+networks:
+  proxy:
+    external: true

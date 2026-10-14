@@ -1,0 +1,15 @@
+From: servicios@titanium.com.ec
+To: titular@example.com
+Subject: Novedades ClubMiles
+Date: Mon, 12 Oct 2026 18:24:51 -0500
+Message-ID: <diners-plantilla-nueva@pruebas.pulse>
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="LIMITE"
+
+--LIMITE
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+
+<html><body><h2>Acumula el doble de millas este mes</h2><p>Valor promociona=
+l</p></body></html>
+--LIMITE--
