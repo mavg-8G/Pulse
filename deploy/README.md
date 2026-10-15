@@ -93,6 +93,18 @@ En tu PC (PowerShell o bash):
 ```bash
 ssh-keygen -t ed25519 -N "" -C github-actions-pulse -f pulse_deploy
 ```
+
+Si usas Windows PowerShell y `-N ""` no funciona, ejecuta `ssh-keygen -t ed25519 -C github-actions-pulse -f pulse_deploy` y pulsa Enter en las dos preguntas de contraseña. Esta identidad es exclusiva del despliegue y el usuario del VPS tiene el comando restringido indicado abajo.
+
+En PowerShell, comprueba el archivo y copia su contenido completo al portapapeles, sin mostrarlo en el terminal:
+
+```powershell
+ssh-keygen -y -f .\pulse_deploy | Out-Null
+# Debe terminar correctamente sin pedir contraseña.
+Get-Content -LiteralPath .\pulse_deploy -Raw | Set-Clipboard
+```
+
+Pégalo en `VPS_SSH_KEY`, dentro del entorno `production`. Incluye las líneas `-----BEGIN OPENSSH PRIVATE KEY-----` y `-----END OPENSSH PRIVATE KEY-----` y todos los saltos de línea intermedios. No pegues el archivo `.pub`, una huella `SHA256:…`, una ruta de archivo, texto codificado en Base64 de todo el archivo ni secuencias literales `\n`. No compartas la clave privada en el chat.
 En el VPS, autoriza la clave **pública** (`pulse_deploy.pub`) solo para `deploy.sh`:
 ```bash
 sudo install -d -o deploy -g deploy -m 700 /home/deploy/.ssh
@@ -169,6 +181,8 @@ Agrega en Uptime Kuma un monitor HTTP a `https://pulse.espectro.uk/healthz`.
 `No ED25519 host key is known …` significa que el cliente no tiene una entrada válida para ese destino; no demuestra un fallo de la clave privada de acceso. Revisa los secrets del entorno `production`, separa host y puerto y guarda la clave ED25519 completa. Conserva `StrictHostKeyChecking=yes`.
 
 Si la identidad del servidor cambia, verifica la nueva huella desde la consola del proveedor antes de sustituir el secret. Después de actualizar el secret, **Re-run failed jobs** repite el despliegue con la imagen ya construida.
+
+`Load key …: error in libcrypto` corresponde a la lectura de `VPS_SSH_KEY`, una vez superada la comprobación del servidor. Revisa la clave privada con el paso 5 y vuelve a guardar el archivo completo en el secret. CI comprueba que se pueda leer sin contraseña antes de conectarse. Si no conservas el archivo privado válido, genera una identidad nueva con otro nombre, autoriza su pública en el VPS con la misma restricción y usa su privada en GitHub. No cambies `VPS_KNOWN_HOSTS` para corregir este error.
 
 ## Día a día
 

@@ -4,6 +4,7 @@ Este registro compara el proyecto actual con `_to_delete/pulse-fases-0-4.tar.gz`
 
 ## Sin publicar — CI y despliegue (14 oct 2026)
 
+- Validación de `VPS_SSH_KEY` con OpenSSH antes de conectarse, sin imprimir la clave; mensaje explícito si el secret no contiene una privada completa y sin contraseña. Guía de Windows para comprobar y copiar el archivo correcto.
 - Preparación SSH del despliegue: clave ED25519 del secret asociada al host/puerto configurado, validación de campos y formato, rechazo de claves ambiguas y compatibilidad con saltos de línea de Windows. Se conserva la verificación estricta; la guía explica cómo verificar la huella y corregir los secrets de `production`.
 - Contenedor de la prueba de humo renombrado de `p` a `pulse-ci-smoke`, para evitar el rechazo de Docker observado en Actions. Logs y limpieza se ejecutan también cuando falla la prueba.
 

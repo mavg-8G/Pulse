@@ -83,3 +83,9 @@ No se construyó ni escaneó la imagen completa localmente porque Docker no est�
 Se conservó la adaptación de la clave ED25519 del secret al destino configurado y se añadieron validaciones de host, puerto, claves distintas y formato de clave, eliminación de CRLF en la clave privada y selección explícita del archivo conocido. `StrictHostKeyChecking=yes` sigue activo: no se consulta ni se acepta una clave de red automáticamente durante CI.
 
 `actionlint` y ocho casos offline de preparación SSH pasan: puerto 22, puerto personalizado, entradas duplicadas con CRLF, rechazo de host con puerto, puerto inválido, huella sin clave pública, clave malformada y varias claves distintas. El fixture local sustituye solo las operaciones de permisos POSIX en Windows, usa archivos aislados y no ejecuta SSH contra el VPS. La actualización del secret `VPS_KNOWN_HOSTS` se debe basar en la consola confiable del proveedor.
+
+### Clave privada de acceso
+
+Se añadió `ssh-keygen -y -P ''` con salida descartada para rechazar una identidad ilegible o cifrada antes de intentar SSH. Diez casos offline pasan con una clave efímera de pruebas y OpenSSH de Git; incluyen privadas válidas y rechazo de texto malformado o de una pública en lugar de privada. No se publicaron claves privadas ni fixtures.
+
+La identidad local `pulse_deploy` se validó sin imprimirla y coincide con su archivo público. La consulta SSH de solo lectura `status` al destino configurado fue rechazada con `Permission denied (publickey,password)`: además de volver a guardar la privada correcta en el secret, queda revisar la autorización y permisos del usuario `deploy` en el VPS. No se modificó el servidor ni se actualizaron secrets de GitHub desde esta sesión.

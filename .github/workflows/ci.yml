@@ -216,6 +216,11 @@ jobs:
             { echo "VPS_HOST debe contener solo el dominio o IP; configura el puerto aparte en VPS_PORT"; exit 1; }
           install -d -m 700 ~/.ssh
           printf '%s\n' "$SSH_KEY" | tr -d '\r' > ~/.ssh/deploy && chmod 600 ~/.ssh/deploy
+          # Valida sin imprimir la clave ni intentar una conexión con una identidad ilegible.
+          if ! ssh-keygen -y -P '' -f ~/.ssh/deploy >/dev/null 2>&1; then
+            echo "::error::VPS_SSH_KEY debe ser la clave privada completa y sin contraseña (archivo pulse_deploy, no pulse_deploy.pub). Conserva BEGIN/END y saltos de línea reales."
+            exit 1
+          fi
           # Huella fija: nada de "aceptar cualquier servidor". Del secreto solo se toma el tipo y la clave
           # (admite la salida completa de ssh-keyscan) y se asocian al host/puerto reales del despliegue.
           KEY="$(grep -v '^#' <<<"$KNOWN_HOSTS" | grep -oE 'ssh-ed25519 [A-Za-z0-9+/=]+' | sort -u)" ||
