@@ -1,5 +1,4 @@
-/// <reference types="vitest" />
-import { defineConfig } from 'vite'
+import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 import { writeFileSync } from 'node:fs'
@@ -22,7 +21,7 @@ export default defineConfig({
         importScripts: ['/push-sw.js'],
         globPatterns: ['**/*.{js,css,html,svg,png,woff2,webmanifest}'],
         navigateFallback: '/index.html',
-        navigateFallbackDenylist: [/^\/api\//, /^\/healthz/],
+        navigateFallbackDenylist: [/^\/api\//, /^\/healthz/, /^\/privacidad/, /^\/terminos/],
         // La API NUNCA se guarda en caché: son datos bancarios.
         runtimeCaching: [{ urlPattern: /\/api\//, handler: 'NetworkOnly' }],
         cleanupOutdatedCaches: true,

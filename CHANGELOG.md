@@ -1,6 +1,23 @@
 # Registro de cambios de Pulse
 
-Este registro compara el proyecto actual con `_to_delete/pulse-fases-0-4.tar.gz` y recoge el trabajo documentado en esta conversación. El proyecto no tiene historial Git: no se puede confirmar la autoría ni reconstruir cada edición intermedia. La fecha corresponde al registro local, no a una publicación oficial.
+Cambios relevantes de Pulse. Las entradas «Sin publicar» describen cambios posteriores a la versión declarada `0.2.0`; sus fechas corresponden al registro del trabajo y no a una publicación o etiqueta de GitHub. Las secciones históricas conservan el contexto de cada etapa.
+
+## Sin publicar — dependencias y documentación (14 oct 2026)
+
+- Dependencias directas del frontend actualizadas a las versiones estables actuales y lockfile regenerado: React/React DOM 19.3.1, React Router 7.18.4, SimpleWebAuthn 14.0.0 y TanStack Query 5.104.2.
+- Herramientas actualizadas: TypeScript 7.0.2, Vite 8.3.4, plugin React 6.1.2, plugin PWA 2.0.0, Vitest 5.0.4, jsdom 30.1.2, Playwright 1.64.1 y axe 4.13.0; también se actualizan Testing Library, tipos y OTPAuth.
+- Configuración de pruebas adaptada a `vitest/config` y eliminadas las opciones de transición de React Router 6, ya incorporadas en React Router 7.
+- Dependencias directas Go comprobadas contra el registro oficial: ya estaban en sus versiones vigentes. Módulo sincronizado con `go mod tidy` y sumas verificadas.
+- README ampliado con funciones actuales, estructura de Gmail/importación, desarrollo reproducible con `npm ci`, comandos de administración, páginas legales y flujo de despliegue. Changelog corregido para distinguir cambios actuales de observaciones históricas ya resueltas.
+- Comprobación de permisos del test de exportación adaptada a Windows, que usa ACL; se mantiene la validación 0600 en sistemas POSIX.
+- Verificación: instalación reproducible con `npm ci`, compilación del frontend, 41 pruebas Vitest, 42 E2E de escritorio/móvil, `go vet`, pruebas Go con detector de carreras y sumas de módulos correctas. `npm outdated` no reporta dependencias pendientes; `npm audit` pasa de 7 paquetes afectados a 0 vulnerabilidades, incluidas las dependencias de desarrollo. `govulncheck`: 0 vulnerabilidades alcanzables; detecta 1 en un módulo requerido cuyo código afectado no se invoca.
+
+## Sin publicar — privacidad y términos (14 oct 2026)
+
+- Páginas públicas `/privacidad` y `/terminos` con contenido HTML legible sin ejecutar JavaScript y temas claro/oscuro. Documentan el tratamiento de datos, los derechos previstos en la LOPDP de Ecuador y el RGPD, y la declaración de Uso Limitado para `gmail.readonly`. Enlazadas desde el acceso, el registro (aceptación), Ajustes y la conexión de Gmail.
+- `pulse user export <email> <archivo.json>` (acceso y portabilidad) y `pulse user delete <email> --confirmar <email>` (supresión).
+- Registro de seguridad: retención de 12 meses con purga automática. Migración `0007_retencion_auditoria`: el registro sigue siendo inalterable salvo para borrar filas vencidas.
+- El service worker ya no sustituye `/privacidad` y `/terminos` por la app.
 
 ## Sin publicar — CI y despliegue (14 oct 2026)
 
@@ -62,7 +79,7 @@ Este registro compara el proyecto actual con `_to_delete/pulse-fases-0-4.tar.gz`
 - **Requisitos documentados:** README actualizado de Go 1.24+/Node 22 a Go 1.27+/Node 24.
 - **Puerto declarado en Docker:** `EXPOSE 8080` → `EXPOSE 18080`. Esta instrucción describe el puerto de la imagen; por sí sola no cambia dónde escucha el servidor.
 
-### Interfaz y experiencia de uso implementadas en esta conversación
+### Interfaz y experiencia de uso
 
 - Inicio reorganizado para aprovechar el ancho del escritorio: resumen del gasto, gráfico diario, presupuesto, indicadores, últimos movimientos y distribución por categoría.
 - Barra lateral con grupos de navegación, acceso directo a cuentas y categorías, sus contadores, resumen mensual y perfil.
@@ -73,7 +90,7 @@ Este registro compara el proyecto actual con `_to_delete/pulse-fases-0-4.tar.gz`
 - Corrección del trazo del gráfico para que se vea completo después de su animación de entrada.
 - Corrección de la consulta de cuentas de la barra lateral para evitar una lista desactualizada en el formulario de gastos.
 
-### Notificaciones: fase 5 implementada en esta conversación
+### Notificaciones: fase 5
 
 - Suscripciones Web Push por dispositivo y generación de claves VAPID mediante `pulse vapid`.
 - Avisos de presupuesto y seguridad, y resúmenes semanales y mensuales.
@@ -90,15 +107,12 @@ Este registro compara el proyecto actual con `_to_delete/pulse-fases-0-4.tar.gz`
 - Capturas de referencia en `artifacts/ui/`, excluidas del control de versiones mediante `.gitignore`.
 - Resultados de las comprobaciones realizadas documentados en `VERIFICATION.md`: compilación correcta, 39 pruebas unitarias del frontend y 30 escenarios E2E verificados entre la suite general y las ejecuciones focalizadas. Las pruebas del rediseño no utilizaron la base de datos personal.
 
-### Observaciones pendientes detectadas al registrar los cambios
+### Observaciones históricas de esta etapa
 
-- `web/package-lock.json` todavía declara `0.1.0`, mientras `web/package.json` declara `0.2.0`.
-- Docker y README usan Node 24, pero la CI sigue configurada con Node 22.
-- Docker declara el puerto 18080, mientras el servidor usa 8080 por defecto y Caddy apunta a `pulse:8080`. Conviene confirmar el puerto deseado y alinear la configuración.
-- Los parsers bancarios y la conexión con Gmail (fases 6–7) siguen pendientes.
-- La entrega de notificaciones a un teléfono físico sigue requiriendo una comprobación con el proveedor y dispositivo reales.
+- La versión del lockfile, Node en CI y el puerto de Docker presentaban discrepancias; quedaron resueltas en la entrada «CI y despliegue».
+- Los parsers bancarios y Gmail estaban pendientes; quedaron implementados en las fases 6–7 descritas arriba.
 
-Estas observaciones se registran sin modificar las versiones ni la configuración elegidas.
+La entrega de notificaciones a dispositivos físicos sigue siendo una comprobación manual independiente de los E2E.
 
 ## 0.1.0 — Base de referencia
 

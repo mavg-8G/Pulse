@@ -139,3 +139,10 @@ func (s *Store) ResetMFA(ctx context.Context, userID string) error {
 		return nil
 	})
 }
+
+// DeleteUser borra la cuenta y, en cascada, todos sus datos (cuentas, movimientos, presupuestos,
+// reglas, sesiones, MFA, push, Gmail). El registro de seguridad no tiene clave foránea: se conserva
+// hasta que vence su retención (AuditRetention), como declara /privacidad.
+func (s *Store) DeleteUser(ctx context.Context, userID string) error {
+	return affected(s.DB.ExecContext(ctx, `DELETE FROM users WHERE id = ?`, userID))
+}

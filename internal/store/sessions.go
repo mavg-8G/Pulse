@@ -86,11 +86,18 @@ func (s *Store) DeleteOtherSessions(ctx context.Context, userID, keepID string) 
 	return err
 }
 
+// AuditRetention es cuánto se guarda el registro de seguridad (IP, navegador, evento).
+// Debe coincidir con web/public/privacidad.html.
+const AuditRetention = 365 * 24 * time.Hour
+
 func (s *Store) PurgeExpiredSessions(ctx context.Context) error {
 	now := s.now()
 	_, err := s.DB.ExecContext(ctx, `DELETE FROM sessions WHERE expires_at <= ? OR absolute_expires_at <= ?`, now, now)
 	if err == nil {
 		_, err = s.DB.ExecContext(ctx, `DELETE FROM auth_challenges WHERE expires_at <= ?`, now)
+	}
+	if err == nil { // retención declarada en /privacidad
+		_, err = s.DB.ExecContext(ctx, `DELETE FROM audit_log WHERE created_at < ?`, TS(s.Clock.Now().Add(-AuditRetention)))
 	}
 	return err
 }

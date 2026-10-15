@@ -11,6 +11,7 @@ var fake = fstest.MapFS{
 	"index.html":       {Data: []byte("<!doctype html>INDEX")},
 	"sw.js":            {Data: []byte("self.x=1")},
 	"assets/app-1a.js": {Data: []byte("console.log(1)")},
+	"privacidad.html":  {Data: []byte("<!doctype html>PRIVACIDAD")},
 }
 
 func get(p string) *httptest.ResponseRecorder {
@@ -32,7 +33,10 @@ func TestRutas(t *testing.T) {
 		{"/sw.js", "self.x=1", "no-cache", 200},
 		{"/assets/app-1a.js", "console.log(1)", "immutable", 200},
 		{"/assets/no-existe.js", "", "", 404},
-		{"/../../etc/passwd", "INDEX", "", 200}, // la ruta se limpia: nunca sale del FS embebido
+		{"/privacidad", "PRIVACIDAD", "no-cache", 200}, // página legal estática, sin JS
+		{"/terminos", "INDEX", "no-cache", 200},        // sin .html propio → SPA
+		{"/ajustes/privacidad", "INDEX", "", 200},      // solo en la raíz
+		{"/../../etc/passwd", "INDEX", "", 200},        // la ruta se limpia: nunca sale del FS embebido
 	}
 	for _, c := range cases {
 		rec := get(c.path)

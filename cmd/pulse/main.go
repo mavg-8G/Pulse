@@ -84,6 +84,8 @@ func usage() {
   invite list
   invite revoke <id>
   user list | disable <email> | enable <email> | reset-mfa <email>
+  user export <email> <archivo.json>          (derecho de acceso/portabilidad)
+  user delete <email> --confirmar <email>     (derecho de supresión)
   genkeys --out <directorio>
   vapid --out <directorio>
   backup [--keep N] <archivo.db>  respaldo en caliente (VACUUM INTO)
@@ -294,6 +296,16 @@ func userCmd(args []string) error {
 				fmt.Fprintf(tw, "%s\t%s\t%s\t%s\n", u.Email, u.Role, st, u.CreatedAt.Local().Format("2006-01-02"))
 			}
 			return tw.Flush()
+		case "export":
+			if len(args) != 3 {
+				return errors.New("uso: pulse user export <email> <archivo.json>")
+			}
+			return exportUser(ctx, a, args[1], args[2])
+		case "delete":
+			if len(args) != 4 || args[2] != "--confirmar" {
+				return errors.New("uso: pulse user delete <email> --confirmar <email>")
+			}
+			return deleteUser(ctx, a, args[1], args[3])
 		case "disable", "enable", "reset-mfa":
 			if len(args) < 2 {
 				return errors.New("falta el email")

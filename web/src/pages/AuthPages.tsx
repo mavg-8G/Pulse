@@ -17,6 +17,9 @@ function AuthLayout({ title, lead, children }: { title: string; lead?: string; c
         <h1>{title}</h1>
         {lead && <p className="muted">{lead}</p>}
         {children}
+        <p className="auth-legal small muted">
+          <a href="/privacidad">Privacidad</a> · <a href="/terminos">Términos</a>
+        </p>
       </div>
     </main>
   )
@@ -118,6 +121,10 @@ export function RegisterPage() {
           <input className="input" type="password" autoComplete="new-password" required value={form.confirm} onChange={set('confirm')} />
         </label>
         {error && <p className="error" role="alert">{error}</p>}
+        <p className="small muted">
+          Al crear tu cuenta aceptas los <a href="/terminos">Términos y condiciones</a> y confirmas que leíste la{' '}
+          <a href="/privacidad">Política de privacidad</a>.
+        </p>
         <button className="btn btn-primary btn-block" disabled={busy}>
           {busy ? 'Creando…' : 'Crear cuenta'}
         </button>

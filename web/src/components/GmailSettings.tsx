@@ -86,7 +86,10 @@ export function GmailSettings({ tz }: { tz: string }) {
             <span className="grow">
               Registrar gastos automáticamente
               <br />
-              <span className="small faint">Pulse lee solo las notificaciones de tus bancos y nunca guarda tus correos.</span>
+              <span className="small faint">
+                Pulse lee solo las notificaciones de tus bancos y nunca guarda tus correos.{' '}
+                <a href="/privacidad#gmail">Qué datos usa</a>
+              </span>
             </span>
             <button className="btn btn-sm btn-primary" disabled={busy} onClick={connect}>Conectar Gmail</button>
           </div>

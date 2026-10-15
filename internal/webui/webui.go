@@ -48,6 +48,15 @@ func HandlerFS(sub fs.FS) http.Handler {
 			files.ServeHTTP(w, r)
 			return
 		}
+		// Páginas estáticas sin JavaScript (/privacidad, /terminos): deben leerse sin sesión
+		// y sin ejecutar la app, p. ej. por el revisor de Google.
+		if path.Ext(p) == "" && !strings.Contains(p, "/") {
+			if st, err := fs.Stat(sub, p+".html"); err == nil && !st.IsDir() {
+				w.Header().Set("Cache-Control", "no-cache")
+				http.ServeFileFS(w, r, sub, p+".html")
+				return
+			}
+		}
 		// Rutas del SPA (/movimientos, /plan…) → index.html. Archivos inexistentes con extensión → 404.
 		if path.Ext(p) != "" {
 			http.NotFound(w, r)

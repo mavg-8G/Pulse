@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Política de privacidad de Pulse: qué datos trata, para qué, dónde se guardan y cómo ejercer tus derechos." />
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/legal.css" />
+    <script src="/theme.js"></script>
+    <title>Política de privacidad · Pulse</title>
+  </head>
+  <body>
+    <main>
+      <header>
+        <img src="/icon.svg" alt="" />
+        <a href="/">Pulse</a>
+      </header>
+
+      <h1>Política de privacidad</h1>
+      <p class="meta">Vigente desde el 14 de octubre de 2026 · Versión 1.0</p>
+
+      <div class="box">
+        <p><strong>En resumen.</strong> Pulse es un registro personal de gastos, privado y solo por invitación. Tratamos lo mínimo
+          para que funcione: tu cuenta, los gastos que registras y, si tú lo activas, las notificaciones de compra que tu banco
+          envía a tu Gmail. No vendemos datos, no hay publicidad ni analítica y no usamos tus datos para entrenar modelos de IA.
+          Los datos se guardan en un servidor en Alemania (Unión Europea).</p>
+      </div>
+
+      <p>Esta política se rige por la <strong>Ley Orgánica de Protección de Datos Personales del Ecuador (LOPDP)</strong> y su
+        reglamento y, cuando la persona usuaria se encuentra en la Unión Europea o el Espacio Económico Europeo, por el
+        <strong>Reglamento (UE) 2016/679 (RGPD)</strong>. Si ambas normas aplican, se sigue la que protege más a la persona.</p>
+
+      <h2 id="responsable">1. Responsable del tratamiento</h2>
+      <p><strong>Matias Vasconez</strong>, persona natural, con domicilio en Guayaquil, Ecuador, desarrollador y operador de Pulse
+        (<a href="https://pulse.espectro.uk">pulse.espectro.uk</a>).<br />
+        Contacto para privacidad y ejercicio de derechos: <a href="mailto:matiasvasconez9@gmail.com">matiasvasconez9@gmail.com</a>.</p>
+      <p>Por su tamaño y naturaleza (servicio personal, sin tratamiento a gran escala), Pulse no está obligado a designar un
+        delegado de protección de datos; el responsable atiende directamente cualquier consulta.</p>
+
+      <h2 id="datos">2. Qué datos tratamos, para qué y con qué base legal</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Datos</th><th>Finalidad</th><th>Base legal</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Cuenta: email, contraseña (solo su <em>hash</em> irreversible), llaves de acceso (passkeys, solo la parte pública),
+                secreto de la app de autenticación (cifrado), códigos de recuperación (solo su <em>hash</em>), zona horaria, tema.</td>
+              <td>Crear tu cuenta, iniciar sesión con segundo factor obligatorio y proteger el acceso.</td>
+              <td>Ejecución del contrato (Términos) — LOPDP art. 7; RGPD art. 6.1.b.</td>
+            </tr>
+            <tr>
+              <td>Datos financieros que registras o importas: cuentas (nombre, institución, últimos 4 dígitos de la tarjeta), categorías,
+                presupuestos, movimientos (monto, fecha, comercio, descripción, notas, origen) y reglas de comercio.</td>
+              <td>Prestar el servicio: registrar gastos, calcular tu plan y avisarte de tus presupuestos.</td>
+              <td>Ejecución del contrato — LOPDP art. 7; RGPD art. 6.1.b.</td>
+            </tr>
+            <tr>
+              <td>Sesiones y registro de seguridad: dirección IP, navegador (<em>user agent</em>), fecha y tipo de evento (inicio de
+                sesión, cambio de factor, conexión de Gmail…).</td>
+              <td>Detectar accesos indebidos, mostrarte tu actividad de seguridad y responder a incidentes.</td>
+              <td>Interés legítimo en la seguridad del servicio y de tus datos — LOPDP art. 7; RGPD art. 6.1.f.</td>
+            </tr>
+            <tr>
+              <td>Conexión con Gmail (opcional): dirección de Gmail y token de actualización de Google (ambos cifrados) y, de cada
+                correo procesado, solo una huella criptográfica (HMAC) de su identificador.</td>
+              <td>Leer las notificaciones de compra de tus bancos y crear los gastos por ti.</td>
+              <td>Tu consentimiento, que das al conectar y puedes retirar al desconectar — LOPDP art. 7–8; RGPD art. 6.1.a.</td>
+            </tr>
+            <tr>
+              <td>Suscripciones a notificaciones push (cifradas) y tus preferencias de aviso.</td>
+              <td>Enviarte avisos de presupuesto y de seguridad a tus dispositivos.</td>
+              <td>Tu consentimiento (el navegador te lo pide) — RGPD art. 6.1.a.</td>
+            </tr>
+            <tr>
+              <td>Invitaciones: email de la persona invitada y una huella del código.</td>
+              <td>Controlar quién puede registrarse.</td>
+              <td>Interés legítimo en mantener el servicio cerrado — RGPD art. 6.1.f.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p>No tratamos datos sensibles en el sentido del art. 26 de la LOPDP ni del art. 9 del RGPD. Pulse no pide ni guarda números
+        completos de tarjeta, claves bancarias ni credenciales de tu banco.</p>
+
+      <h2 id="gmail">3. Datos de Google (Gmail)</h2>
+      <p>Si conectas Gmail, Pulse solicita únicamente el permiso <code>gmail.readonly</code> y lo usa así:</p>
+      <ul>
+        <li><strong>Solo correos de tus bancos.</strong> La búsqueda se filtra en los servidores de Google por remitente
+          (Banco Pichincha, Produbanco y Diners/Titanium) y por fecha. Pulse no lista, abre ni descarga ningún otro correo.</li>
+        <li><strong>No guardamos el correo.</strong> Cada notificación se procesa en memoria para extraer monto, fecha, comercio y
+          últimos dígitos de la tarjeta, y se descarta. Queda solo el gasto resultante y la huella del identificador del mensaje
+          (para no importarlo dos veces), que se borra a los 60 días.</li>
+        <li><strong>Revisión por ti.</strong> Por defecto, todo gasto importado queda “Por revisar” hasta que lo confirmas.</li>
+        <li><strong>Desconexión.</strong> Al desconectar, Pulse revoca el token en Google, detiene los avisos y borra la conexión.
+          También puedes quitar el acceso en <a href="https://myaccount.google.com/permissions">myaccount.google.com/permissions</a>.</li>
+      </ul>
+      <div class="box">
+        <p>El uso y la transferencia a cualquier otra aplicación de la información recibida de las API de Google por parte de Pulse
+          se ajustarán a la <a href="https://developers.google.com/terms/api-services-user-data-policy">Política de datos de usuario de
+          los servicios de API de Google</a>, incluidos los requisitos de Uso Limitado.</p>
+        <p lang="en"><em>Pulse’s use and transfer to any other app of information received from Google APIs will adhere to the
+          <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</a>,
+          including the Limited Use requirements.</em></p>
+      </div>
+      <p>En concreto: los datos de Gmail solo se usan para la función de importar gastos que tú ves y controlas; no se usan para
+        publicidad, no se venden, no se transfieren a terceros salvo lo indicado en el punto 5 (y solo para esa función), no los lee
+        ninguna persona salvo con tu permiso expreso para resolver un problema, por motivos de seguridad o por obligación legal, y
+        <strong>no se usan para entrenar ni mejorar modelos de inteligencia artificial</strong>, propios ni de terceros.</p>
+
+      <h2 id="seguridad">4. Cómo protegemos tus datos</h2>
+      <ul>
+        <li>Cada persona tiene su propia clave de cifrado (AES-256-GCM), protegida a su vez por una clave maestra que no está en la base
+          de datos. Con ella se cifran el comercio, la descripción y las notas de cada movimiento, las reglas de comercio, la conexión
+          con Gmail, el secreto del segundo factor y las suscripciones push.</li>
+        <li>Conexión siempre cifrada (HTTPS), segundo factor obligatorio, sesiones que caducan y cookies de sesión protegidas.</li>
+        <li>Registro solo por invitación, registro de seguridad inalterable y avisos ante cambios importantes de tu cuenta.</li>
+        <li>Copias de seguridad automáticas en el mismo servidor antes de cada actualización (se conservan las últimas 15).</li>
+      </ul>
+      <p>Ninguna medida es infalible. Si ocurre una vulneración que afecte tus datos, lo notificaremos a la autoridad de control
+        y, cuando corresponda, a ti, en los plazos que fijan la LOPDP (art. 43) y el RGPD (arts. 33 y 34; 72 horas ante la
+        autoridad).</p>
+
+      <h2 id="terceros">5. Con quién se comparten (encargados y destinatarios)</h2>
+      <p>No vendemos ni cedemos tus datos. Solo intervienen estos proveedores, en la medida necesaria para prestar el servicio:</p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Proveedor</th><th>Para qué</th><th>Dónde</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Contabo GmbH</td><td>Alojamiento del servidor y de la base de datos.</td><td>Alemania (UE)</td></tr>
+            <tr><td>Google LLC — Gmail API</td><td>Solo si conectas Gmail: leer las notificaciones de tus bancos.</td><td>EE. UU. y otros</td></tr>
+            <tr><td>Google LLC — Gemini API</td><td>Solo si lo activas tú en Ajustes: interpretar una notificación de un banco soportado
+              cuyo formato Pulse no reconoce. Antes de enviarla se eliminan tu nombre, emails y secuencias de 6 o más dígitos.
+              Se usa en modalidad de pago, en la que Google no utiliza el contenido para entrenar sus modelos.</td><td>EE. UU. y otros</td></tr>
+            <tr><td>Servicio push de tu navegador (Google, Mozilla, Apple o Microsoft)</td><td>Entregar las notificaciones a tu dispositivo.
+              El contenido viaja cifrado de extremo a extremo; el servicio solo ve que hay un aviso para tu dispositivo.</td><td>Según tu navegador</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>También podremos comunicar datos a autoridades cuando una ley o una orden judicial lo exija.</p>
+
+      <h2 id="transferencias">6. Transferencias internacionales</h2>
+      <p>Pulse se opera desde Ecuador y los datos se alojan en la Unión Europea, que cuenta con un nivel de protección adecuado.
+        Las transferencias a Google LLC (EE. UU.) ocurren solo si activas Gmail o Gemini; Google está certificado en el
+        Marco de Privacidad de Datos UE-EE. UU. y aplica cláusulas contractuales tipo (RGPD arts. 45–46). Al conectar estas funciones
+        consientes expresamente esa transferencia (LOPDP arts. 55–56 y 61), y puedes retirarlo en cualquier momento desconectándolas.</p>
+
+      <h2 id="plazos">7. Cuánto tiempo conservamos los datos</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Dato</th><th>Plazo</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Cuenta y datos financieros</td><td>Mientras tengas la cuenta. Al pedir su eliminación se borran de inmediato de la base
+              de datos y desaparecen de las copias de seguridad cuando estas rotan (normalmente en pocas semanas).</td></tr>
+            <tr><td>Sesiones</td><td>Hasta que cierras sesión o caducan.</td></tr>
+            <tr><td>Registro de seguridad (IP, navegador, eventos)</td><td>12 meses; después se borra automáticamente.</td></tr>
+            <tr><td>Huellas de correos ya procesados</td><td>60 días.</td></tr>
+            <tr><td>Conexión con Gmail</td><td>Hasta que desconectas o eliminas tu cuenta.</td></tr>
+            <tr><td>Avisos push pendientes</td><td>Hasta 48 horas si no se pueden entregar; su registro, 14 días.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2 id="derechos">8. Tus derechos</h2>
+      <p>Puedes ejercer en cualquier momento, sin costo, los derechos que te reconocen la LOPDP (arts. 12 a 21) y el RGPD
+        (arts. 15 a 22):</p>
+      <ul>
+        <li><strong>Información y acceso</strong> a tus datos y a cómo los tratamos.</li>
+        <li><strong>Rectificación y actualización</strong> de datos inexactos (la mayoría puedes corregirlos tú en la app).</li>
+        <li><strong>Eliminación (supresión)</strong> de tu cuenta y tus datos.</li>
+        <li><strong>Oposición</strong> y <strong>suspensión o limitación</strong> del tratamiento.</li>
+        <li><strong>Portabilidad</strong>: te entregamos tus datos en un archivo JSON estructurado y legible por máquina.</li>
+        <li><strong>Retirar tu consentimiento</strong> (Gmail, Gemini, notificaciones) desde Ajustes, sin que afecte a lo tratado antes.</li>
+        <li><strong>No ser objeto de decisiones automatizadas</strong> con efectos jurídicos. Pulse categoriza gastos de forma automática
+          solo como sugerencia; no toma decisiones que te afecten jurídicamente ni elabora perfiles.</li>
+      </ul>
+      <p>Escribe a <a href="mailto:matiasvasconez9@gmail.com">matiasvasconez9@gmail.com</a> desde el email de tu cuenta. Podemos pedirte
+        que confirmes tu identidad. Respondemos en un máximo de <strong>15 días</strong> (LOPDP art. 13; el RGPD fija un mes como máximo).</p>
+      <p>Si no estás conforme con la respuesta, puedes reclamar ante la
+        <strong>Superintendencia de Protección de Datos Personales</strong> del Ecuador o, si resides en la UE/EEE, ante la autoridad de
+        protección de datos de tu país.</p>
+
+      <h2 id="cookies">9. Cookies y almacenamiento local</h2>
+      <p>Pulse usa una única cookie, <code>__Host-pulse</code>, estrictamente necesaria para mantener tu sesión; está protegida
+        (Secure, HttpOnly, SameSite=Strict) y no sirve para rastrearte. En tu navegador se guardan además tus preferencias de tema y
+        de animaciones, y la app se guarda en caché para funcionar sin conexión (nunca tus datos financieros).
+        No hay cookies de terceros, publicidad ni analítica, por lo que no necesitamos un banner de consentimiento.</p>
+
+      <h2 id="menores">10. Menores de edad</h2>
+      <p>Pulse no está dirigido a menores de 18 años y solo se accede por invitación personal. Si descubrimos que una cuenta pertenece
+        a un menor, la eliminaremos.</p>
+
+      <h2 id="cambios">11. Cambios en esta política</h2>
+      <p>Si cambiamos algo importante, lo avisaremos en la app antes de que entre en vigor y actualizaremos la fecha de arriba.
+        Si un cambio requiere un nuevo consentimiento, te lo pediremos.</p>
+
+      <footer>
+        <a href="/terminos">Términos y condiciones</a>
+        <a href="/">Volver a Pulse</a>
+      </footer>
+    </main>
+  </body>
+</html>

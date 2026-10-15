@@ -197,6 +197,9 @@ Si la identidad del servidor cambia, verifica la nueva huella desde la consola d
 | Invitar a alguien | `docker exec pulse /pulse invite create --email x@y.com` |
 | Ver / revocar invitaciones | `docker exec pulse /pulse invite list` · `docker exec pulse /pulse invite revoke <id>` |
 | Usuarios | `docker exec pulse /pulse user list` · `user disable x@y.com` · `user reset-mfa x@y.com` |
+| Derecho de acceso / portabilidad | `docker exec pulse /pulse user export x@y.com /data/export-x.json` → entrégalo por un canal seguro y bórralo: `sudo rm /opt/docker/pulse/data/export-x.json` |
+| Derecho de supresión (baja) | `docker exec pulse /pulse user delete x@y.com --confirmar x@y.com` |
+| Páginas legales | `/privacidad` y `/terminos` (`web/public/*.html`). Si cambias qué datos se tratan o su retención, actualízalas |
 | Logs | `docker logs -f pulse` |
 | Cambiar `.env` | `cd /opt/docker/pulse && sudo nano .env && docker compose --env-file release.env up -d` |
 

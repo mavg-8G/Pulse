@@ -259,6 +259,18 @@ export function Settings() {
         </ul>
       </section>
 
+      <section className="section" aria-labelledby="h-legal">
+        <div className="section-head"><h2 id="h-legal">Privacidad</h2></div>
+        <div className="list">
+          <a className="settings-row" href="/privacidad">
+            <span className="grow">Política de privacidad<br /><span className="small muted">Qué datos usa Pulse y cómo descargar o eliminar los tuyos</span></span>
+          </a>
+          <a className="settings-row" href="/terminos">
+            <span className="grow">Términos y condiciones</span>
+          </a>
+        </div>
+      </section>
+
       <div className="section">
         <button className="btn btn-danger btn-block" onClick={logout}>Cerrar sesión</button>
       </div>

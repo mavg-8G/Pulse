@@ -497,6 +497,14 @@ textarea {
 .auth-card form {
   margin-top: 24px;
 }
+.auth-legal {
+  margin-top: 28px;
+  text-align: center;
+}
+a.settings-row {
+  color: inherit;
+  text-decoration: none;
+}
 .codes {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
