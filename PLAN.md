@@ -2,7 +2,7 @@
 
 Registro de gastos personales multiusuario: categorías, cuentas (origen), fechas y plan de gastos (tope mensual por categoría). PWA instalable en escritorio y móvil, modo claro/oscuro, notificaciones push, ingreso manual y captura automática desde Gmail.
 
-**Estado (14 oct 2026): fases 0–7 implementadas.** Faltan dos aceptaciones con datos reales: la entrega push en un teléfono físico (`deploy/PUSH.md`) y un consumo real llegando por Gmail con el proyecto de Google Cloud configurado (`deploy/GMAIL.md`). Los parsers se validaron con correos sintéticos reconstruidos de las capturas: hay que confirmarlos con `.eml` reales. Ver §0 para los cambios respecto al plan original.
+**Estado (15 oct 2026): fases 0–8 implementadas y la 9 en curso** (reportes, CSV, gastos fijos, gastos sin conexión y precisión del modo sombra listos; faltan bancos nuevos, que esperan `.eml` reales). Faltan dos aceptaciones con datos reales: la entrega push en un teléfono físico (`deploy/PUSH.md`) y un consumo real llegando por Gmail con el proyecto de Google Cloud configurado (`deploy/GMAIL.md`). Los parsers se validaron con correos sintéticos reconstruidos de las capturas: hay que confirmarlos con `.eml` reales. Ver §0 para los cambios respecto al plan original.
 
 Principios rectores:
 1. **Backend mínimo** — un binario Go que sirve API + frontend, SQLite en un archivo, un contenedor detrás de Caddy en `pulse.espectro.uk`.
@@ -26,7 +26,7 @@ Principios rectores:
 | `state` y verificador PKCE guardados | `state` firmado con HMAC (usuario + sesión + caducidad 10 min); verificador = HMAC(nonce) con clave del servidor | Nada que guardar ni limpiar; el verificador nunca viaja en la URL |
 | Modo sombra (sin detalle) | Activado por defecto: todo lo importado queda "Por revisar". Apagado: solo se confirma solo lo que el parser leyó con seguridad **y** tiene una regla de comercio del usuario | Evita que un gasto mal clasificado cuente en el presupuesto sin que lo veas |
 | Gemini como fallback | Solo para remitentes bancarios con plantilla desconocida, activación por usuario con step-up, texto redactado (también el nombre en el asunto), resultado validado y siempre por revisar | Mínimo dato posible a un tercero |
-| Push "nuevo gasto" | Aviso "Nuevo gasto por revisar" (o "Gasto registrado") para consumos de las últimas 24 h, con la preferencia de alertas de presupuesto y "ocultar montos" | La primera sincronización (60 días) no inunda de avisos |
+| Push "nuevo gasto" | Aviso "Nuevo gasto por revisar" (o "Gasto registrado") para consumos de las últimas 24 h, con la preferencia de alertas de presupuesto y "ocultar montos" | La primera sincronización (90 días) no inunda de avisos |
 
 ---
 
@@ -575,19 +575,22 @@ Se construyen y prueban solo con archivos `.eml`, antes de tocar la API de Gmail
 - [x] Contenedor `read_only`, sin capacidades, Docker secrets, límites de recursos
 - [x] Backups cifrados con `age` + copia a Nextcloud (`deploy/backup-offsite.sh`)
 - [x] `/healthz` enriquecido (esquema, Gmail, push) · [ ] **Tú**: monitores en Uptime Kuma y Beszel
-- [ ] Detector de plantillas cambiadas y reporte de conciliación
+- [x] Detector de plantillas cambiadas: un correo de un banco conocido que ningún parser entiende se guarda (asunto cifrado + hash, sin cuerpo), se lista en Ajustes → Gmail y avisa por push a los admins (uno por banco y día)
+- [x] Conciliación en Reportes: lo registrado por cuenta y mes contra el total del estado de cuenta que ingresas (mes calendario, no ciclo de corte)
 - [x] Imagen firmada en GHCR; `deploy/smoke.sh` tras cada despliegue
 - [x] Credenciales de Google (OAuth, Pub/Sub, Gemini) configurables por un admin desde Ajustes, cifradas y aplicadas en caliente
 - **Tests**:
   - [x] Restauración automática de backup en CI (base vacía → `restore` → arranque sano con los datos).
-  - ZAP baseline sin alertas medias/altas; Trivy sin CVEs críticas.
+  - [x] ZAP baseline sin alertas medias/altas (job `image`, contra el contenedor recién construido); [x] Trivy sin CVEs críticas.
   - [x] El contenedor arranca con sistema de archivos de solo lectura (prueba en CI).
-  - Smoke test contra producción después de cada deploy.
+  - [x] Smoke test contra producción después de cada deploy (`deploy.sh` → `smoke.sh`, con rollback si falla).
 - **Terminado cuando**: restauras un backup en una máquina limpia y todo funciona; los monitores están en verde.
 
 ### Fase 9 — Estabilización y mejoras (continuo)
-- [ ] Revisar métricas del modo sombra y activar auto-confirmación por banco (≥ 98 %)
-- [ ] Reportes, exportación CSV, gastos recurrentes, gastos offline con sincronización
+- [x] Métricas del modo sombra: cada gasto importado anota si se confirmó tal cual o hubo que corregir monto, fecha, tipo o cuenta; Ajustes → Gmail muestra los aciertos por banco
+- [x] Auto-confirmación por banco: con el modo sombra apagado, un banco con ≥ 20 revisiones y ≥ 98 % de aciertos se confirma solo si la categoría salió del diccionario (antes solo con regla de comercio)
+- [x] Reportes (por mes, categoría y cuenta), exportación CSV con step-up, gastos fijos mensuales y gastos sin conexión (IndexedDB hasta enviar; id del cliente para no duplicar)
+- [ ] **Tú**: revisar en unas semanas los aciertos reales por banco antes de apagar el modo sombra
 - [ ] Más bancos (débito, transferencias) siguiendo el mismo proceso: `.eml` → golden → fuzz → sombra
 
 **Duración estimada total**: 10–12 semanas a tiempo parcial.

@@ -278,6 +278,8 @@ type txInput struct {
 	Description *string `json:"description"`
 	Notes       *string `json:"notes"`
 	Status      *string `json:"status"`
+	// ID opcional al crear: lo genera el cliente para que reenviar un gasto hecho sin conexión no lo duplique.
+	ID *string `json:"id"`
 	// LearnRule: "usar siempre esta categoría para este comercio" (solo al editar).
 	LearnRule bool `json:"learn_rule"`
 }
@@ -383,10 +385,25 @@ func (s *Server) createTransaction(w http.ResponseWriter, r *http.Request) error
 		return err
 	}
 	t := &store.Transaction{ID: auth.NewID(), Kind: "purchase", Source: "manual", Status: "confirmed", Currency: "USD"}
+	if in.ID != nil {
+		if !uuidRe.MatchString(*in.ID) {
+			return badRequest("Identificador inválido.")
+		}
+		if prev, err := s.store.Transaction(r.Context(), id.user.ID, id.seal(), *in.ID); err == nil {
+			writeJSON(w, 200, prev) // reenvío del mismo gasto: ya estaba guardado
+			return nil
+		} else if !errors.Is(err, store.ErrNotFound) {
+			return err
+		}
+		t.ID = *in.ID
+	}
 	if err := s.applyTx(r, id, &in, t, true); err != nil {
 		return err
 	}
 	if err := s.store.CreateTransaction(r.Context(), id.user.ID, id.seal(), t); err != nil {
+		if errors.Is(err, store.ErrDuplicate) { // un gasto manual sin hash solo choca por el id (de otro usuario)
+			return errf(409, "conflict", "Ese identificador ya está en uso.")
+		}
 		return err
 	}
 	s.recheck(r, id, []string{t.CategoryID}, []time.Time{t.OccurredAt})
@@ -411,6 +428,7 @@ func (s *Server) updateTransaction(w http.ResponseWriter, r *http.Request) error
 		return err
 	}
 	oldCat, oldWhen := t.CategoryID, t.OccurredAt
+	before := *t
 	var in txInput
 	if err := decode(w, r, &in); err != nil {
 		return err
@@ -420,6 +438,11 @@ func (s *Server) updateTransaction(w http.ResponseWriter, r *http.Request) error
 	}
 	if err := s.store.UpdateTransaction(r.Context(), id.user.ID, id.seal(), t); err != nil {
 		return err
+	}
+	if before.Status == "pending_review" && t.Status == "confirmed" {
+		if err := s.store.SetReview(r.Context(), id.user.ID, t.ID, reviewOf(&before, t, s.loc(id))); err != nil {
+			return err
+		}
 	}
 	if in.LearnRule && t.Merchant != "" {
 		if _, err := importer.LearnRule(r.Context(), s.store, s.keys, id.user, id.seal(), t.Merchant, t.CategoryID); err != nil {
@@ -437,9 +460,15 @@ func (s *Server) confirmTransaction(w http.ResponseWriter, r *http.Request) erro
 	if err != nil {
 		return err
 	}
+	pending := t.Status == "pending_review"
 	t.Status = "confirmed"
 	if err := s.store.UpdateTransaction(r.Context(), id.user.ID, id.seal(), t); err != nil {
 		return err
+	}
+	if pending {
+		if err := s.store.SetReview(r.Context(), id.user.ID, t.ID, "ok"); err != nil {
+			return err
+		}
 	}
 	writeJSON(w, 200, t)
 	return nil
@@ -451,6 +480,18 @@ func (s *Server) deleteTransaction(w http.ResponseWriter, r *http.Request) error
 	}
 	w.WriteHeader(204)
 	return nil
+}
+
+var uuidRe = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
+
+// reviewOf decide si el parser acertó: la categoría y el comercio no cuentan (son clasificación),
+// el monto, el tipo, la cuenta y el día sí.
+func reviewOf(before, after *store.Transaction, loc *time.Location) string {
+	if before.AmountCents != after.AmountCents || before.Kind != after.Kind || before.AccountID != after.AccountID ||
+		before.OccurredAt.In(loc).Format("2006-01-02") != after.OccurredAt.In(loc).Format("2006-01-02") {
+		return "fixed"
+	}
+	return "ok"
 }
 
 // fold pasa a minúsculas y quita tildes para buscar "cafe" y encontrar "Café".

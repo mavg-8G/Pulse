@@ -131,7 +131,7 @@ export function GmailSettings({ tz }: { tz: string }) {
             <span className="grow">
               Modo sombra
               <br />
-              <span className="small faint">Todo lo que llega por correo queda “Por revisar”. Desactívalo para confirmar solo los gastos de comercios con regla.</span>
+              <span className="small faint">Todo lo que llega por correo queda “Por revisar”. Desactívalo para que se confirmen solos los gastos de comercios con regla y, con la categoría clara, los de bancos con 98 % de aciertos en tus revisiones.</span>
             </span>
             <input type="checkbox" checked={s.shadow} disabled={busy} onChange={(e) => setShadow(e.target.checked)} />
           </label>
@@ -145,6 +145,29 @@ export function GmailSettings({ tz }: { tz: string }) {
               <input type="checkbox" checked={s.gemini} disabled={busy} onChange={(e) => setGemini(e.target.checked)} />
             </label>
           )}
+        </div>
+      )}
+      {s && s.accuracy.length > 0 && (
+        <div className="section">
+          <h3 className="small">Aciertos al leer tus correos</h3>
+          <ul className="list" aria-label="Aciertos por banco">
+            {s.accuracy.map((a) => (
+              <li key={a.parser} className="settings-row">
+                <span className="grow">{a.bank}<br /><span className="small faint">{a.correct} de {a.reviewed} revisados sin corregir{a.reviewed < 20 ? ` · faltan ${20 - a.reviewed} revisiones para evaluarlo` : ''}</span></span>
+                <span className={`badge ${a.trusted ? '' : 'warn'}`}>{a.trusted ? 'Confiable' : `${Math.round((a.correct / a.reviewed) * 100)} %`}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {s && s.template_alerts.length > 0 && (
+        <div className="section">
+          <p className="notice over" role="status">Pulse no supo leer {s.template_alerts.length === 1 ? 'un correo' : `${s.template_alerts.length} correos`} de tu banco en los últimos 30 días. Puede que el banco haya cambiado su formato: regístralos a mano mientras tanto.</p>
+          <ul className="list" aria-label="Correos no reconocidos">
+            {s.template_alerts.map((a, i) => (
+              <li key={i} className="settings-row"><span className="grow">{a.subject || '(sin asunto)'}<br /><span className="small faint">{a.bank} · {dateTimeLabel(a.created_at, tz)}</span></span></li>
+            ))}
+          </ul>
         </div>
       )}
       {s?.available && (

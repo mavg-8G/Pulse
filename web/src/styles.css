@@ -1695,3 +1695,25 @@ dialog.sheet.confirm {
 .account-card strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .account-card .small { display: block; }
 .avatar-lg { width: 48px; height: 48px; border-radius: 15px; font-size: 1.2rem; }
+
+/* ---------- reportes ---------- */
+.report-tools { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.report-card { margin-bottom: 20px; }
+.report-card .section-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+.report-grid { display: grid; gap: 20px; }
+@media (min-width: 900px) { .report-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; } }
+/* Una sola serie: un solo tono, barras finas con la punta redondeada y 2px de aire entre ellas. */
+.month-bars { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 2px; height: 180px; padding-top: 24px; align-items: end; }
+.month-bar { position: relative; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; }
+.month-bar-fill { width: min(100%, 36px); min-height: 2px; border-radius: 4px 4px 0 0; background: color-mix(in srgb, var(--accent) 45%, var(--surface)); transform-origin: bottom; animation: grow-y 700ms var(--ease-out) both; transition: background var(--t-fast) var(--ease-out); }
+.month-bar.is-current .month-bar-fill, .month-bar:hover .month-bar-fill { background: var(--accent); }
+.month-bar-label { margin-top: 6px; font-size: 0.72rem; color: var(--ink-3); text-transform: capitalize; }
+.month-bar-tip { position: absolute; top: -22px; font-size: 0.72rem; font-weight: 650; color: var(--ink); white-space: nowrap; opacity: 0; transition: opacity var(--t-fast) var(--ease-out); pointer-events: none; }
+.month-bar:hover .month-bar-tip, .month-bar.is-current .month-bar-tip { opacity: 1; }
+@keyframes grow-y { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+.report-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.85rem; }
+.report-table th, .report-table td { text-align: left; padding: 6px 4px; border-bottom: 1px solid var(--line); }
+.report-table td:last-child, .report-table th:last-child { text-align: right; }
+.recon-row { align-items: flex-end; }
+.recon-input { display: grid; gap: 4px; width: 150px; }
+.recon-input .input { min-height: 38px; }

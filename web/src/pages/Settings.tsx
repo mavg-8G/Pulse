@@ -46,6 +46,8 @@ const eventText: Record<string, string> = {
   gemini_enabled: 'Gemini activado',
   gemini_disabled: 'Gemini desactivado',
   email_imported: 'Correo importado',
+  csv_exported: 'Movimientos exportados a CSV',
+  template_unknown: 'Correo del banco que Pulse no supo leer',
 }
 
 function browserName(ua: string) {
@@ -267,6 +269,9 @@ export function Settings({ view = 'prefs' }: { view?: 'prefs' | 'account' }) {
         <div className="list">
           <Link className="settings-row settings-link" to="/ajustes/cuenta">
             <span className="grow">Mi cuenta<br /><span className="small faint">Sesiones abiertas, contraseña y seguridad</span></span><span className="faint">›</span>
+          </Link>
+          <Link className="settings-row settings-link" to="/reportes">
+            <span className="grow">Reportes y exportar<br /><span className="small faint">Gasto por mes, categoría y cuenta; conciliación; CSV</span></span><span className="faint">›</span>
           </Link>
           <Link className="settings-row settings-link" to="/ajustes/cuentas">
             <span className="grow">Cuentas y tarjetas</span><span className="faint">›</span>

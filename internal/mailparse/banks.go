@@ -236,3 +236,18 @@ func (diners) Parse(e *Email, loc *time.Location) Result {
 	}
 	return Result{Status: StatusExpense, Expense: exp}
 }
+
+// Bank devuelve el nombre del banco para un nombre de parser ("pichincha-consumo-v1" → "Banco Pichincha").
+func Bank(parser string) string {
+	switch {
+	case strings.HasPrefix(parser, "pichincha"):
+		return "Banco Pichincha"
+	case strings.HasPrefix(parser, "produbanco"):
+		return "Produbanco"
+	case strings.HasPrefix(parser, "diners"):
+		return "Diners/Titanium"
+	case parser == "gemini":
+		return "Gemini"
+	}
+	return parser
+}

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"math"
 	"strings"
 	"sync"
 	"time"
@@ -18,8 +19,8 @@ import (
 )
 
 const (
-	maxPages         = 10 // 1000 mensajes por sincronización: cubre 60 días de notificaciones bancarias
-	firstSyncDays    = 60 // no más que la retención de huellas (60 días), o se reimportarían correos al reconectar
+	maxPages         = 10 // 1000 mensajes por sincronización: cubre 90 días de notificaciones bancarias
+	firstSyncDays    = 90 // no más que la retención de huellas (90 días), o se reimportarían correos al reconectar
 	maxBackoff       = 6 * time.Hour
 	watchRenewBefore = 24 * time.Hour
 )
@@ -55,6 +56,8 @@ type Syncer struct {
 	OnImported func(ctx context.Context, u *store.User, out *importer.Outcome)
 	// OnBroken se llama cuando la conexión queda rota (auditoría → aviso de seguridad).
 	OnBroken func(ctx context.Context, userID, code string)
+	// OnTemplate se llama la primera vez que un correo de un banco conocido no se entiende (posible plantilla nueva).
+	OnTemplate func(ctx context.Context, u *store.User, parser string)
 
 	once    sync.Once
 	mu      sync.Mutex
@@ -346,6 +349,7 @@ func (s *Syncer) process(ctx context.Context, u *store.User, conn *store.GmailCo
 	if err != nil {
 		return release(err)
 	}
+	bank := out.Parser // el parser del remitente, antes de un posible intento con Gemini
 	if out.Status == mailparse.StatusUnrecognized && conn.Gemini && s.Gemini != nil {
 		out, err = s.tryGemini(ctx, u, e, out)
 		if err != nil {
@@ -360,7 +364,9 @@ func (s *Syncer) process(ctx context.Context, u *store.User, conn *store.GmailCo
 		}
 		// Modo sombra apagado: lo que el parser lee con seguridad y tiene categoría conocida
 		// se confirma solo. Lo dudoso (Gemini, sin tarjeta, categoría por defecto) sigue por revisar.
-		if !conn.Shadow && out.Transaction.Confidence != nil && *out.Transaction.Confidence >= 0.9 && out.CategoryBy == "rule" {
+		// También si ese banco ya demostró ≥ 98 % de aciertos en tus revisiones y la categoría salió del diccionario.
+		if !conn.Shadow && out.Transaction.Confidence != nil && math.Round(*out.Transaction.Confidence*100) >= 90 && // 0.95−0.05 no debe quedar en 0.8999…
+			(out.CategoryBy == "rule" || out.CategoryBy == "builtin" && s.trusted(ctx, u.ID, out.Parser)) {
 			if err := s.Store.ConfirmImported(ctx, u.ID, out.Transaction.ID); err != nil {
 				return err
 			}
@@ -374,8 +380,43 @@ func (s *Syncer) process(ctx context.Context, u *store.User, conn *store.GmailCo
 		res.Duplicate++
 	case mailparse.StatusUnrecognized:
 		res.Unrecognized++
+		if bank != "" && bank != "gemini" {
+			if err := s.templateAlert(ctx, u, bank, e.Subject, h); err != nil {
+				return err
+			}
+		}
 	default:
 		res.Ignored++
+	}
+	return nil
+}
+
+// trusted: el banco tiene suficientes revisiones y casi nunca hubo que corregirlo.
+func (s *Syncer) trusted(ctx context.Context, userID, parser string) bool {
+	acc, err := s.Store.ParserAccuracy(ctx, userID)
+	if err != nil {
+		return false
+	}
+	for _, a := range acc {
+		if a.Parser == parser {
+			return a.Trusted()
+		}
+	}
+	return false
+}
+
+// templateAlert registra el correo no entendido (solo asunto cifrado y hash) y avisa una vez.
+func (s *Syncer) templateAlert(ctx context.Context, u *store.User, parser, subject string, msgHash []byte) error {
+	sl, err := s.Keys.Sealer(u.ID, u.DEKEnc)
+	if err != nil {
+		return err
+	}
+	created, err := s.Store.AddTemplateAlert(ctx, u.ID, sl, parser, subject, msgHash)
+	if err != nil {
+		return err
+	}
+	if created && s.OnTemplate != nil {
+		s.OnTemplate(ctx, u, parser)
 	}
 	return nil
 }

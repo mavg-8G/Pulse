@@ -36,11 +36,49 @@ type gmailStatus struct {
 	Shadow          bool       `json:"shadow"`
 	Gemini          bool       `json:"gemini"`
 	Imported        int        `json:"imported"`
+	// Precisión por banco en tus revisiones y correos que ningún parser entendió (últimos 30 días).
+	Accuracy  []bankAccuracy `json:"accuracy"`
+	Templates []bankTemplate `json:"template_alerts"`
+}
+
+type bankAccuracy struct {
+	store.ParserAccuracy
+	Bank    string `json:"bank"`
+	Trusted bool   `json:"trusted"`
+}
+
+type bankTemplate struct {
+	store.TemplateAlert
+	Bank string `json:"bank"`
+}
+
+// shadowReport arma las métricas del modo sombra y el detector de plantillas.
+func (s *Server) shadowReport(r *http.Request, id *identity, out *gmailStatus) error {
+	acc, err := s.store.ParserAccuracy(r.Context(), id.user.ID)
+	if err != nil {
+		return err
+	}
+	out.Accuracy = []bankAccuracy{}
+	for _, a := range acc {
+		out.Accuracy = append(out.Accuracy, bankAccuracy{a, mailparse.Bank(a.Parser), a.Trusted()})
+	}
+	alerts, err := s.store.TemplateAlerts(r.Context(), id.user.ID, id.seal(), s.clock.Now().AddDate(0, 0, -30))
+	if err != nil {
+		return err
+	}
+	out.Templates = []bankTemplate{}
+	for _, a := range alerts {
+		out.Templates = append(out.Templates, bankTemplate{a, mailparse.Bank(a.Parser)})
+	}
+	return nil
 }
 
 func (s *Server) gmailStatus(w http.ResponseWriter, r *http.Request) error {
 	g := s.gm()
 	out := gmailStatus{Available: g != nil, Senders: mailparse.Senders(), Shadow: true}
+	if err := s.shadowReport(r, ident(r), &out); err != nil {
+		return err
+	}
 	if g == nil {
 		writeJSON(w, 200, out)
 		return nil

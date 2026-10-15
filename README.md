@@ -2,7 +2,7 @@
 
 Registro de gastos personales: cuentas y tarjetas, categorías, plan de gastos mensual con avisos y proyección. PWA para escritorio y móvil, modo claro/oscuro. Multiusuario **solo por invitación**, con MFA y aislamiento de datos por usuario (ver [`PLAN.md`](PLAN.md) §4).
 
-Estado: **fases 0–7 implementadas y fase 8 en curso**. Incluye CI/CD con imágenes firmadas, respaldos cifrados externos, comprobación de salud del esquema y configuración de Google desde la app. Las aceptaciones manuales y tareas de producción pendientes están en [`PLAN.md`](PLAN.md). Los cambios se registran en [`CHANGELOG.md`](CHANGELOG.md).
+Estado: **fases 0–8 implementadas y fase 9 en curso**. Incluye reportes, CSV, conciliación, gastos fijos, registro sin conexión y métricas de revisión de Gmail, además de los controles de producción. Quedan aceptaciones con datos y dispositivos reales, configuración de monitores y nuevos bancos; el seguimiento está en [`PLAN.md`](PLAN.md). Los cambios se registran en [`CHANGELOG.md`](CHANGELOG.md).
 
 ## Funciones
 
@@ -13,6 +13,8 @@ Estado: **fases 0–7 implementadas y fase 8 en curso**. Incluye CI/CD con imág
 - Presentación pública y páginas de privacidad y términos en español e inglés, accesibles sin sesión; exportación y supresión de cuentas mediante CLI, y retención del registro de seguridad de 365 días.
 - Inicio con gasto mensual, barra de presupuesto, saldo disponible o exceso, referencia del día del mes y cierre estimado; temas claro/oscuro y control de animaciones con respeto al movimiento reducido.
 - Respaldos en caliente, copia externa cifrada con `age` a Nextcloud y restauración verificada en CI. Configuración en [`deploy/README.md`](deploy/README.md).
+- Reportes de 3, 6 o 12 meses por categoría y cuenta, exportación CSV con confirmación de identidad y conciliación con los totales de tus estados de cuenta.
+- Gastos fijos mensuales y cola local para enviar gastos manuales nuevos cuando vuelve la conexión, con identificadores que evitan duplicarlos al reenviar.
 
 ## Navegación
 
@@ -22,7 +24,8 @@ Estado: **fases 0–7 implementadas y fase 8 en curso**. Incluye CI/CD con imág
 | `/entrar` y `/registro` | Acceso y creación de cuenta por invitación |
 | `/` con sesión | Resumen del mes, presupuesto, últimos movimientos y distribución por categoría |
 | `/movimientos` | Registro, búsqueda, edición e importación de gastos |
-| `/plan` | Presupuestos y seguimiento del gasto por categoría |
+| `/plan` | Presupuestos, seguimiento del gasto por categoría y gastos fijos |
+| `/reportes` | Evolución mensual, distribución por categoría/cuenta, CSV y conciliación |
 | `/ajustes` | Apariencia, Gmail, notificaciones y privacidad |
 | `/ajustes/cuenta` | Mi cuenta: sesiones, contraseña, segundo factor, actividad de seguridad y cierre de sesión |
 | `/ajustes/cuentas` y `/ajustes/categorias` | Organización de cuentas, tarjetas y categorías |
@@ -33,9 +36,27 @@ El perfil de la barra lateral y el avatar de la cabecera abren **Mi cuenta**. La
 
 Un administrador configura el **ID de cliente OAuth** y el **secreto** en **Ajustes → Correo del banco (Gmail) → Configuración del servidor (admin)**. La pantalla muestra la URI de redirección y el webhook que debes registrar en Google Cloud. También permite configurar Pub/Sub y Gemini. Guardar requiere confirmar la identidad; las credenciales se cifran y se aplican sin reiniciar. Lo guardado en la app tiene prioridad sobre las variables de entorno; al borrarlo se vuelve a ellas.
 
-Después, cada persona conecta su Gmail desde Ajustes. La primera sincronización consulta notificaciones bancarias de los **últimos 60 días**, con un límite de **1.000 mensajes por sincronización**. Las huellas para evitar duplicados se conservan 60 días y los avisos de nuevos gastos se limitan a consumos de las últimas 24 horas. El modo sombra deja los importados **Por revisar**.
+Después, cada persona conecta su Gmail desde Ajustes. La primera sincronización consulta notificaciones bancarias de los **últimos 90 días**, con un límite de **1.000 mensajes por sincronización**. Las huellas para evitar duplicados se conservan 90 días y los avisos de nuevos gastos se limitan a consumos de las últimas 24 horas. El modo sombra deja los importados **Por revisar**.
+
+**Ajustes → Gmail** muestra los aciertos por banco según tus revisiones: corregir monto, día, tipo o cuenta cuenta como una corrección; cambiar la categoría o el comercio no. Con el modo sombra apagado, también se pueden confirmar automáticamente gastos con categoría del diccionario cuando el banco alcanza al menos **20 revisiones y 98 % de aciertos**, siempre que la lectura tenga suficiente confianza. Revisa los resultados reales antes de desactivar el modo sombra.
+
+Si un correo bancario no se reconoce, Pulse registra su asunto cifrado y una huella, sin guardar el cuerpo. Los avisos de los últimos 30 días aparecen en Ajustes → Gmail y se notifica por push a los administradores, como máximo una vez por banco y día.
 
 La guía completa de Google Cloud, OAuth, Pub/Sub, Gemini y configuración por variables de entorno está en [`deploy/GMAIL.md`](deploy/GMAIL.md).
+
+## Reportes, conciliación y gastos fijos
+
+En **Reportes**, elige 3, 6 o 12 meses para comparar el gasto mensual y su distribución por categoría y cuenta. **Exportar CSV** descarga los movimientos del periodo tras confirmar tu identidad; la descarga queda en la actividad de seguridad y los campos de texto se protegen frente a la interpretación como fórmulas en hojas de cálculo.
+
+En **Conciliación**, selecciona un mes e introduce el total del estado de cuenta de cada cuenta o tarjeta. Pulse lo compara con lo registrado y muestra la diferencia. La comparación usa el **mes calendario de tu zona horaria**, por lo que puede diferir de un estado de tarjeta con otra fecha de corte.
+
+Para crear un gasto fijo, abre **Nuevo gasto** y marca **Repetir cada mes este día (gasto fijo)**. Puedes ver los próximos cobros y quitar la repetición en **Plan → Gastos fijos**. El servidor registra los vencidos al arrancar y los revisa cada hora; si el día no existe en un mes, usa el último día de ese mes. Quitar la repetición conserva los movimientos ya registrados.
+
+## Gastos sin conexión
+
+Si ya tienes la app abierta y sus cuentas y categorías cargadas, puedes crear un gasto manual nuevo sin red. Se guarda temporalmente en IndexedDB en ese navegador hasta enviarlo. Pulse reintenta al recuperar la conexión o al abrir la app con sesión; el identificador del gasto evita duplicados si se reenvía. La edición y la creación de gastos fijos requieren conexión.
+
+La API sigue sin almacenarse en la caché del service worker. La cola local contiene los datos de los gastos pendientes y se elimina al cerrar sesión; envía los pendientes antes de salir si quieres conservarlos. Si el servidor rechaza definitivamente un gasto, la app avisa para que lo registres de nuevo.
 
 ## Estructura
 ```
@@ -136,12 +157,14 @@ La exportación contiene datos personales descifrados: entrégala por un canal s
 | `make e2e` | Playwright en escritorio y móvil: registro, TOTP, passkey (autenticador virtual), gastos, plan, PWA sin conexión, accesibilidad (axe) en ambos temas, CSP sin violaciones |
 | `make check` | Formato y vet, detector de carreras, pruebas del frontend y E2E; el fuzzing se ejecuta aparte con `make fuzz` |
 
-La suite E2E incluye landing pública, páginas legales, Mi cuenta, configuración de Google por un admin, navegación con el service worker activo y accesibilidad en ambos temas. Cada ejecución utiliza puerto y datos propios dentro de `web/.e2e/`.
+La suite E2E incluye landing pública, páginas legales, Mi cuenta, configuración de Google por un admin, reportes, exportación con confirmación de identidad, conciliación, gastos fijos, envío tras recuperar la conexión y accesibilidad. Cada ejecución utiliza puerto y datos propios dentro de `web/.e2e/`.
 
-Para instalar Chromium antes de las pruebas E2E: `cd web && npx playwright install chromium` (en Linux CI: `--with-deps chromium`). Para revisar dependencias: `npm audit` en `web/` y `go mod verify` en la raíz. La CI también comprueba vulnerabilidades Go alcanzables con `govulncheck` y escanea la imagen con Trivy.
+Para instalar Chromium antes de las pruebas E2E: `cd web && npx playwright install chromium` (en Linux CI: `--with-deps chromium`). Para revisar dependencias: `npm audit` en `web/` y `go mod verify` en la raíz. La CI también comprueba vulnerabilidades Go alcanzables con `govulncheck`, escanea la imagen con Trivy y ejecuta OWASP ZAP baseline contra las páginas públicas del contenedor, bloqueando alertas de riesgo medio o alto.
 
 ## Despliegue
 
 Ver [`deploy/README.md`](deploy/README.md). Un push a `main` ejecuta las pruebas, construye y firma la imagen en GHCR y activa el despliegue del entorno `production`, sujeto a sus controles de GitHub. El servidor escucha por defecto en el puerto 8080.
 
 `/healthz` comprueba la base y que el esquema coincida con el binario; devuelve 503 si falla esa comprobación e informa si Gmail y push están activos. La guía de despliegue incluye la copia externa con `deploy/backup-offsite.sh`, la restauración en una máquina limpia y la configuración de monitores.
+
+La migración `0009_reportes_recurrentes` añade las revisiones de importación, avisos de plantillas, totales de conciliación y gastos recurrentes; se aplica al arrancar como las migraciones anteriores. El despliegue debe conservar la base y la KEK para mantener acceso a los campos cifrados.

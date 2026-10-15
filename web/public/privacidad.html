@@ -88,8 +88,11 @@
         <li><strong>Solo correos de tus bancos.</strong> La búsqueda se filtra en los servidores de Google por remitente
           (Banco Pichincha, Produbanco y Diners/Titanium) y por fecha. Pulse no lista, abre ni descarga ningún otro correo.</li>
         <li><strong>No guardamos el correo.</strong> Cada notificación se procesa en memoria para extraer monto, fecha, comercio y
-          últimos dígitos de la tarjeta, y se descarta. Queda solo el gasto resultante y la huella del identificador del mensaje
-          (para no importarlo dos veces), que se borra a los 60 días.</li>
+          últimos dígitos de la tarjeta, y se descarta. Quedan el gasto resultante y la huella del identificador del mensaje
+          (para no importarlo dos veces), que se borra a los 90 días.</li>
+        <li><strong>Formatos no reconocidos.</strong> Si Pulse no sabe interpretar una notificación bancaria, conserva su asunto
+          cifrado y una huella para avisarte y detectar cambios de formato, sin guardar el cuerpo. El aviso a los administradores
+          indica solo el banco, sin incluir el asunto ni el contenido del correo.</li>
         <li><strong>Revisión por ti.</strong> Por defecto, todo gasto importado queda “Por revisar” hasta que lo confirmas.</li>
         <li><strong>Desconexión.</strong> Al desconectar, Pulse revoca el token en Google, detiene los avisos y borra la conexión.
           También puedes quitar el acceso en <a href="https://myaccount.google.com/permissions">myaccount.google.com/permissions</a>.</li>
@@ -157,7 +160,7 @@
               de datos y desaparecen de las copias de seguridad cuando estas rotan (normalmente en pocas semanas).</td></tr>
             <tr><td>Sesiones</td><td>Hasta que cierras sesión o caducan.</td></tr>
             <tr><td>Registro de seguridad (IP, navegador, eventos)</td><td>12 meses; después se borra automáticamente.</td></tr>
-            <tr><td>Huellas de correos ya procesados</td><td>60 días.</td></tr>
+            <tr><td>Huellas de correos ya procesados</td><td>90 días.</td></tr>
             <tr><td>Conexión con Gmail</td><td>Hasta que desconectas o eliminas tu cuenta.</td></tr>
             <tr><td>Avisos push pendientes</td><td>Hasta 48 horas si no se pueden entregar; su registro, 14 días.</td></tr>
           </tbody>
@@ -186,7 +189,9 @@
       <h2 id="cookies">8. Cookies y almacenamiento local</h2>
       <p>Pulse usa una única cookie, <code>__Host-pulse</code>, estrictamente necesaria para mantener tu sesión; está protegida
         (Secure, HttpOnly, SameSite=Strict) y no sirve para rastrearte. En tu navegador se guardan además tus preferencias de tema y
-        de animaciones, y la app se guarda en caché para funcionar sin conexión (nunca tus datos financieros).
+        de animaciones, y la app se guarda en caché para funcionar sin conexión; las respuestas de la API financiera no se guardan
+        en esa caché. Si creas un gasto manual sin red, sus datos se guardan temporalmente en IndexedDB en ese navegador hasta
+        enviarlo al servidor. Esta cola local también se elimina al cerrar sesión.
         No hay cookies de terceros, publicidad ni analítica, por lo que no necesitamos un banner de consentimiento.</p>
 
       <h2 id="menores">9. Menores de edad</h2>

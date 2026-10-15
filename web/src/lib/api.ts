@@ -44,7 +44,7 @@ async function raw<T>(method: string, path: string, body?: unknown): Promise<T> 
     const e = data?.error
     throw new ApiError(res.status, e?.code ?? 'error', e?.message ?? 'Ocurrió un error inesperado.')
   }
-  return data as T
+  return (data ?? text) as T // CSV y otras respuestas que no son JSON llegan como texto
 }
 
 export async function api<T>(method: string, path: string, body?: unknown): Promise<T> {

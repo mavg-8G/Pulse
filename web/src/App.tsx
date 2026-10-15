@@ -13,6 +13,7 @@ import { Home } from './pages/Home'
 import { Landing } from './pages/Landing'
 import { Movements } from './pages/Movements'
 import { Plan } from './pages/Plan'
+import { Reports } from './pages/Reports'
 import { Settings } from './pages/Settings'
 
 function Authenticated() {
@@ -27,6 +28,7 @@ function Authenticated() {
         <Route path="/" element={<Home />} />
         <Route path="/movimientos" element={<Movements />} />
         <Route path="/plan" element={<Plan />} />
+        <Route path="/reportes" element={<Reports />} />
         <Route path="/ajustes" element={<Settings />} />
         <Route path="/ajustes/cuenta" element={<Settings view="account" />} />
         <Route path="/ajustes/cuentas" element={<Accounts />} />

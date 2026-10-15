@@ -162,6 +162,8 @@ export interface GmailStatus {
   shadow: boolean
   gemini: boolean
   imported: number
+  accuracy: { parser: string; bank: string; reviewed: number; correct: number; trusted: boolean }[]
+  template_alerts: { parser: string; bank: string; subject: string; created_at: string }[]
 }
 
 export interface GmailServerConfig {
@@ -184,4 +186,28 @@ export interface GmailSyncResult {
   ignored: number
   unrecognized: number
   gemini: number
+}
+
+export interface ReportSummary {
+  from: string
+  to: string
+  total_cents: number
+  months: { month: string; spent_cents: number }[]
+  by_category: { id: string; spent_cents: number }[]
+  by_account: { id: string; spent_cents: number }[]
+}
+
+export interface Reconciliation {
+  month: string
+  accounts: { account_id: string; recorded_cents: number; statement_cents: number | null; difference_cents: number | null }[]
+}
+
+export interface Recurring {
+  id: string
+  account_id: string
+  category_id: string
+  amount_cents: number
+  merchant: string
+  day: number
+  next_date: string
 }

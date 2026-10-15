@@ -392,3 +392,20 @@ func (s *Service) Imported(ctx context.Context, uid, txID string, amountCents in
 	}
 	return s.queue(ctx, subs, sl, "import:"+txID, "import", Payload{Title: title, Body: body, PrivateBody: private, URL: "/movimientos"}, time.Time{})
 }
+
+// Notify encola un aviso para todos los dispositivos del usuario; key evita repetirlo.
+func (s *Service) Notify(ctx context.Context, uid, key, kind string, p Payload) error {
+	u, err := s.Store.User(ctx, uid)
+	if err != nil {
+		return err
+	}
+	subs, err := s.Store.PushSubscriptions(ctx, uid)
+	if err != nil || len(subs) == 0 {
+		return err
+	}
+	sl, err := s.Keys.Sealer(uid, u.DEKEnc)
+	if err != nil {
+		return err
+	}
+	return s.queue(ctx, subs, sl, key, kind, p, time.Time{})
+}

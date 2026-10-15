@@ -157,7 +157,9 @@ func serve() error {
 		}
 		gmailDone := make(chan struct{})
 		go func() { defer close(gmailDone); srv.RunGmail(ctx) }()
-		defer func() { stop(); <-pushDone; <-gmailDone }()
+		recurringDone := make(chan struct{})
+		go func() { defer close(recurringDone); srv.RunRecurring(ctx) }()
+		defer func() { stop(); <-pushDone; <-gmailDone; <-recurringDone }()
 		go func() { // limpieza periódica de sesiones y desafíos caducados
 			t := time.NewTicker(10 * time.Minute)
 			defer t.Stop()

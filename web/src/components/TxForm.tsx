@@ -1,7 +1,8 @@
 import { useConfirm } from './Confirm'
 import { useMemo, useRef, useState, type FormEvent } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { del, errorMessage, patch, post } from '../lib/api'
+import { ApiError, del, errorMessage, patch, post } from '../lib/api'
+import { enqueue } from '../lib/outbox'
 import { nowLocalInput, toLocalInput } from '../lib/dates'
 import { centsToInput, parseAmount } from '../lib/money'
 import { financeKeys, useAccounts, useCategories, useMe } from '../lib/queries'
@@ -26,6 +27,7 @@ export function TxForm({ tx, onDone }: { tx?: Transaction; onDone: () => void })
   const [merchant, setMerchant] = useState(tx?.merchant ?? '')
   const [notes, setNotes] = useState(tx?.notes ?? '')
   const [learn, setLearn] = useState(false)
+  const [repeat, setRepeat] = useState(false)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
 
@@ -48,13 +50,23 @@ export function TxForm({ tx, onDone }: { tx?: Transaction; onDone: () => void })
     if (!effectiveAccount) return setError('Primero crea una cuenta en Ajustes → Cuentas.')
     setBusy(true)
     const body = { amount_cents: cents, kind, category_id: categoryId, account_id: effectiveAccount, occurred_at: when, merchant, notes }
+    const created = { ...body, id: crypto.randomUUID() } // id del cliente: reenviarlo sin conexión no lo duplica
     try {
       if (tx) await patch(`/api/transactions/${tx.id}`, { ...body, learn_rule: learn && categoryChanged, ...(confirmRef.current ? { status: 'confirmed' } : {}) })
-      else await post('/api/transactions', body)
+      else if (repeat) await post('/api/recurring', { account_id: effectiveAccount, category_id: categoryId, amount_cents: cents, merchant, start_date: when.slice(0, 10) })
+      else await post('/api/transactions', created)
       financeKeys.forEach((k) => qc.invalidateQueries({ queryKey: k }))
-      toast(confirmRef.current ? 'Gasto confirmado' : tx ? 'Gasto actualizado' : 'Gasto guardado')
+      if (repeat) qc.invalidateQueries({ queryKey: ['recurring'] })
+      toast(confirmRef.current ? 'Gasto confirmado' : tx ? 'Gasto actualizado' : repeat ? 'Gasto fijo creado: se registrará cada mes' : 'Gasto guardado')
       onDone()
     } catch (err) {
+      if (!tx && !repeat && err instanceof ApiError && err.status === 0) {
+        try {
+          await enqueue(created)
+          toast('Sin conexión: el gasto se enviará al volver a estar en línea')
+          return onDone()
+        } catch { /* sin IndexedDB: se muestra el error */ }
+      }
       setError(errorMessage(err))
     } finally {
       setBusy(false)
@@ -136,6 +148,12 @@ export function TxForm({ tx, onDone }: { tx?: Transaction; onDone: () => void })
         <summary>Notas</summary>
         <textarea className="textarea" maxLength={2000} value={notes} onChange={(e) => setNotes(e.target.value)} aria-label="Notas" />
       </details>
+      {!tx && kind === 'purchase' && (
+        <label className="check">
+          <input type="checkbox" checked={repeat} onChange={(e) => setRepeat(e.target.checked)} />
+          <span>Repetir cada mes este día (gasto fijo)</span>
+        </label>
+      )}
       {categoryChanged && (
         <label className="check">
           <input type="checkbox" checked={learn} onChange={(e) => setLearn(e.target.checked)} />

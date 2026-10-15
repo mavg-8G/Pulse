@@ -180,6 +180,13 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/budgets/summary", s.full(s.budgetSummary))
 	mux.HandleFunc("GET /api/alerts", s.full(s.listAlerts))
 	mux.HandleFunc("GET /api/dashboard", s.full(s.dashboard))
+	mux.HandleFunc("GET /api/reports/summary", s.full(s.reportSummary))
+	mux.HandleFunc("GET /api/reports/export.csv", s.withStepUp(s.reportExport))
+	mux.HandleFunc("GET /api/reports/reconciliation", s.full(s.reconciliation))
+	mux.HandleFunc("PUT /api/statements", s.full(s.putStatement))
+	mux.HandleFunc("GET /api/recurring", s.full(s.listRecurring))
+	mux.HandleFunc("POST /api/recurring", s.full(s.createRecurring))
+	mux.HandleFunc("DELETE /api/recurring/{id}", s.full(s.deleteRecurring))
 
 	mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) { s.fail(w, r, errNotFound) })
 	if s.static != nil {

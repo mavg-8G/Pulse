@@ -176,9 +176,9 @@ func (s *Store) ReleaseGmailMessage(ctx context.Context, userID string, h []byte
 	return err
 }
 
-// PruneGmailSeen olvida los mensajes vistos hace más de 60 días (la consulta solo mira días recientes).
+// PruneGmailSeen olvida los mensajes vistos hace más de 90 días (la consulta solo mira días recientes).
 func (s *Store) PruneGmailSeen(ctx context.Context) error {
-	_, err := s.DB.ExecContext(ctx, `DELETE FROM gmail_seen WHERE seen_at < ?`, TS(s.Clock.Now().Add(-60*24*time.Hour)))
+	_, err := s.DB.ExecContext(ctx, `DELETE FROM gmail_seen WHERE seen_at < ?`, TS(s.Clock.Now().Add(-90*24*time.Hour)))
 	return err
 }
 

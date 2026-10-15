@@ -220,8 +220,8 @@ func TestConectarYSincronizar(t *testing.T) {
 			t.Fatal("Pulse descargó un correo que no es del banco")
 		}
 	}
-	if len(e.g.Queries) < 2 || !strings.Contains(e.g.Queries[0], "newer_than:60d") {
-		t.Fatalf("la primera sincronización debe mirar 60 días y paginar: %q", e.g.Queries)
+	if len(e.g.Queries) < 2 || !strings.Contains(e.g.Queries[0], "newer_than:90d") {
+		t.Fatalf("la primera sincronización debe mirar 90 días y paginar: %q", e.g.Queries)
 	}
 	if total, pending := e.txCount(u.ID); total != 3 || pending != 3 {
 		t.Fatalf("gastos: %d (pendientes %d); modo sombra: todo por revisar", total, pending)
@@ -627,4 +627,60 @@ func TestRunProcesaPendientesYAvisos(t *testing.T) {
 	}
 	cancel()
 	<-done
+}
+
+func TestPlantillaDesconocidaSeRegistraYAvisaUnaVez(t *testing.T) {
+	e := newEnv(t)
+	u := e.user()
+	e.connect(u, "a@gmail.com")
+	ctx := context.Background()
+	var avisos []string
+	e.s.OnTemplate = func(_ context.Context, _ *store.User, parser string) { avisos = append(avisos, parser) }
+	e.g.Deliver("a@gmail.com", fixture(t, "pichincha-plantilla-nueva"))
+	e.g.Deliver("a@gmail.com", fixture(t, "desconocido")) // remitente que no es banco: no es una plantilla cambiada
+	if r, err := e.s.SyncUser(ctx, u.ID); err != nil || r.Unrecognized != 1 {
+		t.Fatalf("%+v %v", r, err)
+	}
+	if len(avisos) != 1 || !strings.HasPrefix(avisos[0], "pichincha") {
+		t.Fatalf("avisos: %v", avisos)
+	}
+	alerts, err := e.st.TemplateAlerts(ctx, u.ID, e.sealer(u), e.c.Now().AddDate(0, 0, -1))
+	if err != nil || len(alerts) != 1 || alerts[0].Subject == "" {
+		t.Fatalf("%+v %v", alerts, err)
+	}
+	var plain int // el asunto se guarda cifrado
+	e.st.DB.QueryRow(`SELECT COUNT(*) FROM template_alerts WHERE instr(subject_enc, ?) > 0`, alerts[0].Subject).Scan(&plain)
+	if plain != 0 {
+		t.Fatal("asunto en claro")
+	}
+}
+
+func TestBancoConfiableSeConfirmaSinRegla(t *testing.T) {
+	e := newEnv(t)
+	u := e.user()
+	e.connect(u, "a@gmail.com")
+	ctx := context.Background()
+	sl := e.sealer(u)
+	var cat string
+	e.st.DB.QueryRow(`SELECT id FROM categories WHERE user_id = ? AND name = 'Comida'`, u.ID).Scan(&cat)
+	acc := &store.Account{ID: auth.NewID(), Name: "Otra", Type: "cash", Currency: "USD"}
+	if err := e.st.CreateAccount(ctx, u.ID, acc); err != nil {
+		t.Fatal(err)
+	}
+	// 20 revisiones sin correcciones de ese banco
+	for i := range store.MinReviews {
+		id := auth.NewID()
+		if err := e.st.CreateTransaction(ctx, u.ID, sl, &store.Transaction{ID: id, AccountID: acc.ID, CategoryID: cat, AmountCents: 100, Currency: "USD",
+			OccurredAt: e.c.Now(), Kind: "purchase", Source: "gmail", Status: "confirmed", Parser: "pichincha-consumo-v1", MessageHash: []byte{byte(i)}}); err != nil {
+			t.Fatal(err)
+		}
+		e.st.SetReview(ctx, u.ID, id, "ok")
+	}
+	off := false
+	e.st.SetGmailOptions(ctx, u.ID, &off, nil)
+	e.g.Deliver("a@gmail.com", fixture(t, "pichincha-consumo")) // sin regla de comercio, pero el banco es confiable
+	r, err := e.s.SyncUser(ctx, u.ID)
+	if err != nil || r.Created != 1 || r.Confirmed != 1 {
+		t.Fatalf("%+v %v", r, err)
+	}
 }

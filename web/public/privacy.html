@@ -47,7 +47,7 @@
         <li><strong>OAuth refresh token</strong> issued by Google, to keep importing without asking you to sign in every time.</li>
         <li><strong>Only bank notification emails.</strong> Pulse searches Gmail with a query filtered on Google’s servers by sender
           (Banco Pichincha, Produbanco and Diners Club / Titanium notification addresses) and by date, for example
-          <code>from:(bank senders) newer_than:60d</code>. Pulse never lists, opens or downloads any other email. For each matching
+          <code>from:(bank senders) newer_than:90d</code>. Pulse never lists, opens or downloads any other email. For each matching
           message it reads the message content (subject, sender, date and body).</li>
       </ul>
 
@@ -71,6 +71,9 @@
       <ul>
         <li><strong>Emails are never stored.</strong> Each notification is processed in memory and discarded immediately after the
           expense is extracted.</li>
+        <li>If a bank notification cannot be recognized, Pulse keeps its encrypted subject and a message hash to show you an alert
+          and help detect format changes. The message body is not stored. Administrators receive only the bank name in the alert,
+          without the subject or message content.</li>
         <li>What is stored: the resulting expense (amount, date, account, category, and the merchant name encrypted), the Gmail
           address and refresh token <strong>encrypted with a key unique to your account</strong> (AES-256-GCM), and a keyed hash
           (HMAC) of each processed message ID so the same email is never imported twice.</li>
@@ -87,7 +90,7 @@
 
       <h3>Retention and deletion</h3>
       <ul>
-        <li>Message-ID hashes are deleted automatically after 60 days.</li>
+        <li>Message-ID hashes are deleted automatically after 90 days.</li>
         <li>The Gmail address and refresh token are kept only while Gmail is connected.</li>
         <li><strong>Disconnect at any time</strong> in Settings → Bank email (Gmail) → Disconnect: Pulse revokes the token with Google,
           stops notifications and deletes the stored connection immediately. You can also revoke access at
@@ -194,7 +197,7 @@
               deletion request; removed from backups as they rotate (normally within a few weeks).</td></tr>
             <tr><td>Sessions</td><td>Until you sign out or they expire.</td></tr>
             <tr><td>Security log (IP, browser, events)</td><td>12 months, then deleted automatically.</td></tr>
-            <tr><td>Processed email IDs (hashes)</td><td>60 days.</td></tr>
+            <tr><td>Processed email IDs (hashes)</td><td>90 days.</td></tr>
             <tr><td>Gmail connection</td><td>Until you disconnect or delete your account.</td></tr>
             <tr><td>Pending push notifications</td><td>Up to 48 hours if undeliverable; delivery records 14 days.</td></tr>
           </tbody>
@@ -214,7 +217,9 @@
       <h2 id="cookies">8. Cookies and local storage</h2>
       <p>Pulse uses a single strictly necessary cookie, <code>__Host-pulse</code>, to keep you signed in (Secure, HttpOnly,
         SameSite=Strict). Your browser also stores your theme and animation preferences, and the app shell is cached for offline use
-        (never your financial data). There are no third-party cookies, ads or analytics.</p>
+        without caching financial API responses. If you create a manual expense without a connection, its data is temporarily
+        stored in IndexedDB in that browser until it is sent to the server. This local queue is also deleted when you sign out.
+        There are no third-party cookies, ads or analytics.</p>
 
       <h2 id="children">9. Children</h2>
       <p>Pulse is not intended for anyone under 18 and is available by personal invitation only.</p>

@@ -46,7 +46,7 @@ func (s *Server) buildGmail(gs GoogleSettings, source string) *gmailRuntime {
 	syn := &gmail.Syncer{Store: s.store, Keys: s.keys, Clock: s.clock, Log: s.log,
 		Interval: s.cfg.GmailPollInterval, Topic: gs.PubSubTopic, Importer: s.importer(),
 		Client:     &gmail.Client{ClientID: gs.ClientID, ClientSecret: gs.ClientSecret, RedirectURL: s.cfg.Origin() + "/ajustes/gmail", EP: ep, HTTP: httpc},
-		OnImported: s.AfterImport, OnBroken: s.GmailBroken}
+		OnImported: s.AfterImport, OnBroken: s.GmailBroken, OnTemplate: s.TemplateChanged}
 	if gs.GeminiKey != "" {
 		syn.Gemini = &gmail.Gemini{Key: gs.GeminiKey, Model: s.cfg.GeminiModel, Base: ep.Gemini, HTTP: httpc}
 	}

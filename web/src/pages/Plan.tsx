@@ -7,8 +7,10 @@ import { useToast } from '../components/Toast'
 import { del, errorMessage, patch, post } from '../lib/api'
 import { monthLabel, monthOf } from '../lib/dates'
 import { centsToInput, money, parseAmount } from '../lib/money'
-import { useCategories, useMe, useSummary } from '../lib/queries'
-import type { BudgetLine } from '../lib/types'
+import { financeKeys, useAccounts, useCategories, useMe, useSummary } from '../lib/queries'
+import { useQuery } from '@tanstack/react-query'
+import { get } from '../lib/api'
+import type { BudgetLine, Recurring } from '../lib/types'
 
 const statusText = { ok: 'Vas bien', warning: 'Cuidado', over: 'Te pasaste' }
 
@@ -83,6 +85,7 @@ export function Plan() {
           {isCurrent && <p className="small faint" style={{ marginTop: 12 }}>La marca vertical indica el cierre estimado si sigues gastando al mismo ritmo.</p>}
         </>
       )}
+      <RecurringList />
       <Sheet open={edit.open} title={edit.line ? `Presupuesto de ${edit.line.name}` : 'Nuevo presupuesto'} onClose={() => setEdit({ open: false })}>
         <BudgetForm key={edit.line?.budget_id ?? 'new'} line={edit.line} used={s?.lines.map((l) => l.category_id) ?? []} onDone={() => setEdit({ open: false })} />
       </Sheet>
@@ -163,5 +166,46 @@ function BudgetForm({ line, used, onDone }: { line?: BudgetLine; used: string[];
       <button className="btn btn-primary btn-block">Guardar presupuesto</button>
       {line && <button type="button" className="btn btn-danger btn-block" onClick={remove}>Quitar presupuesto</button>}
     </form>
+  )
+}
+
+/** Gastos fijos: se registran solos cada mes. Se crean desde "Nuevo gasto" → "Repetir cada mes". */
+function RecurringList() {
+  const ask = useConfirm()
+  const qc = useQueryClient()
+  const toast = useToast()
+  const { data: list = [] } = useQuery({ queryKey: ['recurring'], queryFn: () => get<Recurring[]>('/api/recurring') })
+  const { data: categories = [] } = useCategories()
+  const { data: accounts = [] } = useAccounts(true)
+  if (list.length === 0) return null
+  const cat = (id: string) => categories.find((c) => c.id === id)
+  async function remove(r: Recurring) {
+    if (!(await ask({ title: `¿Dejar de registrar “${r.merchant || cat(r.category_id)?.name}”?`, body: 'Los gastos ya registrados se conservan.', confirm: 'Quitar gasto fijo', danger: true }))) return
+    try {
+      await del(`/api/recurring/${r.id}`)
+      qc.invalidateQueries({ queryKey: ['recurring'] })
+      financeKeys.forEach((k) => qc.invalidateQueries({ queryKey: k }))
+      toast('Gasto fijo quitado')
+    } catch (e) {
+      toast(errorMessage(e))
+    }
+  }
+  const total = list.reduce((a, r) => a + r.amount_cents, 0)
+  return (
+    <section className="section" aria-labelledby="h-recurring">
+      <div className="section-head"><h2 id="h-recurring">Gastos fijos</h2><span className="num muted">{money(total)} al mes</span></div>
+      <ul className="list">
+        {list.map((r) => (
+          <li key={r.id} className="settings-row">
+            <span className="grow">
+              <span aria-hidden="true">{cat(r.category_id)?.icon} </span>{r.merchant || cat(r.category_id)?.name} · <strong className="num">{money(r.amount_cents)}</strong>
+              <br />
+              <span className="small faint">Cada día {r.day} en {accounts.find((a) => a.id === r.account_id)?.name ?? 'tu cuenta'} · próximo {new Intl.DateTimeFormat('es-EC', { day: 'numeric', month: 'long', timeZone: 'UTC' }).format(new Date(`${r.next_date}T12:00:00Z`))}</span>
+            </span>
+            <button className="btn btn-sm btn-danger" onClick={() => remove(r)}>Quitar</button>
+          </li>
+        ))}
+      </ul>
+    </section>
   )
 }

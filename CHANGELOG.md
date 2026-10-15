@@ -2,6 +2,19 @@
 
 Cambios relevantes de Pulse. Las entradas «Sin publicar» describen cambios posteriores a la versión declarada `0.2.0`; sus fechas corresponden al registro del trabajo y no a una publicación o etiqueta de GitHub. Las secciones históricas conservan el contexto de cada etapa.
 
+## Sin publicar — reportes, gastos fijos y mejoras de Gmail (15 oct 2026)
+
+- Nueva página **Reportes** (`/reportes`) con evolución de 3, 6 o 12 meses, distribución por categoría y cuenta, tabla alternativa al gráfico y exportación CSV del periodo. La exportación exige confirmar identidad, queda auditada y protege los textos frente a fórmulas de hojas de cálculo.
+- Conciliación por cuenta y mes: permite introducir el total del estado de cuenta y compararlo con los movimientos registrados. Usa meses calendario en la zona horaria del usuario, no ciclos de corte de tarjetas.
+- Gastos fijos mensuales desde **Nuevo gasto → Repetir cada mes**, listado y eliminación en **Plan**. Registro de vencidos al arrancar y cada hora, ajuste al último día de meses cortos y deduplicación de cada cobro.
+- Nuevos gastos manuales sin conexión: cola temporal en IndexedDB, reenvío al recuperar la red o abrir la app y creación idempotente por identificador del cliente. La cola se limpia al cerrar sesión; ediciones y gastos fijos siguen requiriendo red.
+- Métricas de revisión de Gmail por banco: al confirmar se distingue entre lectura correcta y corrección de monto, día, tipo o cuenta. Con el modo sombra apagado, una lectura con suficiente confianza y categoría del diccionario puede confirmarse sola desde 20 revisiones y 98 % de aciertos.
+- Detector de plantillas bancarias no reconocidas: guarda asunto cifrado y huella, muestra avisos de los últimos 30 días en Ajustes → Gmail y envía un aviso a los administradores por banco y día sin incluir el asunto.
+- Primera sincronización y retención de huellas de Gmail ampliadas de 60 a 90 días, manteniendo el límite de 1.000 mensajes por sincronización. Políticas públicas en ambos idiomas actualizadas con el plazo de 90 días, el almacenamiento temporal de gastos sin conexión y los asuntos cifrados de formatos no reconocidos.
+- Migración `0009_reportes_recurrentes` para revisiones, avisos de plantillas, conciliación y gastos recurrentes; nuevos endpoints y pruebas de aislamiento, exportación, repetición, idempotencia y precisión.
+- CI incorpora OWASP ZAP baseline contra el contenedor con bloqueo de alertas medias/altas. README y plan actualizados con las funciones de las fases 8–9 y las aceptaciones manuales pendientes.
+- Verificación: compilación, 41 pruebas Vitest, formato Go, `go vet`, todos los paquetes Go con detector de carreras y validación del workflow con `actionlint` correctos. En E2E pasaron 55 de 56 en la suite completa; el escenario de invitación inválida agotó su espera inicial y pasó al repetirlo de forma aislada. ZAP contra Docker queda para la ejecución en CI.
+
 ## Sin publicar — Inicio, Mi cuenta y sincronización de Gmail (15 oct 2026)
 
 - Inicio concentra el gasto y el presupuesto en una tarjeta: barra de uso, saldo disponible o exceso, estado del plan, referencia del día del mes, promedio diario, cierre estimado y movimientos por revisar. Se retiran el trazo diario y el anillo de presupuesto anteriores, junto con el componente `PulseTrace`.
