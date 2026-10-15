@@ -1,0 +1,29 @@
+From: Produbanco enlínea <bancaenlinea@produbanco.com>
+To: titular@example.com
+Subject: =?UTF-8?Q?Consumo_Tarjeta_de_Cr=C3=A9dito_por_USD_20.00?=
+Date: Fri, 09 Oct 2026 17:40:12 -0500
+Message-ID: <produbanco-consumo-mes-dia@pruebas.pulse>
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="LIMITE"
+
+--LIMITE
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+
+<html><body>
+<table><tr><td style=3D"background:#006633"><img alt=3D"Produbanco Grupo Pr=
+omerica" src=3D"cid:logo"></td></tr></table>
+<div class=3D"notif">Notificaci&oacute;n</div>
+<p>Estimado/a</p><p>TITULAR DE PRUEBA</p>
+<p>Fecha y Hora: 10/09/2026 17:40</p>
+<p>Transacci&oacute;n: <b>Consumo Tarjeta de Cr&eacute;dito Produbanco</b><=
+/p>
+<p>Te informamos que se acaba de registrar un consumo con tu Tarjeta de Cr&=
+eacute;dito Visa Produbanco XXX7828 .</p>
+<p><b>Detalle</b></p>
+<p><b>Valor:</b> USD 20.00<br><b>Establecimiento:</b> ANTHROPIC* CLAUDE S</p>
+<p>Atentamente Produbanco</p>
+<p style=3D"font-size:11px">Si tienes alguna consulta con respecto a esta i=
+nformaci&oacute;n no dudes en comunicarte con nosotros.</p>
+</body></html>
+--LIMITE--

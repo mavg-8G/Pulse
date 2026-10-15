@@ -59,6 +59,7 @@ func Analyze(e *Email, loc *time.Location) Result {
 			r.Parser = p.Name()
 			if r.Expense != nil {
 				r.Expense.Parser = p.Name()
+				r.Expense.OccurredAt = nearSent(r.Expense.OccurredAt, e.Date, loc)
 			}
 			return r
 		}
@@ -250,4 +251,19 @@ func Bank(parser string) string {
 		return "Gemini"
 	}
 	return parser
+}
+
+// nearSent resuelve fechas ambiguas como "10/09/2026": Produbanco a veces escribe mes/día (9 de octubre)
+// y otras día/mes. Un aviso de consumo llega minutos después de la compra, así que se queda la lectura
+// más cercana a la fecha de envío del correo.
+func nearSent(t, sent time.Time, loc *time.Location) time.Time {
+	l := t.In(loc)
+	if sent.IsZero() || l.Day() > 12 || l.Day() == int(l.Month()) {
+		return t
+	}
+	sw := time.Date(l.Year(), time.Month(l.Day()), int(l.Month()), l.Hour(), l.Minute(), l.Second(), 0, loc).UTC()
+	if sw.Sub(sent).Abs() < t.Sub(sent).Abs() {
+		return sw
+	}
+	return t
 }

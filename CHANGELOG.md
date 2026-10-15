@@ -2,6 +2,15 @@
 
 Cambios relevantes de Pulse. Las entradas «Sin publicar» describen cambios posteriores a la versión declarada `0.2.0`; sus fechas corresponden al registro del trabajo y no a una publicación o etiqueta de GitHub. Las secciones históricas conservan el contexto de cada etapa.
 
+## Sin publicar — correos de Produbanco y cuentas duplicadas (15 oct 2026)
+
+- Normalización del HTML de correos: los saltos del código fuente se tratan como espacios antes de separar etiquetas, para leer importes como `USD` y `20.00` aunque estén en líneas distintas.
+- Fechas numéricas ambiguas resueltas con la interpretación más cercana al envío del correo. Nuevos casos de referencia de Produbanco cubren mes/día, HTML con saltos, quoted-printable y base64.
+- El importador reutiliza una cuenta sin dígitos de la misma institución cuando el correo no incluye sufijo de tarjeta, prefiriendo una cuenta activa. Evita crear otra cuenta por cada notificación sin dígitos.
+- Migración `0010_unir_cuentas_repetidas`: reúne cuentas sin dígitos con usuario, institución, nombre y tipo iguales, conserva preferentemente la activa más antigua y reasigna movimientos, gastos fijos y conciliación. Conserva un total por mes en caso de conflicto; no toca cuentas sin institución ni cuentas con sufijo. La unión requiere restaurar un respaldo para deshacerse.
+- Pruebas de selección de cuentas y migración con conservación de movimientos, totales y claves foráneas. README actualizado con el comportamiento de importación y el alcance de la migración.
+- Verificación: formato de los archivos Go modificados, `go vet` y todos los paquetes Go con detector de carreras correctos, incluidos los nuevos archivos de referencia del parser y la migración de cuentas repetidas.
+
 ## Sin publicar — reportes, gastos fijos y mejoras de Gmail (15 oct 2026)
 
 - Nueva página **Reportes** (`/reportes`) con evolución de 3, 6 o 12 meses, distribución por categoría y cuenta, tabla alternativa al gráfico y exportación CSV del periodo. La exportación exige confirmar identidad, queda auditada y protege los textos frente a fórmulas de hojas de cálculo.

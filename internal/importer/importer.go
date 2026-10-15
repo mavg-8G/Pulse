@@ -123,9 +123,19 @@ func (im *Importer) account(ctx context.Context, userID string, x *mailparse.Exp
 
 // MatchAccount busca la cuenta por últimos dígitos; si hay varias con los mismos dígitos,
 // desempata por institución. Las cuentas archivadas solo se usan si no hay otra.
+//
+// Sin dígitos (algunos correos no los traen) se usa la cuenta sin dígitos de ese mismo banco,
+// la que se creó con el primer correo así; antes se creaba una cuenta nueva por cada correo.
 func MatchAccount(accs []store.Account, institution, suffix string) *store.Account {
 	if suffix == "" {
-		return nil
+		var found *store.Account
+		for i := range accs {
+			a := &accs[i]
+			if a.CardSuffix == "" && institution != "" && mailparse.Fold(a.Institution) == mailparse.Fold(institution) && (found == nil || found.Archived && !a.Archived) {
+				found = a
+			}
+		}
+		return found
 	}
 	var cands []store.Account
 	for _, a := range accs {

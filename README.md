@@ -44,6 +44,16 @@ Si un correo bancario no se reconoce, Pulse registra su asunto cifrado y una hue
 
 La guía completa de Google Cloud, OAuth, Pub/Sub, Gemini y configuración por variables de entorno está en [`deploy/GMAIL.md`](deploy/GMAIL.md).
 
+## Importación bancaria y cuentas repetidas
+
+La lectura de correos de Produbanco admite saltos de línea dentro del HTML, incluso entre la moneda y el monto. Para fechas numéricas ambiguas, como `10/09/2026`, el análisis de correos bancarios elige entre día/mes y mes/día la interpretación más cercana a la fecha de envío del correo. Esta corrección se aplica al analizar nuevas importaciones; no cambia las fechas de movimientos ya guardados.
+
+Si el correo no trae los últimos dígitos de la tarjeta, el importador reutiliza una cuenta sin dígitos de la misma institución, prefiriendo una activa a una archivada. Si no existe, crea una. Las cuentas con dígitos siguen buscando coincidencia por sufijo e institución.
+
+La migración `0010_unir_cuentas_repetidas` reúne las cuentas del mismo usuario que tienen institución, nombre y tipo iguales y no tienen dígitos. Conserva preferentemente una activa y, dentro de esa preferencia, la más antigua; reasigna sus movimientos y gastos fijos y traslada los totales de conciliación. Si coinciden varios totales para el mismo mes, conserva uno, sin sumarlos. Las cuentas sin institución o con dígitos no se unen.
+
+Esta unión se aplica al arrancar. Bajar la migración no vuelve a separar las cuentas: para recuperar el estado anterior hace falta restaurar un respaldo previo. El despliegue crea ese respaldo cuando la instancia actual está sana; para una actualización manual, crea también un respaldo antes de arrancar la nueva versión.
+
 ## Reportes, conciliación y gastos fijos
 
 En **Reportes**, elige 3, 6 o 12 meses para comparar el gasto mensual y su distribución por categoría y cuenta. **Exportar CSV** descarga los movimientos del periodo tras confirmar tu identidad; la descarga queda en la actividad de seguridad y los campos de texto se protegen frente a la interpretación como fórmulas en hojas de cálculo.

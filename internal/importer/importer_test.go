@@ -13,6 +13,8 @@ func TestMatchAccount(t *testing.T) {
 		{ID: "vieja", Name: "Vieja", Institution: "Diners Club", CardSuffix: "666", Archived: true},
 		{ID: "nueva", Name: "Nueva", Institution: "Diners Club", CardSuffix: "666"},
 		{ID: "sininst", Name: "Sin banco", CardSuffix: "7828"},
+		{ID: "titvieja", Name: "Titanium (Diners Club)", Institution: "Titanium (Diners Club)", Archived: true},
+		{ID: "titanium", Name: "Titanium (Diners Club)", Institution: "Titanium (Diners Club)"},
 	}
 	cases := []struct{ inst, suffix, want string }{
 		{"Banco Pichincha", "989", "pich"},         // desempata por institución
@@ -20,7 +22,9 @@ func TestMatchAccount(t *testing.T) {
 		{"Titanium (Diners Club)", "666", "nueva"}, // prefiere la no archivada
 		{"Produbanco", "7828", "sininst"},          // cuenta sin institución con esos dígitos
 		{"Banco Guayaquil", "989", ""},             // dígitos repetidos en otros bancos: no adivina
-		{"Banco Pichincha", "", ""},
+		{"Banco Pichincha", "", ""},                // sin dígitos y sin cuenta "sin dígitos" de ese banco: se crea
+		{"Titanium (Diners Club)", "", "titanium"}, // sin dígitos: la cuenta sin dígitos del mismo banco, no una nueva
+		{"Diners Club", "", ""},                    // otro nombre de banco: no se mezcla
 		{"Banco Pichincha", "1234", ""},
 	}
 	for _, c := range cases {

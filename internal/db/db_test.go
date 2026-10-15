@@ -142,3 +142,45 @@ func TestMigracion5ConservaDatos(t *testing.T) {
 		t.Fatalf("source tras bajar: %q", src)
 	}
 }
+
+func TestMigracion10UneCuentasRepetidas(t *testing.T) {
+	ctx := context.Background()
+	d := open(t)
+	if err := Migrate(ctx, d.DB); err != nil {
+		t.Fatal(err)
+	}
+	if err := MigrateDown(ctx, d.DB, 9); err != nil {
+		t.Fatal(err)
+	}
+	for _, q := range []string{
+		`INSERT INTO users (id, email, password_hash, role, dek_enc, timezone, created_at) VALUES ('u', 'a@b.c', 'x', 'user', x'00', 'UTC', 'x')`,
+		`INSERT INTO categories (id, user_id, name, created_at, updated_at) VALUES ('c', 'u', 'C', 'x', 'x')`,
+		`INSERT INTO accounts (id, user_id, name, type, institution, created_at, updated_at) VALUES
+			('t1', 'u', 'Titanium (Diners Club)', 'credit_card', 'Titanium (Diners Club)', '2026-01-01', 'x'),
+			('t2', 'u', 'Titanium (Diners Club)', 'credit_card', 'Titanium (Diners Club)', '2026-01-02', 'x'),
+			('t3', 'u', 'Titanium (Diners Club)', 'credit_card', 'Titanium (Diners Club)', '2026-01-03', 'x'),
+			('p1', 'u', 'Banco Pichincha …989', 'credit_card', 'Banco Pichincha', '2026-01-01', 'x'),
+			('e1', 'u', 'Efectivo', 'cash', '', '2026-01-01', 'x'),
+			('e2', 'u', 'Efectivo', 'cash', '', '2026-01-02', 'x')`,
+		`UPDATE accounts SET card_suffix = '989' WHERE id = 'p1'`,
+		`INSERT INTO transactions (id, user_id, account_id, category_id, amount_cents, occurred_at, created_at, updated_at) VALUES
+			('x1', 'u', 't1', 'c', 1, 'x', 'x', 'x'), ('x2', 'u', 't2', 'c', 2, 'x', 'x', 'x'), ('x3', 'u', 't3', 'c', 3, 'x', 'x', 'x')`,
+		`INSERT INTO statements (user_id, account_id, month, total_cents, updated_at) VALUES ('u', 't1', '2026-10', 5, 'x'), ('u', 't2', '2026-10', 6, 'x'), ('u', 't3', '2026-09', 7, 'x')`,
+	} {
+		if _, err := d.Exec(q); err != nil {
+			t.Fatal(q, err)
+		}
+	}
+	if err := Migrate(ctx, d.DB); err != nil {
+		t.Fatal(err)
+	}
+	var accounts, onKeep, stmts, fkErrs int
+	d.QueryRow(`SELECT COUNT(*) FROM accounts`).Scan(&accounts)
+	d.QueryRow(`SELECT COUNT(*) FROM transactions WHERE account_id = 't1'`).Scan(&onKeep)
+	d.QueryRow(`SELECT COUNT(*) FROM statements WHERE account_id = 't1'`).Scan(&stmts)
+	d.QueryRow(`SELECT COUNT(*) FROM pragma_foreign_key_check`).Scan(&fkErrs)
+	// t1 conserva los 3 gastos; Pichincha y los dos "Efectivo" (sin banco) no se tocan
+	if accounts != 4 || onKeep != 3 || stmts != 2 || fkErrs != 0 {
+		t.Fatalf("cuentas %d, gastos en t1 %d, estados en t1 %d, FK %d", accounts, onKeep, stmts, fkErrs)
+	}
+}

@@ -12,12 +12,16 @@ var (
 	reBreakTags  = regexp.MustCompile(`(?i)</?(br|p|div|tr|td|th|li|ul|ol|table|tbody|thead|h[1-6]|section|article|header|footer|center|blockquote)\b[^>]*>`)
 	reAnyTag     = regexp.MustCompile(`(?s)<[^>]*>`)
 	reSpaces     = regexp.MustCompile(`[ \t\x{00A0}\x{200B}\x{FEFF}]+`)
+	reAllSpace   = regexp.MustCompile(`\s+`)
 )
 
 // HTMLToText convierte HTML en texto: cada celda, párrafo o salto queda en su propia
 // línea, así "Valor" y "$ 17,68" en celdas distintas se leen como etiqueta y valor.
 func HTMLToText(s string) string {
 	s = reDropBlocks.ReplaceAllString(s, " ")
+	// Como en un navegador, los saltos de línea del código HTML son espacios: solo las etiquetas
+	// separan líneas. (Produbanco corta "Valor: USD\r\n20.00" en el código fuente.)
+	s = reAllSpace.ReplaceAllString(s, " ")
 	s = reBreakTags.ReplaceAllString(s, "\n")
 	s = reAnyTag.ReplaceAllString(s, " ")
 	s = html.UnescapeString(s)
