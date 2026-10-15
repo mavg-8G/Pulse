@@ -2,5 +2,11 @@
 // Archivo externo (no en línea) para cumplir la CSP estricta.
 try {
   var t = localStorage.getItem('pulse-theme')
-  if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t
+  if (t === 'light' || t === 'dark') {
+    document.documentElement.dataset.theme = t
+    document.addEventListener('DOMContentLoaded', function () {
+      var c = t === 'dark' ? '#171411' : '#f7f3ed'
+      document.querySelectorAll('meta[name="theme-color"]').forEach(function (m) { m.content = c })
+    })
+  }
 } catch (e) {}

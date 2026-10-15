@@ -1,3 +1,4 @@
+import { useConfirm } from '../components/Confirm'
 import { useState, type FormEvent } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { MonthSwitch } from '../components/AppShell'
@@ -36,7 +37,7 @@ export function Plan() {
       )}
       {s && s.lines.length > 0 && (
         <>
-          <div className="panel" aria-label="Total del plan">
+          <div className="panel budget" aria-label="Total del plan">
             <div className="budget-top">
               <span className="muted">Total del plan</span>
               <span className="num">
@@ -100,6 +101,7 @@ function Bar({ p, showProjection }: { p: { percent: number; projected_cents: num
 }
 
 function BudgetForm({ line, used, onDone }: { line?: BudgetLine; used: string[]; onDone: () => void }) {
+  const ask = useConfirm()
   const { data: categories = [] } = useCategories()
   const qc = useQueryClient()
   const toast = useToast()
@@ -126,7 +128,7 @@ function BudgetForm({ line, used, onDone }: { line?: BudgetLine; used: string[];
     }
   }
   async function remove() {
-    if (!line || !confirm(`¿Quitar el presupuesto de ${line.name}?`)) return
+    if (!line || !(await ask({ title: `¿Quitar el presupuesto de ${line.name}?`, confirm: 'Quitar presupuesto', danger: true }))) return
     await del(`/api/budgets/${line.budget_id}`)
     refresh()
     toast('Presupuesto quitado')

@@ -61,7 +61,7 @@ export function Movements() {
         </div>
       </div>
       <div className="filters">
-        <input className="input search" type="search" placeholder="Buscar comercio o nota" aria-label="Buscar" value={q} onChange={(e) => setQ(e.target.value)} />
+        <input className="input search" type="search" name="q" autoComplete="off" placeholder="Buscar comercio o nota…" aria-label="Buscar" value={q} onChange={(e) => setQ(e.target.value)} />
         <select className="select" aria-label="Categoría" value={category} onChange={(e) => setCategory(e.target.value)}>
           <option value="">Todas las categorías</option>
           {tops.map((c) => (

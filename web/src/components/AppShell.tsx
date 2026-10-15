@@ -61,13 +61,13 @@ export function AppShell({ children }: { children: ReactNode }) {
       <a href="#contenido" className="skip-link">Ir al contenido</a>
       <div className="shell">
         <nav className="sidebar" aria-label="Principal">
-          <NavLink to="/" className="brand"><PulseMark /><span>Pulse<small>Encuentra tu equilibrio</small></span></NavLink>
+          <NavLink to="/" className="brand"><PulseMark /><span><span translate="no">Pulse</span><small>Encuentra tu equilibrio</small></span></NavLink>
           <button className="btn btn-primary side-add" onClick={() => open()}><IconPlus /> Nuevo gasto<span className="side-add-dot" aria-hidden="true" /></button>
-          <p className="nav-section-label">MI DÍA A DÍA</p>
+          <p className="nav-section-label">Mi día a día</p>
           <div className="side-nav-group">{nav.slice(0, 3).map((n) => <NavLink key={n.to} to={n.to} end={n.end} className="side-link">{n.icon}<span>{n.label}</span>{n.to === '/movimientos' && !!dashboard?.pending_review && <span className="nav-count">{dashboard.pending_review}</span>}</NavLink>)}</div>
-          <p className="nav-section-label">ORGANIZACIÓN</p>
+          <p className="nav-section-label">Organización</p>
           <div className="side-nav-group">{manage.map((n) => <NavLink key={n.to} to={n.to} className="side-link">{n.icon}<span>{n.label}</span><span className="nav-count" aria-hidden="true">{n.count}</span></NavLink>)}<NavLink to="/ajustes" end className="side-link"><IconSettings /><span>Ajustes</span></NavLink></div>
-          <Link to="/plan" className="sidebar-insight"><div><span className="eyebrow">ESTE MES</span><span className="live-dot" /></div><strong className="num">{dashboard ? money(dashboard.spent_cents) : '—'}</strong><p>{dashboard?.has_budgets ? `Presupuesto: ${money(dashboard.budget.budget_cents)}` : 'Cada gasto cuenta. Tú marcas el ritmo.'}</p><svg className="sidebar-wave" viewBox="0 0 180 38" aria-hidden="true"><path className="wave-base" d="M0 23h180" /><path className="wave-line" pathLength="100" d="M0 23h34l6-6 5 6h13l8-17 10 30 9-21 7 8h22l5-9 7 9h54" /></svg><span className="sidebar-insight-link">{monthLabel(current)} <IconArrow /></span></Link>
+          <Link to="/plan" className="sidebar-insight"><div><span className="eyebrow">Este mes</span><span className="live-dot" /></div><strong className="num">{dashboard ? money(dashboard.spent_cents) : '—'}</strong><p>{dashboard?.has_budgets ? `Presupuesto: ${money(dashboard.budget.budget_cents)}` : 'Cada gasto cuenta. Tú marcas el ritmo.'}</p><svg className="sidebar-wave" viewBox="0 0 180 38" aria-hidden="true"><path className="wave-base" d="M0 23h180" /><path className="wave-line" pathLength="100" d="M0 23h34l6-6 5 6h13l8-17 10 30 9-21 7 8h22l5-9 7 9h54" /></svg><span className="sidebar-insight-link">{monthLabel(current)} <IconArrow /></span></Link>
           <Link className="side-profile" to="/ajustes"><span className="avatar">{initial}</span><span><strong>Mi cuenta</strong><small>{me?.email}</small></span><IconSettings /></Link>
         </nav>
         <main className="main" id="contenido">

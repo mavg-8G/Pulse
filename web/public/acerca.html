@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content="Pulse es un registro personal de gastos: cuentas, categorías, presupuestos mensuales y captura opcional de las notificaciones de compra de tu banco desde Gmail." />
     <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <link rel="preload" href="/fonts/public-sans-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/bricolage-grotesque-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="stylesheet" href="/legal.css" />
     <script src="/theme.js"></script>
     <title>Pulse · Registro personal de gastos</title>
@@ -12,9 +14,9 @@
   <body>
     <main>
       <header>
-        <img src="/icon.svg" alt="" />
-        <a href="/acerca">Pulse</a>
-        <nav aria-label="Idioma y acceso"><a href="/about" hreflang="en" lang="en">English</a><a href="/">Entrar</a></nav>
+        <img src="/icon.svg" width="32" height="32" alt="" />
+        <a href="/">Pulse</a>
+        <nav aria-label="Idioma y acceso"><a href="/about" hreflang="en" lang="en">English</a><a href="/entrar">Entrar</a></nav>
       </header>
 
       <h1>Pulse — tu registro personal de gastos</h1>
@@ -22,7 +24,7 @@
         presupuesto mensual a cada categoría y recibe un aviso antes de pasarte. Si quieres, Pulse lee las notificaciones de compra
         que tu banco envía a tu Gmail y las convierte en gastos para que solo tengas que revisarlos.</p>
       <div class="actions">
-        <a class="btn btn-primary" href="/">Entrar</a>
+        <a class="btn btn-primary" href="/entrar">Entrar</a>
         <a class="btn" href="/privacidad">Política de privacidad</a>
         <a class="btn" href="/terminos">Términos y condiciones</a>
       </div>
@@ -54,7 +56,7 @@
 
       <h2>Quién puede usar Pulse</h2>
       <p>Pulse es solo por invitación: necesitas un código de quien administra este servidor de Pulse. Si te invitaron,
-        <a href="/">entra o crea tu cuenta</a>.</p>
+        <a href="/entrar">entra</a> o <a href="/registro">crea tu cuenta</a>.</p>
 
       <footer>
         <a href="/privacidad">Política de privacidad</a>

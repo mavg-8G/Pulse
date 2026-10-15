@@ -10,6 +10,7 @@ import { EnrollPage, LoginPage, RegisterPage, VerifyPage } from './pages/AuthPag
 import { Categories } from './pages/Categories'
 import { GmailCallback } from './pages/GmailCallback'
 import { Home } from './pages/Home'
+import { Landing } from './pages/Landing'
 import { Movements } from './pages/Movements'
 import { Plan } from './pages/Plan'
 import { Settings } from './pages/Settings'
@@ -44,7 +45,9 @@ export function App() {
   if (state === 'none')
     return (
       <Routes>
+        <Route path="/" element={<Landing />} />
         <Route path="/registro" element={<RegisterPage />} />
+        {/* /entrar y cualquier ruta privada sin sesión: al entrar se abre esa misma ruta */}
         <Route path="*" element={<LoginPage />} />
       </Routes>
     )

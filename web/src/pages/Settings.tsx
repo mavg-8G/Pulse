@@ -1,3 +1,4 @@
+import { useConfirm } from '../components/Confirm'
 import { useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -52,6 +53,7 @@ function browserName(ua: string) {
 }
 
 export function Settings() {
+  const ask = useConfirm()
   const { motion, toggleMotion } = useMotion()
   const { data: me } = useMe()
   const { refresh } = useAuth()
@@ -88,7 +90,7 @@ export function Settings() {
     }
   }
   async function removePasskey(p: PasskeyInfo) {
-    if (!confirm(`¿Quitar la passkey "${p.name}"?`)) return
+    if (!(await ask({ title: `¿Quitar la passkey “${p.name}”?`, body: 'Ya no podrás entrar con ella.', confirm: 'Quitar passkey', danger: true }))) return
     try {
       await del(`/api/security/passkeys/${p.id}`)
       toast('Passkey quitada')
@@ -98,7 +100,7 @@ export function Settings() {
     }
   }
   async function removeTotp() {
-    if (!confirm('¿Quitar la app de autenticación?')) return
+    if (!(await ask({ title: '¿Quitar la app de autenticación?', body: 'Sus códigos dejarán de servir para entrar.', confirm: 'Quitar app', danger: true }))) return
     try {
       await del('/api/security/totp')
       toast('App de autenticación quitada')
@@ -108,7 +110,7 @@ export function Settings() {
     }
   }
   async function newCodes() {
-    if (!confirm('Los códigos anteriores dejarán de funcionar. ¿Generar nuevos?')) return
+    if (!(await ask({ title: '¿Generar códigos nuevos?', body: 'Los códigos de recuperación anteriores dejarán de funcionar.', confirm: 'Generar códigos' }))) return
     try {
       const r = await post<{ recovery_codes: string[] }>('/api/security/recovery-codes')
       setCodes(r.recovery_codes)
@@ -128,7 +130,7 @@ export function Settings() {
     qc.clear()
     await wipeLocalData()
     await refresh()
-    navigate('/')
+    navigate('/entrar')
   }
 
   return (

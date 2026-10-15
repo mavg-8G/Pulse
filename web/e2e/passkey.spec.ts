@@ -27,7 +27,7 @@ test('registro con passkey e inicio de sesión con ella', async ({ page, context
   await expect(page.getByText(/^Passkey: /)).toBeVisible()
 
   await context.clearCookies()
-  await page.goto('/')
+  await page.goto('/entrar')
   await page.getByLabel('Email').fill(email)
   await page.getByLabel('Contraseña').fill(password)
   await page.getByRole('button', { name: 'Continuar' }).click()

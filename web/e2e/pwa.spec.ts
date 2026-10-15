@@ -8,6 +8,9 @@ test('manifest y cabeceras de seguridad', async ({ page, request }) => {
   expect(res.headers()['content-security-policy']).toContain("default-src 'self'")
   expect(res.headers()['x-frame-options']).toBe('DENY')
   await page.goto('/')
+  await expect(page.getByRole('heading', { level: 1, name: 'Tu dinero tiene pulso.' })).toBeVisible()
+  await page.getByRole('link', { name: 'Entrar', exact: true }).first().click()
+  await expect(page).toHaveURL(/\/entrar$/)
   await expect(page.getByRole('heading', { name: 'Entrar' })).toBeVisible()
 })
 

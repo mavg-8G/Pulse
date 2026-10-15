@@ -46,8 +46,8 @@ test('conectar Gmail con step-up, sincronizar un consumo y desconectar', async (
 
   // Desconectar revoca el acceso en Google y conserva los gastos.
   await page.goto('/ajustes')
-  page.once('dialog', (d) => d.accept())
   await section.getByRole('button', { name: 'Desconectar' }).click()
+  await page.getByRole('alertdialog', { name: '¿Desconectar Gmail?' }).getByRole('button', { name: 'Desconectar Gmail' }).click()
   await expect(page.getByText('Gmail desconectado')).toBeVisible()
   await expect(section.getByRole('button', { name: 'Conectar Gmail' })).toBeVisible()
   const revoked = await (await page.request.get(`${google()}/__revoked`)).json()

@@ -38,10 +38,15 @@ test('registrar, editar, buscar y borrar un gasto', async ({ page }) => {
   await edit.getByRole('button', { name: 'Guardar cambios' }).click()
   await expect(page.getByTestId('list-sum')).toHaveText(/20,00/)
 
-  // Borrar (confirma el diálogo)
-  page.once('dialog', (d) => d.accept())
+  // Borrar: pide confirmación en un diálogo propio; Cancelar no borra nada.
   await page.getByText("Carl's Jr Albán Borja").click()
   await edit.getByRole('button', { name: 'Borrar gasto' }).click()
+  const confirmDel = page.getByRole('alertdialog', { name: '¿Borrar este gasto?' })
+  await expect(confirmDel.getByRole('button', { name: 'Cancelar' })).toBeFocused()
+  await confirmDel.getByRole('button', { name: 'Cancelar' }).click()
+  await expect(confirmDel).toBeHidden()
+  await edit.getByRole('button', { name: 'Borrar gasto' }).click()
+  await confirmDel.getByRole('button', { name: 'Borrar gasto' }).click()
   await expect(page.getByText('Gasto borrado')).toBeVisible()
   const list = await apiGet(page, '/api/transactions')
   expect(list.total).toBe(0)

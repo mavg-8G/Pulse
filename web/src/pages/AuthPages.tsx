@@ -5,20 +5,23 @@ import { errorMessage, post } from '../lib/api'
 import { useAuth } from '../lib/auth'
 import { deviceName, passkeyAssertion, passkeyError, passkeysSupported, registerPasskey } from '../lib/webauthn'
 import { PulseMark } from '../components/icons'
+import { finePointer } from '../lib/device'
 
 function AuthLayout({ title, lead, children }: { title: string; lead?: string; children: React.ReactNode }) {
   return (
     <main className="auth">
       <div className="auth-card">
-        <div className="brand">
+        <Link to="/" className="brand" aria-label="Pulse, volver al inicio">
           <PulseMark />
-          Pulse
-        </div>
+          <span translate="no">Pulse</span>
+        </Link>
         <h1>{title}</h1>
         {lead && <p className="muted">{lead}</p>}
         {children}
         <p className="auth-legal small muted">
-          <a href="/acerca">Qué es Pulse</a> · <a href="/privacidad">Privacidad</a> · <a href="/terminos">Términos</a>
+          <Link to="/">Qué es Pulse</Link>
+          <a href="/privacidad">Privacidad</a>
+          <a href="/terminos">Términos</a>
         </p>
       </div>
     </main>
@@ -50,11 +53,11 @@ export function LoginPage() {
       <form onSubmit={submit} className="stack">
         <label className="field">
           <span>Email</span>
-          <input className="input" type="email" autoComplete="username" required value={email} onChange={(e) => setEmail(e.target.value)} />
+          <input className="input" type="email" name="email" autoComplete="username" autoCapitalize="none" spellCheck={false} required value={email} onChange={(e) => setEmail(e.target.value)} />
         </label>
         <label className="field">
           <span>Contraseña</span>
-          <input className="input" type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
+          <input className="input" type="password" name="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
         </label>
         <label className="check">
           <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
@@ -105,15 +108,15 @@ export function RegisterPage() {
       <form onSubmit={submit} className="stack">
         <label className="field">
           <span>Código de invitación</span>
-          <input className="input" required autoComplete="off" placeholder="PLS-XXXX-XXXX-XXXX-XXXX-XXXX" value={form.invite_code} onChange={set('invite_code')} />
+          <input className="input num" name="invite_code" required autoComplete="off" autoCapitalize="characters" spellCheck={false} placeholder="PLS-XXXX-XXXX-XXXX-XXXX-XXXX" value={form.invite_code} onChange={set('invite_code')} />
         </label>
         <label className="field">
           <span>Email</span>
-          <input className="input" type="email" autoComplete="username" required value={form.email} onChange={set('email')} />
+          <input className="input" type="email" name="email" autoComplete="username" autoCapitalize="none" spellCheck={false} required value={form.email} onChange={set('email')} />
         </label>
         <div className="field">
           <label htmlFor="reg-pw">Contraseña</label>
-          <input id="reg-pw" className="input" type="password" autoComplete="new-password" required minLength={12} value={form.password} onChange={set('password')} aria-describedby="pw-hint" />
+          <input id="reg-pw" className="input" type="password" name="new-password" autoComplete="new-password" required minLength={12} value={form.password} onChange={set('password')} aria-describedby="pw-hint" />
           <small id="pw-hint" className="hint">Mínimo 12 caracteres. Una frase de varias palabras es fácil de recordar y difícil de adivinar.</small>
         </div>
         <label className="field">
@@ -129,7 +132,7 @@ export function RegisterPage() {
           {busy ? 'Creando…' : 'Crear cuenta'}
         </button>
         <p className="muted small">
-          ¿Ya tienes cuenta? <Link to="/">Entrar</Link>
+          ¿Ya tienes cuenta? <Link to="/entrar">Entrar</Link>
         </p>
       </form>
     </AuthLayout>
@@ -188,7 +191,7 @@ export function VerifyPage() {
               <span>{mode === 'totp' ? 'Código de tu app de autenticación' : 'Código de recuperación'}</span>
               <input
                 className="input num"
-                autoFocus
+                autoFocus={finePointer()}
                 required
                 autoComplete="one-time-code"
                 inputMode={mode === 'totp' ? 'numeric' : 'text'}
@@ -288,7 +291,7 @@ export function TotpSetup({ onDone }: { onDone: (codes?: string[]) => void }) {
   return (
     <form onSubmit={submit} className="stack">
       <p className="muted">Escanea el código con Google Authenticator, 1Password, Aegis u otra app compatible.</p>
-      {qr ? <img className="qr" src={qr} alt="Código QR para la app de autenticación" /> : <div className="qr" aria-hidden="true" />}
+      {qr ? <img className="qr" src={qr} width={196} height={196} alt="Código QR para la app de autenticación" /> : <div className="qr" aria-hidden="true" />}
       {data && (
         <details>
           <summary className="small muted">¿No puedes escanear? Escribe la clave</summary>
@@ -297,7 +300,7 @@ export function TotpSetup({ onDone }: { onDone: (codes?: string[]) => void }) {
       )}
       <label className="field">
         <span>Código de 6 dígitos que muestra la app</span>
-        <input className="input num" required inputMode="numeric" autoComplete="one-time-code" maxLength={7} value={code} onChange={(e) => setCode(e.target.value)} />
+        <input className="input num" name="totp" required inputMode="numeric" autoComplete="one-time-code" maxLength={7} value={code} onChange={(e) => setCode(e.target.value)} />
       </label>
       {error && <p className="error" role="alert">{error}</p>}
       <button className="btn btn-primary btn-block" disabled={busy || !data}>Activar</button>

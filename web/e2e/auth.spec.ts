@@ -42,7 +42,7 @@ test.describe('registro e inicio de sesión', () => {
   test('entrar con un código de recuperación (un solo uso)', async ({ page, context }) => {
     const u = await register(page)
     await context.clearCookies()
-    await page.goto('/')
+    await page.goto('/entrar')
     await page.getByLabel('Email').fill(u.email)
     await page.getByLabel('Contraseña').fill(u.password)
     await page.getByRole('button', { name: 'Continuar' }).click()
@@ -52,7 +52,7 @@ test.describe('registro e inicio de sesión', () => {
     await expect(page.getByRole('heading', { name: 'Inicio' })).toBeVisible()
 
     await context.clearCookies()
-    await page.goto('/')
+    await page.goto('/entrar')
     await page.getByLabel('Email').fill(u.email)
     await page.getByLabel('Contraseña').fill(u.password)
     await page.getByRole('button', { name: 'Continuar' }).click()

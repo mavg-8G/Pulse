@@ -1,3 +1,4 @@
+import { useConfirm } from '../components/Confirm'
 import { useState, type FormEvent } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { get } from '../lib/api'
@@ -47,6 +48,7 @@ export function Categories() {
 }
 
 function CategoryForm({ cat, all, onDone, onEdit }: { cat?: Category; all: Category[]; onDone: () => void; onEdit: (c: Category) => void }) {
+  const ask = useConfirm()
   const qc = useQueryClient()
   const toast = useToast()
   const [name, setName] = useState(cat?.name ?? '')
@@ -75,7 +77,7 @@ function CategoryForm({ cat, all, onDone, onEdit }: { cat?: Category; all: Categ
     }
   }
   async function remove() {
-    if (!cat || !confirm(`¿Borrar ${cat.name}? Sus gastos pasarán a "Otros".`)) return
+    if (!cat || !(await ask({ title: `¿Borrar ${cat.name}?`, body: 'Sus gastos pasarán a “Otros”.', confirm: 'Borrar categoría', danger: true }))) return
     try {
       const r = await del<{ moved_transactions: number }>(`/api/categories/${cat.id}`)
       refresh()

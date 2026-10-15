@@ -8,6 +8,7 @@ import '@fontsource-variable/public-sans'
 import './styles.css'
 import { App } from './App'
 import { ToastProvider } from './components/Toast'
+import { ConfirmProvider } from './components/Confirm'
 import { ApiError } from './lib/api'
 import { AuthProvider } from './lib/auth'
 
@@ -47,8 +48,10 @@ createRoot(document.getElementById('root')!).render(
       <BrowserRouter>
         <AuthProvider>
           <ToastProvider>
-            <UpdateBar />
-            <App />
+            <ConfirmProvider>
+              <UpdateBar />
+              <App />
+            </ConfirmProvider>
           </ToastProvider>
         </AuthProvider>
       </BrowserRouter>

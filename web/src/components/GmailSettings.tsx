@@ -1,3 +1,4 @@
+import { useConfirm } from './Confirm'
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, del, errorMessage, get, patch, post } from '../lib/api'
@@ -22,6 +23,7 @@ export function syncSummary(r: GmailSyncResult): string {
 }
 
 export function GmailSettings({ tz }: { tz: string }) {
+  const ask = useConfirm()
   const qc = useQueryClient()
   const toast = useToast()
   const status = useQuery({ queryKey: ['gmail'], queryFn: () => get<GmailStatus>('/api/gmail') })
@@ -54,8 +56,8 @@ export function GmailSettings({ tz }: { tz: string }) {
       qc.invalidateQueries({ queryKey: ['accounts'] })
       toast(syncSummary(r))
     })
-  const disconnect = () => {
-    if (!confirm('¿Desconectar Gmail? Pulse dejará de leer tus correos y Google revocará el acceso. Los gastos ya importados se conservan.')) return
+  const disconnect = async () => {
+    if (!(await ask({ title: '¿Desconectar Gmail?', body: 'Pulse dejará de leer tus correos y Google revocará el acceso. Los gastos ya importados se conservan.', confirm: 'Desconectar Gmail', danger: true }))) return
     run(async () => {
       await del('/api/gmail')
       toast('Gmail desconectado')
@@ -65,8 +67,8 @@ export function GmailSettings({ tz }: { tz: string }) {
     run(async () => {
       await patch('/api/gmail', { shadow })
     })
-  const setGemini = (enabled: boolean) => {
-    if (enabled && !confirm('Los correos del banco que Pulse no sepa leer se enviarán a Gemini (Google) sin tu nombre, emails ni números largos. ¿Activar?')) return
+  const setGemini = async (enabled: boolean) => {
+    if (enabled && !(await ask({ title: '¿Activar Gemini?', body: 'Los correos del banco que Pulse no sepa leer se enviarán a Gemini (Google) sin tu nombre, emails ni números largos.', confirm: 'Activar Gemini' }))) return
     run(async () => {
       await api('PUT', '/api/gmail/gemini', { enabled })
       toast(enabled ? 'Gemini activado' : 'Gemini desactivado')

@@ -1,3 +1,4 @@
+import { useConfirm } from '../components/Confirm'
 import { useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
@@ -56,6 +57,7 @@ export function Accounts() {
 }
 
 function AccountForm({ acc, onDone }: { acc?: Account; onDone: () => void }) {
+  const ask = useConfirm()
   const qc = useQueryClient()
   const toast = useToast()
   const [f, setF] = useState({
@@ -90,7 +92,7 @@ function AccountForm({ acc, onDone }: { acc?: Account; onDone: () => void }) {
     done(acc.archived ? 'Cuenta reactivada' : 'Cuenta archivada')
   }
   async function remove() {
-    if (!acc || !confirm(`¿Borrar ${acc.name}?`)) return
+    if (!acc || !(await ask({ title: `¿Borrar ${acc.name}?`, confirm: 'Borrar cuenta', danger: true }))) return
     try {
       await del(`/api/accounts/${acc.id}`)
       done('Cuenta borrada')
@@ -103,7 +105,7 @@ function AccountForm({ acc, onDone }: { acc?: Account; onDone: () => void }) {
     <form onSubmit={submit} className="stack">
       <label className="field">
         <span>Nombre</span>
-        <input className="input" required maxLength={60} placeholder="Ej. Visa Pichincha" value={f.name} onChange={set('name')} />
+        <input className="input" required maxLength={60} autoComplete="off" placeholder="Ej. Visa Pichincha…" value={f.name} onChange={set('name')} />
       </label>
       <label className="field">
         <span>Tipo</span>
@@ -116,7 +118,7 @@ function AccountForm({ acc, onDone }: { acc?: Account; onDone: () => void }) {
       <div className="grid-2">
         <label className="field">
           <span>Banco o emisor</span>
-          <input className="input" maxLength={60} placeholder="Ej. Produbanco" value={f.institution} onChange={set('institution')} />
+          <input className="input" maxLength={60} autoComplete="off" placeholder="Ej. Produbanco…" value={f.institution} onChange={set('institution')} />
         </label>
         {isCard && (
           <label className="field">

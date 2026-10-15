@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content="Pulse is a private personal expense tracker: accounts, categories, monthly budgets and optional automatic capture of bank purchase notifications from Gmail." />
     <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <link rel="preload" href="/fonts/public-sans-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/bricolage-grotesque-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="stylesheet" href="/legal.css" />
     <script src="/theme.js"></script>
     <title>Pulse · Personal expense tracker</title>
@@ -12,9 +14,9 @@
   <body>
     <main>
       <header>
-        <img src="/icon.svg" alt="" />
+        <img src="/icon.svg" width="32" height="32" alt="" />
         <a href="/about">Pulse</a>
-        <nav aria-label="Language and access"><a href="/acerca" hreflang="es" lang="es">Español</a><a href="/">Sign in</a></nav>
+        <nav aria-label="Language and access"><a href="/acerca" hreflang="es" lang="es">Español</a><a href="/entrar">Sign in</a></nav>
       </header>
 
       <h1>Pulse — your personal expense tracker</h1>
@@ -22,7 +24,7 @@
         set a monthly budget for each category and get notified before you overspend. Optionally, Pulse can read the purchase
         notifications your bank sends to your Gmail and turn them into expenses for you to review.</p>
       <div class="actions">
-        <a class="btn btn-primary" href="/">Sign in</a>
+        <a class="btn btn-primary" href="/entrar">Sign in</a>
         <a class="btn" href="/privacy">Privacy Policy</a>
         <a class="btn" href="/terms">Terms of Service</a>
       </div>
@@ -54,7 +56,7 @@
 
       <h2>Who can use Pulse</h2>
       <p>Pulse is invitation-only: you need an invitation code from the person who administers this Pulse server. If you were invited,
-        <a href="/">sign in or create your account</a>.</p>
+        <a href="/entrar">sign in</a> or <a href="/registro">create your account</a>.</p>
 
       <footer>
         <a href="/privacy">Privacy Policy</a>

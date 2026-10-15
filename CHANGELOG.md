@@ -2,6 +2,14 @@
 
 Cambios relevantes de Pulse. Las entradas «Sin publicar» describen cambios posteriores a la versión declarada `0.2.0`; sus fechas corresponden al registro del trabajo y no a una publicación o etiqueta de GitHub. Las secciones históricas conservan el contexto de cada etapa.
 
+## Sin publicar — landing y pulido visual (14 oct 2026)
+
+- `/` sin sesión es una landing pública (qué es Pulse, cómo funciona, importación desde el banco, privacidad); el acceso pasa a `/entrar`. Con sesión, `/` sigue siendo el panel. Cerrar sesión lleva a `/entrar`.
+- Revisión contra las Web Interface Guidelines: diálogo de confirmación propio en lugar de `confirm()` (foco inicial en "Cancelar"), hojas que se abren y cierran con transición y sin arrastrar el scroll de fondo, avisos con entrada suave, `autoFocus` solo con ratón, emails y códigos sin corrector ni mayúsculas automáticas, placeholders con "…", texto mínimo legible de 0.72rem, `text-wrap: balance` en títulos, estados hover/active coherentes y `theme-color` que sigue al tema elegido.
+- Sistema de movimiento: curvas y duraciones comunes (`--ease-out`, `--t-fast/base/slow`) y un único ritmo de latido (`--beat`). El logo late una vez al cargar y al pasar el cursor; los trazos se dibujan una vez; con movimiento reducido o "Animaciones" en pausa no se anima nada.
+- Etiquetas en minúsculas en lugar de MAYÚSCULAS espaciadas; Ajustes ordena Gmail y Privacidad en la rejilla de escritorio.
+- Páginas públicas estáticas con la misma tipografía (fuentes servidas desde `/fonts`) y los mismos tokens que la app.
+
 ## Sin publicar — páginas bilingües y primera cuenta (14 oct 2026)
 
 - Presentación pública de Pulse en `/acerca` y `/about`, con funciones, acceso por invitación y explicación del uso opcional de Gmail.

@@ -36,7 +36,7 @@ export function Home() {
   return (
     <>
       <div className="page-head home-heading">
-        <div><p className="eyebrow">TU RESUMEN MENSUAL</p><h1>Inicio</h1><p className="page-description">Tu dinero, a tu ritmo. Todo el mes en un vistazo.</p></div>
+        <div><h1>Inicio</h1><p className="page-description">Tu dinero, a tu ritmo. Todo el mes en un vistazo.</p></div>
         <MonthSwitch month={month} onChange={setMonth} label={label} />
       </div>
       {isLoading && <div className="dashboard-skeleton" role="status" aria-label="Cargando resumen"><div /><div /><div /></div>}
@@ -45,7 +45,7 @@ export function Home() {
         <div className="dashboard" key={month}>
           <div className="dashboard-lead">
             <section className="panel spending-card" aria-label="Gastado en el mes">
-              <div className="card-heading"><span className="eyebrow">GASTADO ESTE MES</span><span className="activity-badge"><span className="live-dot" />{d.count ? 'Tu pulso del mes' : 'Listo para empezar'}</span></div>
+              <div className="card-heading"><span className="eyebrow">Gastado este mes</span><span className="activity-badge"><span className="live-dot" />{d.count ? 'Tu pulso del mes' : 'Listo para empezar'}</span></div>
               <p className="hero-amount" data-testid="month-total">{money(d.spent_cents)}</p>
               <p className="hero-sub">{d.count === 0 ? `Sin gastos en ${label.toLowerCase()}.` : `${d.count} ${d.count === 1 ? 'movimiento' : 'movimientos'} en ${label.toLowerCase()}`}</p>
               <PulseTrace daily={d.daily_cents} today={today} />
@@ -67,14 +67,14 @@ export function Home() {
 
           <div className="dashboard-lower">
             <section className="panel recent-card" aria-labelledby="h-recent">
-              <div className="section-head"><div><p className="eyebrow">TU ACTIVIDAD</p><h2 id="h-recent">Últimos movimientos</h2></div><Link className="text-link" to={`/movimientos?month=${month}`}>Ver todos <IconArrow /></Link></div>
+              <div className="section-head"><div><h2 id="h-recent">Últimos movimientos</h2></div><Link className="text-link" to={`/movimientos?month=${month}`}>Ver todos <IconArrow /></Link></div>
               {d.recent.length === 0 ? (
                 <div className="activity-empty"><div className="empty-symbol"><IconList /><span /></div><h3>Tu primer gasto marca el comienzo</h3><p>Un café, una compra, un viaje.<br />Regístralo y empieza a entender tu mes.</p><button className="btn btn-primary" onClick={() => openTx()}><IconPlus /> Registrar gasto</button><span className="empty-caption">Solo necesitas el monto y la categoría.</span></div>
               ) : <TxGroups items={d.recent} categories={categories} accounts={accounts} tz={tz} />}
             </section>
 
             <section className="panel categories-card" aria-labelledby="h-cat">
-              <div className="section-head"><div><p className="eyebrow">DISTRIBUCIÓN</p><h2 id="h-cat">En qué se fue</h2></div><span className="section-icon"><IconTag /></span></div>
+              <div className="section-head"><div><h2 id="h-cat">En qué se fue</h2></div><span className="section-icon"><IconTag /></span></div>
               {d.by_category.some((c) => c.spent_cents > 0) ? (
                 <div className="category-breakdown">{d.by_category.filter((c) => c.spent_cents > 0).slice(0, 5).map((c) => {
                   const pct = d.spent_cents > 0 ? Math.min(100, Math.max(0, Math.round(c.spent_cents / d.spent_cents * 100))) : 0

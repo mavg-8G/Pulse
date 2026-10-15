@@ -1,3 +1,4 @@
+import { useConfirm } from './Confirm'
 import { useMemo, useRef, useState, type FormEvent } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { del, errorMessage, patch, post } from '../lib/api'
@@ -6,8 +7,10 @@ import { centsToInput, parseAmount } from '../lib/money'
 import { financeKeys, useAccounts, useCategories, useMe } from '../lib/queries'
 import type { Transaction } from '../lib/types'
 import { useToast } from './Toast'
+import { finePointer } from '../lib/device'
 
 export function TxForm({ tx, onDone }: { tx?: Transaction; onDone: () => void }) {
+  const ask = useConfirm()
   const { data: me } = useMe()
   const tz = me?.timezone ?? 'America/Guayaquil'
   const { data: accounts = [] } = useAccounts()
@@ -58,7 +61,7 @@ export function TxForm({ tx, onDone }: { tx?: Transaction; onDone: () => void })
     }
   }
   async function remove() {
-    if (!tx || !confirm('¿Borrar este gasto? No se puede deshacer.')) return
+    if (!tx || !(await ask({ title: '¿Borrar este gasto?', body: 'No se puede deshacer.', confirm: 'Borrar gasto', danger: true }))) return
     try {
       await del(`/api/transactions/${tx.id}`)
       financeKeys.forEach((k) => qc.invalidateQueries({ queryKey: k }))
@@ -78,7 +81,7 @@ export function TxForm({ tx, onDone }: { tx?: Transaction; onDone: () => void })
           inputMode="decimal"
           autoComplete="off"
           placeholder="0,00"
-          autoFocus={!tx}
+          autoFocus={!tx && finePointer()}
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
           aria-invalid={amount !== '' && cents === null}
@@ -127,7 +130,7 @@ export function TxForm({ tx, onDone }: { tx?: Transaction; onDone: () => void })
       </div>
       <label className="field">
         <span>Comercio</span>
-        <input className="input" maxLength={120} placeholder="Ej. Supermaxi" value={merchant} onChange={(e) => setMerchant(e.target.value)} />
+        <input className="input" name="merchant" autoComplete="off" maxLength={120} placeholder="Ej. Supermaxi…" value={merchant} onChange={(e) => setMerchant(e.target.value)} />
       </label>
       <details className="more" open={!!tx?.notes}>
         <summary>Notas</summary>

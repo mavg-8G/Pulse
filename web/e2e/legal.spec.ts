@@ -42,10 +42,10 @@ test('páginas legales accesibles en ambos temas y enlazadas desde el acceso', a
     }
   }
   await page.emulateMedia({ colorScheme: 'light' })
-  await page.goto('/')
+  await page.goto('/entrar')
   await page.getByRole('link', { name: 'Qué es Pulse' }).click()
-  await expect(page).toHaveURL(/\/acerca$/)
-  await page.goto('/')
+  await expect(page.getByRole('heading', { level: 1, name: 'Tu dinero tiene pulso.' })).toBeVisible()
+  await page.goto('/entrar')
   await page.getByRole('link', { name: 'Privacidad' }).click()
   await expect(page).toHaveURL(/\/privacidad$/)
   await page.getByRole('link', { name: 'Términos y condiciones' }).click()

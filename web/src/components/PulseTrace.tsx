@@ -53,7 +53,7 @@ export function PulseTrace({ daily, today }: { daily: number[]; today: number | 
         <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" role="img" aria-label={label}>
           {[0.25, 0.5, 0.75].map((part) => <line key={part} className="pulse-gridline" x1="0" x2={W} y1={base * part} y2={base * part} vectorEffect="non-scaling-stroke" />)}
           <line className="base" x1="0" x2={W} y1={base} y2={base} vectorEffect="non-scaling-stroke" />
-          <path className="trace" pathLength="100" d={d} vectorEffect="non-scaling-stroke" />
+          <path className="trace" d={d} vectorEffect="non-scaling-stroke" />
         </svg>
         {empty && <div className="pulse-idle" aria-hidden="true"><svg viewBox="0 0 240 70"><path className="idle-wave-base" d="M0 42h70l12-14 12 14h13l11-34 17 56 15-38 12 16h78" /><path className="idle-wave" pathLength="100" d="M0 42h70l12-14 12 14h13l11-34 17 56 15-38 12 16h78" /></svg><span>Tu historia empieza con un gasto</span></div>}
         {todayX !== null && <span className="pulse-dot" style={{ left: `${(todayX / W) * 100}%`, top: `${(base / H) * 100}%` }} />}
