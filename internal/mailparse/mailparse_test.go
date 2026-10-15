@@ -38,6 +38,8 @@ func TestCorreosDeEjemplo(t *testing.T) {
 		{"pichincha-consumo-latin1", StatusExpense, "Supermaxi Ceibos", "989", "2026-10-31 23:30", "Banco Pichincha", 123456},
 		{"produbanco-consumo", StatusExpense, "Pedidosya Groceries", "7828", "2026-10-08 16:25", "Produbanco", 434},
 		{"produbanco-consumo-miles", StatusExpense, "Aerolinea del Ecuador", "7828", "2026-09-01 08:05", "Produbanco", 125000},
+		{"produbanco-consumo-mes-dia-15", StatusExpense, "Viaje de Prueba", "4321", "2026-10-15 13:28", "Produbanco", 197},
+		{"produbanco-consumo-mes-dia-15-servicio", StatusExpense, "Servicio de Prueba", "4321", "2026-10-15 15:11", "Produbanco", 2000},
 		{"diners-compra-columnas", StatusExpense, "Uber Eats", "666", "2026-06-20 14:31", "Titanium (Diners Club)", 812},
 		{"diners-compra-filas", StatusExpense, "Spotify", "666", "2026-06-21 09:05", "Titanium (Diners Club)", 599},
 		{"pichincha-pago", StatusIgnored, "", "", "", "", 0},
@@ -139,6 +141,8 @@ func TestFechas(t *testing.T) {
 		"1/Setiembre/2026 08:05":    "2026-09-01 08:05",
 		"8 de octubre de 2026":      "2026-10-08 00:00",
 		"31/12/2026 23:59":          "2026-12-31 23:59",
+		"10/15/2026 13:28":          "2026-10-15 13:28",
+		"02/29/2028 23:59":          "2028-02-29 23:59",
 		"Fecha: 2026-02-28 07:00 h": "2026-02-28 07:00",
 	}
 	for in, want := range ok {
@@ -147,7 +151,7 @@ func TestFechas(t *testing.T) {
 			t.Errorf("ParseDate(%q) = %v, %v; esperaba %s", in, got.In(gye), err, want)
 		}
 	}
-	for _, bad := range []string{"", "ayer", "2026-02-30 10:00", "32/Octubre/2026", "8/Octember/2026", "2026-13-01 10:00", "1999-01-01 10:00", "2026-10-12 25:00"} {
+	for _, bad := range []string{"", "ayer", "2026-02-30 10:00", "32/Octubre/2026", "8/Octember/2026", "2026-13-01 10:00", "1999-01-01 10:00", "2026-10-12 25:00", "02/29/2026 10:00", "13/15/2026 10:00", "10/32/2026 10:00"} {
 		if _, err := ParseDate(bad, gye); err == nil {
 			t.Errorf("ParseDate(%q) debió fallar", bad)
 		}
@@ -183,6 +187,62 @@ func TestHTMLATexto(t *testing.T) {
 		<table><tr><td>Valor</td><td>$&nbsp;17,68</td></tr></table><p>Cr&eacute;dito &amp; m&aacute;s</p></body></html>`)
 	if got != "Valor\n$ 17,68\nCrédito & más" {
 		t.Fatalf("%q", got)
+	}
+}
+
+func TestPromocionesYPagosNoSonPlantillasDesconocidas(t *testing.T) {
+	subjects := []string{
+		"🍽️ Disfruta 10% de descuento en Carlo & Carla",
+		"Tienes un Crédito para cumplir tus propósitos",
+		"Tu próxima aventura empieza con un descuento increíble 🏝",
+		"Renueva tu estilo con 20% OFF en tus marcas favoritas",
+		"Tienes un crédito preaprobado. Solicítalo hoy",
+		"Tus prendas favoritas con 15% OFF en SEVEN SEVEN",
+		"Compra desde $50 y recibe un hoodie gratis 🎁",
+		"Renueva tu estilo con 15% OFF en OSTU",
+		"Tiempo de pagar tus servicios básicos",
+		"🎄 La Navidad empieza con 20% OFF en Roland",
+		"Agradecemos su pago",
+	}
+	for _, from := range Senders() {
+		for _, subject := range subjects {
+			t.Run(from+"/"+subject, func(t *testing.T) {
+				r := Analyze(&Email{From: from, Subject: subject, Text: "Contenido comercial o aviso de pago"}, gye)
+				if r.Status != StatusIgnored || r.Expense != nil || r.Parser == "" {
+					t.Fatalf("debe ignorarse sin crear gastos ni alertas: %+v", r)
+				}
+			})
+		}
+	}
+}
+
+func TestPublicidadNoOcultaConsumosNiFormatosNuevos(t *testing.T) {
+	for _, subject := range []string{"Consumo Tarjeta de Crédito por USD 20.00", "Compra con descuento por USD 20.00", "Compra en LOCAL DESCUENTO por USD 20.00", "Reverso de consumo con descuento", "Nueva notificación de tu tarjeta"} {
+		r := Analyze(&Email{From: "bancaenlinea@produbanco.com", Subject: subject, Text: "Consulta tus promociones y descuentos"}, gye)
+		if r.Status != StatusUnrecognized {
+			t.Fatalf("%q debe seguir pendiente de análisis: %+v", subject, r)
+		}
+	}
+
+	e := load(t, "produbanco-consumo")
+	e.Text += "\nDisfruta 20% de descuento en tus marcas favoritas"
+	if r := Analyze(e, gye); r.Status != StatusExpense || r.Expense.AmountCents != 434 {
+		t.Fatalf("la publicidad al pie de un consumo no debe ocultarlo: %+v", r)
+	}
+	if r := Analyze(&Email{From: "promociones@example.com", Subject: "Agradecemos su pago"}, gye); r.Status != StatusUnknown {
+		t.Fatalf("no clasificar remitentes ajenos a los bancos: %+v", r)
+	}
+}
+
+func TestFechaExplicitaNoSeIntercambiaPorElEnvio(t *testing.T) {
+	for _, date := range []string{"8/Octubre/2026 16:25", "2026-10-08 16:25"} {
+		e := load(t, "produbanco-consumo")
+		e.Text = strings.ReplaceAll(e.Text, "8/Octubre/2026 16:25", date)
+		e.Date = time.Date(2026, 8, 10, 12, 0, 0, 0, gye)
+		r := Analyze(e, gye)
+		if r.Status != StatusExpense || r.Expense.OccurredAt.In(gye).Format("2006-01-02") != "2026-10-08" {
+			t.Fatalf("no intercambiar día y mes de una fecha explícita: %+v", r)
+		}
 	}
 }
 

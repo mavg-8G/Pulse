@@ -19,9 +19,10 @@ const errorText: Record<string, string> = {
 }
 
 export function syncSummary(r: GmailSyncResult): string {
-  if (r.created === 0) return r.found === 0 ? 'No hay correos nuevos del banco.' : 'No hay gastos nuevos.'
+  const pending = r.unrecognized ? ` ${r.unrecognized} correo${r.unrecognized > 1 ? 's siguen' : ' sigue'} sin reconocer; consulta los pendientes abajo.` : ''
+  if (r.created === 0) return (r.found === 0 ? 'No hay correos nuevos del banco.' : 'No hay gastos nuevos.') + pending
   const confirmed = r.confirmed ? `, ${r.confirmed} confirmado${r.confirmed > 1 ? 's' : ''} solo${r.confirmed > 1 ? 's' : ''}` : ''
-  return `${r.created} gasto${r.created > 1 ? 's' : ''} nuevo${r.created > 1 ? 's' : ''}${confirmed}. Revísalos en Movimientos.`
+  return `${r.created} gasto${r.created > 1 ? 's' : ''} nuevo${r.created > 1 ? 's' : ''}${confirmed}. Revísalos en Movimientos.` + pending
 }
 
 export function GmailSettings({ tz }: { tz: string }) {
@@ -33,6 +34,7 @@ export function GmailSettings({ tz }: { tz: string }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const s = status.data
+  const pendingCount = s?.template_alerts_total ?? s?.template_alerts.length ?? 0
 
   async function run(fn: () => Promise<void | string>) {
     setError('')
@@ -54,12 +56,12 @@ export function GmailSettings({ tz }: { tz: string }) {
       const { url } = await post<{ url: string }>('/api/gmail/connect')
       window.location.assign(url)
     })
-  const sync = () =>
+  const sync = (retry = false) =>
     run(async () => {
-      const r = await post<GmailSyncResult>('/api/gmail/sync')
+      const r = await post<GmailSyncResult>(`/api/gmail/sync${retry ? '?retry_unrecognized=true' : ''}`)
       financeKeys.forEach((k) => qc.invalidateQueries({ queryKey: k }))
       qc.invalidateQueries({ queryKey: ['accounts'] })
-      return syncSummary(r)
+      return retry ? `Reintento terminado. ${syncSummary(r)}` : syncSummary(r)
     })
   const disconnect = async () => {
     if (!(await ask({ title: '¿Desconectar Gmail?', body: 'Pulse dejará de leer tus correos y Google revocará el acceso. Los gastos ya importados se conservan.', confirm: 'Desconectar Gmail', danger: true }))) return
@@ -122,7 +124,7 @@ export function GmailSettings({ tz }: { tz: string }) {
             </span>
             <span className="row-actions">
               {s.status === 'active' ? (
-                <button className="btn btn-sm" disabled={busy} onClick={sync}>Sincronizar ahora</button>
+                <button className="btn btn-sm" disabled={busy} onClick={() => sync()}>Sincronizar ahora</button>
               ) : (
                 <button className="btn btn-sm btn-primary" disabled={busy} onClick={connect}>Reconectar</button>
               )}
@@ -164,10 +166,15 @@ export function GmailSettings({ tz }: { tz: string }) {
       )}
       {s && s.template_alerts.length > 0 && (
         <div className="section">
-          <p className="notice over" role="status">Pulse no supo leer {s.template_alerts.length === 1 ? 'un correo' : `${s.template_alerts.length} correos`} de tu banco en los últimos 30 días. Puede que el banco haya cambiado su formato: regístralos a mano mientras tanto.</p>
+          <p className="notice over" role="status">{pendingCount === 1 ? 'Hay un correo bancario pendiente de lectura' : `Hay ${pendingCount} correos bancarios pendientes de lectura`}, detectado{pendingCount === 1 ? '' : 's'} en los últimos 30 días. Reintenta su lectura con el formato actualizado. Las promociones y los pagos de tarjeta no se registran como gastos.</p>
+          {s.connected && s.status === 'active' && (
+            <p><button className="btn btn-sm" disabled={busy} onClick={() => sync(true)}>Reintentar correos pendientes</button></p>
+          )}
+          <p className="hint">El reintento busca correos de los últimos 90 días y conserva los gastos ya importados. Si alguno sigue sin reconocerse, puedes importar su archivo .eml desde Movimientos para comprobarlo o registrar el gasto a mano.</p>
+          {pendingCount > s.template_alerts.length && <p className="small faint">Mostrando los {s.template_alerts.length} pendientes más recientes.</p>}
           <ul className="list" aria-label="Correos no reconocidos">
             {s.template_alerts.map((a, i) => (
-              <li key={i} className="settings-row"><span className="grow">{a.subject || '(sin asunto)'}<br /><span className="small faint">{a.bank} · {dateTimeLabel(a.created_at, tz)}</span></span></li>
+              <li key={i} className="settings-row"><span className="grow">{a.subject || '(sin asunto)'}<br /><span className="small faint">{a.bank} · Detectado {dateTimeLabel(a.created_at, tz)}</span></span></li>
             ))}
           </ul>
         </div>

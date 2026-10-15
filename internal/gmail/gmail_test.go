@@ -655,6 +655,99 @@ func TestPlantillaDesconocidaSeRegistraYAvisaUnaVez(t *testing.T) {
 	}
 }
 
+func TestPublicidadYPagosNoAvisanNiSeEnvianAGemini(t *testing.T) {
+	e := newEnv(t)
+	u := e.user()
+	e.connect(u, "a@gmail.com")
+	ctx := context.Background()
+	on := true
+	e.st.SetGmailOptions(ctx, u.ID, nil, &on)
+	e.s.Gemini = &gmail.Gemini{Key: "k", Base: e.g.Endpoints().Gemini, HTTP: gmail.NewHTTPClient()}
+	var alerts int
+	e.s.OnTemplate = func(context.Context, *store.User, string) { alerts++ }
+	for _, subject := range []string{"Renueva tu estilo con 20% OFF en tus marcas favoritas", "Tienes un crédito preaprobado. Solicítalo hoy", "Agradecemos su pago"} {
+		raw := "From: bancaenlinea@produbanco.com\r\nSubject: " + subject + "\r\n\r\nMensaje informativo del banco"
+		e.g.Deliver("a@gmail.com", []byte(raw))
+	}
+	r, err := e.s.SyncUser(ctx, u.ID)
+	if err != nil || r.Ignored != 3 || r.Unrecognized != 0 || r.Created != 0 || alerts != 0 || e.g.Count("gemini") != 0 {
+		t.Fatalf("publicidad o pagos tratados como consumos: %+v %v, alertas %d", r, err, alerts)
+	}
+}
+
+func TestReintentarPendientesRecuperaConsumosSinDuplicar(t *testing.T) {
+	e := newEnv(t)
+	e.c.Set(time.Date(2026, 10, 16, 15, 0, 0, 0, time.UTC))
+	u := e.user()
+	other := e.user()
+	e.connect(u, "a@gmail.com")
+	ctx := context.Background()
+	e.g.Deliver("a@gmail.com", fixture(t, "produbanco-consumo"))
+	if r, err := e.s.SyncUser(ctx, u.ID); err != nil || r.Created != 1 {
+		t.Fatalf("gasto ya importado: %+v %v", r, err)
+	}
+	// Reproduce a previous release: the messages were marked seen and raised
+	// alerts before the date parser and non-expense classification were fixed.
+	legacy := []struct {
+		raw    []byte
+		parser string
+	}{
+		{fixture(t, "produbanco-consumo-mes-dia-15"), "produbanco-consumo-v1"},
+		{[]byte("From: bancaenlinea@produbanco.com\r\nSubject: Disfruta 10% de descuento\r\n\r\nPromoción"), "produbanco-consumo-v1"},
+		{[]byte("From: servicios@titanium.com.ec\r\nSubject: Agradecemos su pago\r\n\r\nPago registrado"), "diners-titanium-compra-v1"},
+		{fixture(t, "pichincha-plantilla-nueva"), "pichincha-consumo-v1"},
+	}
+	var firstHash []byte
+	for i, msg := range legacy {
+		id := e.g.Deliver("a@gmail.com", msg.raw)
+		h := e.keys.Lookup("gmail-msg", []byte(u.ID+"|"+id))
+		if claimed, err := e.st.ClaimGmailMessage(ctx, u.ID, h); err != nil || !claimed {
+			t.Fatalf("reserva histórica: %v", err)
+		}
+		subject := parse(t, string(msg.raw)).Subject
+		if _, err := e.st.AddTemplateAlert(ctx, u.ID, e.sealer(u), msg.parser, subject, h); err != nil {
+			t.Fatal(err)
+		}
+		if i == 0 {
+			firstHash = h
+		}
+	}
+	// Even an identical hash belonging to another user cannot be removed.
+	if _, err := e.st.AddTemplateAlert(ctx, other.ID, e.sealer(other), "produbanco-consumo-v1", "Pendiente de otra persona", firstHash); err != nil {
+		t.Fatal(err)
+	}
+	if r, err := e.s.SyncUser(ctx, u.ID); err != nil || r.Created != 0 || r.Duplicate != 5 {
+		t.Fatalf("la sincronización normal conserva las huellas: %+v %v", r, err)
+	}
+	r, err := e.s.RetryUnrecognized(ctx, u.ID)
+	if err != nil || r.Created != 1 || r.Ignored != 2 || r.Unrecognized != 1 || r.Duplicate != 1 {
+		t.Fatalf("reintento: %+v %v", r, err)
+	}
+	alerts, err := e.st.TemplateAlerts(ctx, u.ID, e.sealer(u), e.c.Now().AddDate(0, 0, -30))
+	if err != nil || len(alerts) != 1 || alerts[0].Parser != "pichincha-consumo-v1" {
+		t.Fatalf("debe conservar solo el formato que aún no se entiende: %+v %v", alerts, err)
+	}
+	if found, err := e.st.HasTemplateAlert(ctx, other.ID, firstHash); err != nil || !found {
+		t.Fatalf("se modificó una alerta ajena: %v", err)
+	}
+	before := e.g.Count("raw")
+	if r, err := e.s.RetryUnrecognized(ctx, u.ID); err != nil || r.Created != 0 || r.Unrecognized != 1 || e.g.Count("raw") != before+1 {
+		t.Fatalf("solo debe volver a descargar el pendiente: %+v %v", r, err)
+	}
+	if total, pending := e.txCount(u.ID); total != 2 || pending != 2 {
+		t.Fatalf("gastos duplicados o confirmados sin revisión: %d, %d", total, pending)
+	}
+	c, _ := e.st.Gmail(ctx, u.ID)
+	if c.Imported != 2 {
+		t.Fatalf("contador de importados: %d", c.Imported)
+	}
+	for _, query := range e.g.Queries[len(e.g.Queries)-3:] {
+		if !strings.Contains(query, "newer_than:90d") {
+			t.Fatalf("el reintento debe buscar también los pendientes antiguos: %s", query)
+		}
+	}
+}
+
 func TestBancoConfiableSeConfirmaSinRegla(t *testing.T) {
 	e := newEnv(t)
 	u := e.user()

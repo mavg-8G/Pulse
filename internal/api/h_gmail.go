@@ -37,8 +37,9 @@ type gmailStatus struct {
 	Gemini          bool       `json:"gemini"`
 	Imported        int        `json:"imported"`
 	// Precisión por banco en tus revisiones y correos que ningún parser entendió (últimos 30 días).
-	Accuracy  []bankAccuracy `json:"accuracy"`
-	Templates []bankTemplate `json:"template_alerts"`
+	Accuracy       []bankAccuracy `json:"accuracy"`
+	Templates      []bankTemplate `json:"template_alerts"`
+	TemplatesTotal int            `json:"template_alerts_total"`
 }
 
 type bankAccuracy struct {
@@ -68,7 +69,15 @@ func (s *Server) shadowReport(r *http.Request, id *identity, out *gmailStatus) e
 	}
 	out.Templates = []bankTemplate{}
 	for _, a := range alerts {
-		out.Templates = append(out.Templates, bankTemplate{a, mailparse.Bank(a.Parser)})
+		// Earlier versions also raised alarms for offers and card payments.
+		// Filter before limiting the preview so they cannot hide real failures.
+		if _, ignored := mailparse.IgnoredSubject(a.Subject); ignored {
+			continue
+		}
+		out.TemplatesTotal++
+		if len(out.Templates) < 20 {
+			out.Templates = append(out.Templates, bankTemplate{a, mailparse.Bank(a.Parser)})
+		}
 	}
 	return nil
 }
@@ -175,13 +184,19 @@ func (s *Server) gmailSync(w http.ResponseWriter, r *http.Request) error {
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 25*time.Second)
 	defer cancel()
-	res, err := g.SyncUser(ctx, id.user.ID)
+	var res *gmail.Result
+	var err error
+	if r.URL.Query().Get("retry_unrecognized") == "true" {
+		res, err = g.RetryUnrecognized(ctx, id.user.ID)
+	} else {
+		res, err = g.SyncUser(ctx, id.user.ID)
+	}
 	if err != nil {
 		if gmail.Temporary(err) && !errors.Is(err, context.DeadlineExceeded) {
 			return errf(502, "google", "Gmail no respondió. Pulse lo reintentará solo en unos minutos.")
 		}
 		if errors.Is(err, context.DeadlineExceeded) {
-			return errf(504, "timeout", "La sincronización sigue en curso; los gastos aparecerán en breve.")
+			return errf(504, "timeout", "La lectura tardó demasiado. Puedes reintentar; los gastos ya registrados se conservan.")
 		}
 		return err
 	}

@@ -1,0 +1,17 @@
+{
+  "status": "expense",
+  "parser": "produbanco-consumo-v1",
+  "expense": {
+    "institution": "Produbanco",
+    "amount_cents": 197,
+    "currency": "USD",
+    "merchant_raw": "DLC* VIAJE DE PRUEBA",
+    "merchant": "Viaje de Prueba",
+    "card_suffix": "4321",
+    "card_type": "credit",
+    "occurred_at": "2026-10-15T18:28:00Z",
+    "kind": "purchase",
+    "parser": "produbanco-consumo-v1",
+    "confidence": 0.95
+  }
+}

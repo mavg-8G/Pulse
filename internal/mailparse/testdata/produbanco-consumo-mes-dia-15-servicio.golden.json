@@ -1,0 +1,17 @@
+{
+  "status": "expense",
+  "parser": "produbanco-consumo-v1",
+  "expense": {
+    "institution": "Produbanco",
+    "amount_cents": 2000,
+    "currency": "USD",
+    "merchant_raw": "GOOGLE *SERVICIO DE PRUEBA",
+    "merchant": "Servicio de Prueba",
+    "card_suffix": "4321",
+    "card_type": "credit",
+    "occurred_at": "2026-10-15T20:11:00Z",
+    "kind": "purchase",
+    "parser": "produbanco-consumo-v1",
+    "confidence": 0.95
+  }
+}

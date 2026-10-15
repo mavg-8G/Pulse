@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -99,6 +100,78 @@ func TestGmailSinConfigurar(t *testing.T) {
 	c.must(503, "POST", "/api/gmail/sync", nil)
 	if r := c.do("POST", "/api/gmail/webhook", "{}", noOrigin); r.Code != 404 {
 		t.Fatalf("webhook sin Pub/Sub: %d", r.Code)
+	}
+}
+
+func TestGmailFiltraAlertasAntiguasYCuentaTodosLosPendientes(t *testing.T) {
+	e := newEnv(t)
+	a := e.signup("alertas@example.com")
+	b := e.signup("sin-alertas@example.com")
+	ctx := context.Background()
+	u, err := e.st.UserByEmail(ctx, a.email)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sl, err := e.keys.Sealer(u.ID, u.DEKEnc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := range 21 {
+		if _, err := e.st.AddTemplateAlert(ctx, u.ID, sl, "produbanco-consumo-v1", fmt.Sprintf("Consumo Tarjeta de Crédito por USD %d.00", i+1), []byte(auth.NewID())); err != nil {
+			t.Fatal(err)
+		}
+	}
+	e.clock.Advance(time.Second)
+	for _, subject := range []string{"Disfruta 10% de descuento", "Tienes un Crédito para cumplir tus propósitos", "Renueva tu estilo con 20% OFF", "Agradecemos su pago"} {
+		if _, err := e.st.AddTemplateAlert(ctx, u.ID, sl, "produbanco-consumo-v1", subject, []byte(auth.NewID())); err != nil {
+			t.Fatal(err)
+		}
+	}
+	r := a.must(200, "GET", "/api/gmail", nil)
+	alerts, _ := r.Body["template_alerts"].([]any)
+	if r.Body["template_alerts_total"] != float64(21) || len(alerts) != 20 {
+		t.Fatalf("el total y el límite deben aplicarse tras excluir falsas alarmas: %s", r.Raw)
+	}
+	for _, alert := range alerts {
+		if !strings.HasPrefix(alert.(map[string]any)["subject"].(string), "Consumo Tarjeta") {
+			t.Fatalf("publicidad o pago en las alertas: %v", alert)
+		}
+	}
+	if r := b.must(200, "GET", "/api/gmail", nil); r.Body["template_alerts_total"] != float64(0) || len(r.Body["template_alerts"].([]any)) != 0 {
+		t.Fatalf("otra persona ve las alertas: %s", r.Raw)
+	}
+}
+
+func TestGmailReintentoRecuperaUnCorreoYaVisto(t *testing.T) {
+	e := newEnv(t)
+	ge := withGmail(t, e, false)
+	a := e.signup("recuperar@example.com")
+	b := e.signup("sin-conexion@example.com")
+	ge.connectGmail(t, a, "recuperar@gmail.com")
+	ctx := context.Background()
+	u, _ := e.st.UserByEmail(ctx, a.email)
+	sl, _ := e.keys.Sealer(u.ID, u.DEKEnc)
+	raw, err := os.ReadFile("../mailparse/testdata/produbanco-consumo-mes-dia-15.eml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := ge.g.Deliver("recuperar@gmail.com", raw)
+	h := e.keys.Lookup("gmail-msg", []byte(u.ID+"|"+id))
+	if _, err := e.st.ClaimGmailMessage(ctx, u.ID, h); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.st.AddTemplateAlert(ctx, u.ID, sl, "produbanco-consumo-v1", "Consumo Tarjeta de Crédito por USD 1.97", h); err != nil {
+		t.Fatal(err)
+	}
+	b.must(409, "POST", "/api/gmail/sync?retry_unrecognized=true", nil)
+	if r := a.must(200, "POST", "/api/gmail/sync", nil); r.Body["created"] != float64(0) {
+		t.Fatalf("la sincronización normal no reintenta: %s", r.Raw)
+	}
+	if r := a.must(200, "POST", "/api/gmail/sync?retry_unrecognized=true", nil); r.Body["created"] != float64(1) {
+		t.Fatalf("el reintento debe importar el gasto: %s", r.Raw)
+	}
+	if r := a.must(200, "GET", "/api/gmail", nil); r.Body["template_alerts_total"] != float64(0) || r.Body["imported"] != float64(1) {
+		t.Fatalf("la alerta debe desaparecer y el contador actualizarse: %s", r.Raw)
 	}
 }
 

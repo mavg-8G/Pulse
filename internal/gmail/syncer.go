@@ -158,6 +158,16 @@ func (s *Syncer) log() *slog.Logger {
 
 // SyncUser trae los correos bancarios nuevos de un usuario y los importa.
 func (s *Syncer) SyncUser(ctx context.Context, uid string) (*Result, error) {
+	return s.syncUser(ctx, uid, false)
+}
+
+// RetryUnrecognized also revisits failed messages within the 90-day search
+// window. Successfully handled messages retain their deduplication fingerprints.
+func (s *Syncer) RetryUnrecognized(ctx context.Context, uid string) (*Result, error) {
+	return s.syncUser(ctx, uid, true)
+}
+
+func (s *Syncer) syncUser(ctx context.Context, uid string, retry bool) (*Result, error) {
 	defer s.lock(uid)()
 	conn, err := s.Store.Gmail(ctx, uid)
 	if errors.Is(err, store.ErrNotFound) {
@@ -185,7 +195,7 @@ func (s *Syncer) SyncUser(ctx context.Context, uid string) (*Result, error) {
 		var access string
 		access, err = s.access(ctx, u.ID, conn, sl)
 		if err == nil {
-			res, err = s.fetch(ctx, u, conn, access)
+			res, err = s.fetch(ctx, u, conn, access, retry)
 		}
 		var ae *APIError
 		if attempt == 0 && errors.As(err, &ae) && ae.Status == 401 {
@@ -293,12 +303,16 @@ func (s *Syncer) days(conn *store.GmailConnection) int {
 	return min(max(d, 2), 30)
 }
 
-func (s *Syncer) fetch(ctx context.Context, u *store.User, conn *store.GmailConnection, access string) (*Result, error) {
+func (s *Syncer) fetch(ctx context.Context, u *store.User, conn *store.GmailConnection, access string, retry bool) (*Result, error) {
 	res := &Result{}
 	var ids []string
 	page := ""
+	days := s.days(conn)
+	if retry {
+		days = firstSyncDays
+	}
 	for i := 0; i < maxPages; i++ {
-		got, next, err := s.Client.List(ctx, access, Query(s.days(conn)), page)
+		got, next, err := s.Client.List(ctx, access, Query(days), page)
 		if err != nil {
 			return res, err
 		}
@@ -310,18 +324,26 @@ func (s *Syncer) fetch(ctx context.Context, u *store.User, conn *store.GmailConn
 	}
 	res.Found = len(ids)
 	for i := len(ids) - 1; i >= 0; i-- { // del más viejo al más nuevo
-		if err := s.process(ctx, u, conn, access, ids[i], res); err != nil {
+		if err := s.process(ctx, u, conn, access, ids[i], res, retry); err != nil {
 			return res, err
 		}
 	}
 	return res, nil
 }
 
-func (s *Syncer) process(ctx context.Context, u *store.User, conn *store.GmailConnection, access, id string, res *Result) error {
+func (s *Syncer) process(ctx context.Context, u *store.User, conn *store.GmailConnection, access, id string, res *Result, retry bool) error {
 	h := s.Keys.Lookup("gmail-msg", []byte(u.ID+"|"+id))
 	claimed, err := s.Store.ClaimGmailMessage(ctx, u.ID, h)
 	if err != nil {
 		return err
+	}
+	if !claimed && retry {
+		// syncUser holds the per-user lock: only an unresolved message may pass
+		// the existing claim. Never clear all gmail_seen entries to retry failures.
+		claimed, err = s.Store.HasTemplateAlert(ctx, u.ID, h)
+		if err != nil {
+			return err
+		}
 	}
 	if !claimed {
 		res.Duplicate++
@@ -335,7 +357,7 @@ func (s *Syncer) process(ctx context.Context, u *store.User, conn *store.GmailCo
 	if err != nil {
 		var ae *APIError
 		if errors.As(err, &ae) && ae.Status == 404 { // borrado entre la lista y la descarga
-			return nil
+			return s.Store.ResolveTemplateAlert(ctx, u.ID, h)
 		}
 		return release(err)
 	}
@@ -382,11 +404,16 @@ func (s *Syncer) process(ctx context.Context, u *store.User, conn *store.GmailCo
 		res.Unrecognized++
 		if bank != "" && bank != "gemini" {
 			if err := s.templateAlert(ctx, u, bank, e.Subject, h); err != nil {
-				return err
+				return release(err)
 			}
 		}
 	default:
 		res.Ignored++
+	}
+	if out.Status != mailparse.StatusUnrecognized {
+		if err := s.Store.ResolveTemplateAlert(ctx, u.ID, h); err != nil {
+			return release(err)
+		}
 	}
 	return nil
 }

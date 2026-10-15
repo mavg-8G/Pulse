@@ -4,6 +4,15 @@ Cambios relevantes de Pulse. Las entradas «Sin publicar» describen cambios pos
 
 La guía de uso y desarrollo está en [`README.md`](README.md); el roadmap y las aceptaciones pendientes, en [`PLAN.md`](PLAN.md).
 
+## Sin publicar — lectura de Produbanco y recuperación de correos pendientes (15 oct 2026)
+
+- Corregidas las fechas mes/día/año con un día mayor que 12: `10/15/2026` ahora se interpreta como 15 de octubre. La resolución por cercanía al envío se limita a las fechas numéricas ambiguas de Produbanco, sin intercambiar fechas ISO ni meses escritos.
+- Promociones con descuentos, ofertas de crédito y recordatorios comerciales, y acuses como **Agradecemos su pago**, se clasifican como mensajes que no son gastos. No generan alertas de formato ni llamadas a Gemini. Los asuntos transaccionales tienen prioridad para conservar los consumos que requieran revisión.
+- Las falsas alarmas antiguas de promociones y pagos se filtran antes de limitar la vista previa a 20 elementos. Ajustes muestra el total de pendientes y aclara que la fecha corresponde a la detección.
+- Nuevo botón **Reintentar correos pendientes**: revisa hasta 90 días y vuelve a analizar únicamente los fallos entre los mensajes ya vistos, manteniendo las huellas de deduplicación y el aislamiento por usuario. Las alertas resueltas desaparecen; las que siguen fallando se conservan.
+- Comprobación directa de los tres `.eml` facilitados: consumos de USD 1,97 y USD 20,00 del 15 de octubre y USD 20,00 del 9 de octubre leídos correctamente. Nuevos casos de referencia derivados del HTML real, con destinatario, tarjeta y comercios anonimizados.
+- Verificación: compilación del frontend, 42 pruebas Vitest, pruebas Go de mailparse/Gmail/importer/store/API en ejecución secuencial y `go vet` correctos. Los 8 escenarios E2E de Gmail quedaron verificados entre la ejecución completa (6 correctos) y la repetición de los dos flujos de conexión/reintento en escritorio y móvil. La ejecución local con `-race` quedó limitada por ThreadSanitizer en Windows (error de reserva de memoria); CI lo ejecuta en Linux.
+
 ## Sin publicar — rediseño visual de todas las vistas (15 oct 2026)
 
 - Nueva paleta de azul petróleo, azul grisáceo, salvia y lavanda con superficies suaves, modo oscuro azul profundo y contraste ajustado para textos pequeños.

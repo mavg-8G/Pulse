@@ -26,6 +26,7 @@ test('conectar Gmail con step-up, sincronizar un consumo y desconectar', async (
   await stepUp.getByLabel('Código de tu app de autenticación').fill(await freshCode(u))
   const verified = page.waitForResponse((r) => r.url().endsWith('/api/auth/step-up/totp') && r.request().method() === 'POST')
   const connected = page.waitForResponse((r) => r.url().endsWith('/api/gmail/callback') && r.request().method() === 'POST')
+  const connectionStatus = page.waitForResponse((r) => r.url().endsWith('/api/gmail') && r.request().method() === 'GET' && r.ok(), { timeout: 30_000 })
   await stepUp.getByRole('button', { name: 'Verificar código' }).click()
   expect((await verified).ok()).toBeTruthy()
   expect((await connected).ok()).toBeTruthy()
@@ -33,22 +34,38 @@ test('conectar Gmail con step-up, sincronizar un consumo y desconectar', async (
   // Google (falso) acepta y vuelve a /ajustes/gmail; Pulse canjea el código y limpia la URL.
   await expect(page.getByText(`Gmail conectado: ${gmailAddress}`)).toBeVisible()
   await expect(page).toHaveURL(/\/ajustes$/)
+  await connectionStatus
   await expect(section.getByText(gmailAddress)).toBeVisible()
   await expect(section.getByText('Conectado', { exact: true })).toBeVisible()
   await expect(section.getByLabel(/Modo sombra/)).toBeChecked()
   await expectAccessible(page, 'Ajustes con Gmail')
 
-  await page.request.get(`${google()}/__deliver?to=${encodeURIComponent(gmailAddress)}&fixture=produbanco-consumo`)
+  await page.request.get(`${google()}/__deliver?to=${encodeURIComponent(gmailAddress)}&fixture=produbanco-consumo-mes-dia-15`)
   await page.request.get(`${google()}/__deliver?to=${encodeURIComponent(gmailAddress)}&fixture=pichincha-pago`)
+  await page.request.get(`${google()}/__deliver?to=${encodeURIComponent(gmailAddress)}&fixture=produbanco-promocion`)
+  await page.request.get(`${google()}/__deliver?to=${encodeURIComponent(gmailAddress)}&fixture=diners-pago`)
+  await page.request.get(`${google()}/__deliver?to=${encodeURIComponent(gmailAddress)}&fixture=pichincha-plantilla-nueva`)
   await section.getByRole('button', { name: 'Sincronizar ahora' }).click()
-  await expect(page.getByText('1 gasto nuevo. Revísalos en Movimientos.')).toBeVisible()
+  await expect(page.getByText('1 gasto nuevo. Revísalos en Movimientos. 1 correo sigue sin reconocer; consulta los pendientes abajo.')).toBeVisible()
   await expect(section.getByTestId('gmail-sync-info')).toContainText('1 importado')
+  await expect(section.getByRole('list', { name: 'Correos no reconocidos' }).getByRole('listitem')).toHaveCount(1)
+
+  // Un formato que sigue siendo desconocido permanece visible al reintentarlo.
+  await expect(section.getByRole('status')).toContainText('Hay un correo bancario pendiente de lectura')
+  await expect(section.getByRole('list', { name: 'Correos no reconocidos' })).toContainText('Detectado')
+  const retried = page.waitForResponse((r) => r.url().includes('/api/gmail/sync?retry_unrecognized=true') && r.request().method() === 'POST')
+  await section.getByRole('button', { name: 'Reintentar correos pendientes' }).click()
+  expect((await retried).ok()).toBeTruthy()
+  await expect(page.getByText('Reintento terminado. No hay gastos nuevos. 1 correo sigue sin reconocer; consulta los pendientes abajo.')).toBeVisible()
+  await expect(section.getByTestId('gmail-sync-info')).toContainText('1 importado')
+  await expectAccessible(page, 'Ajustes con correo pendiente')
 
   const pending = await apiGet(page, '/api/transactions?status=pending_review&month=2026-10')
   expect(pending.total).toBe(1)
   expect(pending.items[0].source).toBe('gmail')
+  expect(pending.items[0].amount_cents).toBe(197)
   await page.goto('/movimientos?month=2026-10')
-  await expect(page.getByText('Pedidosya Groceries')).toBeVisible()
+  await expect(page.getByText('Viaje de Prueba')).toBeVisible()
   await expect(page.getByText('Por revisar')).toBeVisible()
 
   // Desconectar revoca el acceso en Google y conserva los gastos.

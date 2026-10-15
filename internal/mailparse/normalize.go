@@ -104,7 +104,8 @@ func mkDate(y int, m time.Month, d, hh, mm int, loc *time.Location) (time.Time, 
 }
 
 // ParseDate entiende "2026-10-12 18:24", "8/Octubre/2026 16:25", "8 de octubre de 2026"
-// y "08/10/2026 16:25" (día/mes/año). La hora es la local del banco (Ecuador).
+// y "08/10/2026 16:25" (día/mes/año). Si el segundo número es mayor que 12,
+// admite mes/día/año ("10/15/2026"). La hora es la local del banco (Ecuador).
 func ParseDate(s string, loc *time.Location) (time.Time, error) {
 	if m := reISO.FindStringSubmatch(s); m != nil {
 		return mkDate(atoi(m[1]), time.Month(atoi(m[2])), atoi(m[3]), atoi(m[4]), atoi(m[5]), loc)
@@ -117,7 +118,11 @@ func ParseDate(s string, loc *time.Location) (time.Time, error) {
 		return mkDate(atoi(m[3]), mon, atoi(m[1]), atoi(m[4]), atoi(m[5]), loc)
 	}
 	if m := reDMY.FindStringSubmatch(s); m != nil {
-		return mkDate(atoi(m[3]), time.Month(atoi(m[2])), atoi(m[1]), atoi(m[4]), atoi(m[5]), loc)
+		day, month := atoi(m[1]), atoi(m[2])
+		if month > 12 && day <= 12 {
+			day, month = month, day
+		}
+		return mkDate(atoi(m[3]), time.Month(month), day, atoi(m[4]), atoi(m[5]), loc)
 	}
 	return time.Time{}, ErrDate
 }

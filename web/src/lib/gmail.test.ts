@@ -13,4 +13,8 @@ describe('resumen de sincronización de Gmail', () => {
     expect(syncSummary(r({ found: 4, created: 3, confirmed: 2 }))).toBe('3 gastos nuevos, 2 confirmados solos. Revísalos en Movimientos.')
     expect(syncSummary(r({ found: 2, created: 2, confirmed: 1 }))).toBe('2 gastos nuevos, 1 confirmado solo. Revísalos en Movimientos.')
   })
+  it('avisa de los correos que siguen pendientes aunque no cree gastos', () => {
+    expect(syncSummary(r({ found: 1, unrecognized: 1 }))).toBe('No hay gastos nuevos. 1 correo sigue sin reconocer; consulta los pendientes abajo.')
+    expect(syncSummary(r({ found: 3, created: 1, unrecognized: 2 }))).toBe('1 gasto nuevo. Revísalos en Movimientos. 2 correos siguen sin reconocer; consulta los pendientes abajo.')
+  })
 })

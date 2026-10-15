@@ -71,7 +71,7 @@ func (s *Store) AddTemplateAlert(ctx context.Context, userID string, sl *crypto.
 
 func (s *Store) TemplateAlerts(ctx context.Context, userID string, sl *crypto.Sealer, since time.Time) ([]TemplateAlert, error) {
 	rows, err := s.DB.QueryContext(ctx, `SELECT parser, subject_enc, created_at FROM template_alerts
-		WHERE user_id = ? AND created_at >= ? ORDER BY created_at DESC LIMIT 20`, userID, TS(since))
+		WHERE user_id = ? AND created_at >= ? ORDER BY created_at DESC, id`, userID, TS(since))
 	if err != nil {
 		return nil, err
 	}
@@ -91,6 +91,19 @@ func (s *Store) TemplateAlerts(ctx context.Context, userID string, sl *crypto.Se
 		out = append(out, a)
 	}
 	return out, rows.Err()
+}
+
+func (s *Store) HasTemplateAlert(ctx context.Context, userID string, msgHash []byte) (bool, error) {
+	var found bool
+	err := s.DB.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM template_alerts WHERE user_id = ? AND msg_hash = ?)`, userID, msgHash).Scan(&found)
+	return found, err
+}
+
+// ResolveTemplateAlert removes only this user's alert after the message has been
+// successfully imported, identified as a duplicate, or classified as non-expense.
+func (s *Store) ResolveTemplateAlert(ctx context.Context, userID string, msgHash []byte) error {
+	_, err := s.DB.ExecContext(ctx, `DELETE FROM template_alerts WHERE user_id = ? AND msg_hash = ?`, userID, msgHash)
+	return err
 }
 
 // ---------- reportes y conciliación ----------

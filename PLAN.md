@@ -2,7 +2,7 @@
 
 Registro de gastos personales multiusuario: categorías, cuentas (origen), fechas y plan de gastos (tope mensual por categoría). PWA instalable en escritorio y móvil, modo claro/oscuro, notificaciones push, ingreso manual y captura automática desde Gmail.
 
-**Estado (15 oct 2026): fases 0–8 implementadas y la 9 en curso**. Están listos el rediseño de todas las vistas, las estadísticas y gráficas de líneas de Reportes, las proyecciones de la próxima semana/mes por categoría y total, CSV, gastos fijos, gastos sin conexión y métricas del modo sombra. Faltan las aceptaciones de entrega push en un teléfono físico ([guía](deploy/PUSH.md)) y de un consumo real llegando por Gmail con el proyecto de Google Cloud configurado ([guía](deploy/GMAIL.md)), además de los monitores de producción. Los parsers se validaron con correos sintéticos reconstruidos de las capturas: hay que confirmarlos con `.eml` reales. Ver §0 para los cambios respecto al plan original y [`CHANGELOG.md`](CHANGELOG.md) para la verificación de cada entrega.
+**Estado (15 oct 2026): fases 0–8 implementadas y la 9 en curso**. Están listos el rediseño de todas las vistas, las estadísticas y gráficas de líneas de Reportes, las proyecciones de la próxima semana/mes por categoría y total, CSV, gastos fijos, gastos sin conexión y métricas del modo sombra. Faltan las aceptaciones de entrega push en un teléfono físico ([guía](deploy/PUSH.md)) y de un consumo real llegando por Gmail con el proyecto de Google Cloud configurado ([guía](deploy/GMAIL.md)), además de los monitores de producción. Produbanco ya se comprobó con tres `.eml` reales, incluidas fechas mes/día/año; quedan por ampliar los ejemplos reales de los demás bancos. Ver §0 para los cambios respecto al plan original y [`CHANGELOG.md`](CHANGELOG.md) para la verificación de cada entrega.
 
 ### Próximos pasos
 
@@ -567,7 +567,7 @@ Se construyen y prueban solo con archivos `.eml`, antes de tocar la API de Gmail
 - [x] Asignación de cuenta (institución + sufijo; se crea si no existe) y categoría (`merchant_rules` ▸ diccionario de comercios ▸ "Otros")
 - [x] Importar `.eml` a mano desde Movimientos; "usar siempre esta categoría" al confirmar; `pulse parse` para probar correos reales sin BD
 - **Tests**: golden files por banco (incluye latin-1, miles, plantilla nueva, asunto que no coincide con el cuerpo), casos de borde del normalizador, fuzzing de montos, fechas y EML, redacción para Gemini, migración que conserva datos, E2E de importar → revisar → aprender → confirmar.
-- **Pendiente de aceptación**: pasar tus `.eml` reales por `pulse parse`.
+- **Aceptación parcial con `.eml` reales**: tres consumos de Produbanco comprobados, incluidos HTML con saltos y fechas mes/día/año. Pendiente ampliar ejemplos de Pichincha, Diners/Titanium y otros tipos de movimiento.
 
 ### Fase 7 — Integración Gmail en vivo ✅ (1,5 semanas)
 - [x] OAuth con PKCE + `state` firmado y atado a la sesión (con step-up), revocación en Google al desconectar
@@ -610,6 +610,8 @@ Se construyen y prueban solo con archivos `.eml`, antes de tocar la API de Gmail
 - [x] Periodo de Reportes independiente del historial de proyección; selecciones conservadas entre 3/6/12 meses y movimientos futuros excluidos de los indicadores
 - [x] Pruebas de analítica para aislamiento entre usuarios, zona horaria, cambios de horario, meses bisiestos, historial insuficiente y redondeo; E2E de estadísticas y proyecciones en escritorio/móvil
 - [x] Avisos de éxito de Gmail después de actualizar el estado y el contador de importados; pruebas OAuth esperan explícitamente la respuesta del servidor
+- [x] Corregida la lectura de fechas mes/día/año de Produbanco con correos reales; promociones y acuses de pago excluidos de las alertas y de Gemini
+- [x] Reintento de correos pendientes desde Ajustes → Gmail, conservando la deduplicación; total de alertas independiente de la vista previa de 20 y retirada de alertas resueltas
 - [ ] Contrastar las proyecciones con los resultados reales de las próximas semanas y meses antes de ajustar el método de estimación
 - [ ] **Tú**: revisar en unas semanas los aciertos reales por banco antes de apagar el modo sombra
 - [ ] Más bancos (débito, transferencias) siguiendo el mismo proceso: `.eml` → golden → fuzz → sombra

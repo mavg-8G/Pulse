@@ -164,6 +164,7 @@ export interface GmailStatus {
   imported: number
   accuracy: { parser: string; bank: string; reviewed: number; correct: number; trusted: boolean }[]
   template_alerts: { parser: string; bank: string; subject: string; created_at: string }[]
+  template_alerts_total: number
 }
 
 export interface GmailServerConfig {

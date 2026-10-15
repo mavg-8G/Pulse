@@ -51,11 +51,15 @@ Al sincronizar o cambiar la conexión, el aviso de éxito aparece después de ac
 
 Si un correo bancario no se reconoce, Pulse registra su asunto cifrado y una huella, sin guardar el cuerpo. Los avisos de los últimos 30 días aparecen en Ajustes → Gmail y se notifica por push a los administradores, como máximo una vez por banco y día.
 
+Las promociones reconocidas y los acuses de pago de tarjeta (por ejemplo, **Agradecemos su pago**) se ignoran: no crean gastos, alertas de formato ni consultas a Gemini. Las falsas alarmas antiguas de esos asuntos también se excluyen del listado. Se muestra el total real de pendientes y una vista previa de los 20 más recientes; la fecha indica cuándo se detectó el fallo.
+
+Después de actualizar un formato, usa **Ajustes → Gmail → Reintentar correos pendientes**. Busca en los últimos 90 días, con el mismo límite de 1.000 mensajes, y vuelve a analizar los pendientes aunque antes se hubieran marcado como leídos. Conserva las huellas de los correos ya procesados y no duplica gastos importados por Gmail o por archivo `.eml`. Retira la alerta si el correo se importa, ya estaba importado o se identifica como un mensaje que no es gasto; los formatos que siguen sin entenderse permanecen pendientes.
+
 La guía completa de Google Cloud, OAuth, Pub/Sub, Gemini y configuración por variables de entorno está en [`deploy/GMAIL.md`](deploy/GMAIL.md).
 
 ## Importación bancaria y cuentas repetidas
 
-La lectura de correos de Produbanco admite saltos de línea dentro del HTML, incluso entre la moneda y el monto. Para fechas numéricas ambiguas, como `10/09/2026`, el análisis de correos bancarios elige entre día/mes y mes/día la interpretación más cercana a la fecha de envío del correo. Esta corrección se aplica al analizar nuevas importaciones; no cambia las fechas de movimientos ya guardados.
+La lectura de correos de Produbanco admite saltos de línea dentro del HTML, incluso entre la moneda y el monto, y fechas en formato mes/día/año como `10/15/2026` (15 de octubre). Para fechas numéricas ambiguas de Produbanco, como `10/09/2026`, elige entre día/mes y mes/día la interpretación más cercana a la fecha de envío. Las fechas ISO o con el mes escrito no se intercambian. Esta corrección se aplica al analizar nuevas importaciones o reintentar pendientes; no cambia las fechas de movimientos ya guardados.
 
 Si el correo no trae los últimos dígitos de la tarjeta, el importador reutiliza una cuenta sin dígitos de la misma institución, prefiriendo una activa a una archivada. Si no existe, crea una. Las cuentas con dígitos siguen buscando coincidencia por sufijo e institución.
 

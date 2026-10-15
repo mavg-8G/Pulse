@@ -56,10 +56,14 @@ func Analyze(e *Email, loc *time.Location) Result {
 	for _, p := range Parsers {
 		if p.Sender(e.From) {
 			r := p.Parse(e, loc)
+			if r.Status == StatusUnrecognized {
+				if why, ok := IgnoredSubject(e.Subject); ok {
+					r = Result{Status: StatusIgnored, Reason: why}
+				}
+			}
 			r.Parser = p.Name()
 			if r.Expense != nil {
 				r.Expense.Parser = p.Name()
-				r.Expense.OccurredAt = nearSent(r.Expense.OccurredAt, e.Date, loc)
 			}
 			return r
 		}
@@ -183,6 +187,9 @@ func (produbanco) Parse(e *Email, loc *time.Location) Result {
 	exp, why := build("Produbanco", f["Valor"], '.', f["Establecimiento"], card, f["Fecha y Hora"], loc)
 	if exp == nil {
 		return Result{Status: StatusUnrecognized, Reason: why}
+	}
+	if reDMY.MatchString(f["Fecha y Hora"]) {
+		exp.OccurredAt = nearSent(exp.OccurredAt, e.Date, loc)
 	}
 	if containsFold(f["Transacción"]+e.Subject, "debito", "débito") {
 		exp.CardType = "debit"
