@@ -77,3 +77,9 @@ Compilación TypeScript/Vite y del ejecutable Go correctas. Los dos escenarios f
 La primera comprobación Go coincidió con la regeneración de archivos embebidos; se repitió después de terminar el frontend. También se repitió la ejecución tras un bloqueo temporal de Windows al borrar un ejecutable de prueba. Los resultados anteriores corresponden a las ejecuciones finales correctas.
 
 No se construyó ni escaneó la imagen completa localmente porque Docker no está disponible. No se ejecutó el workflow remoto, no se publicó una imagen y no se actualizó Cosign en el VPS. La guía indica actualizar el VPS a Cosign 3.1.3 antes de desplegar con el nuevo workflow.
+
+## Preparación SSH del despliegue — 14 de octubre de 2026
+
+Se conservó la adaptación de la clave ED25519 del secret al destino configurado y se añadieron validaciones de host, puerto, claves distintas y formato de clave, eliminación de CRLF en la clave privada y selección explícita del archivo conocido. `StrictHostKeyChecking=yes` sigue activo: no se consulta ni se acepta una clave de red automáticamente durante CI.
+
+`actionlint` y ocho casos offline de preparación SSH pasan: puerto 22, puerto personalizado, entradas duplicadas con CRLF, rechazo de host con puerto, puerto inválido, huella sin clave pública, clave malformada y varias claves distintas. El fixture local sustituye solo las operaciones de permisos POSIX en Windows, usa archivos aislados y no ejecuta SSH contra el VPS. La actualización del secret `VPS_KNOWN_HOSTS` se debe basar en la consola confiable del proveedor.

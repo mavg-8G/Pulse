@@ -206,11 +206,29 @@ jobs:
         run: |
           set -euo pipefail
           [[ "$DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]] || { echo "digest inválido"; exit 1; }
+          [[ -n "$HOST" && -n "$SSH_KEY" && -n "$KNOWN_HOSTS" ]] ||
+            { echo "Falta VPS_HOST, VPS_SSH_KEY o VPS_KNOWN_HOSTS en el entorno production"; exit 1; }
+          PORT="${PORT:-22}"
+          [[ "$PORT" =~ ^[0-9]{1,5}$ ]] && (( 10#$PORT >= 1 && 10#$PORT <= 65535 )) ||
+            { echo "VPS_PORT debe ser un puerto entre 1 y 65535"; exit 1; }
+          PORT=$((10#$PORT))
+          [[ "$HOST" != *[[:space:]]* && "$HOST" != -* && "$HOST" != *@* && "$HOST" != */* && ! "$HOST" =~ ^[^:]+:[0-9]+$ ]] ||
+            { echo "VPS_HOST debe contener solo el dominio o IP; configura el puerto aparte en VPS_PORT"; exit 1; }
           install -d -m 700 ~/.ssh
-          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy && chmod 600 ~/.ssh/deploy
-          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts # huella fija: nada de "aceptar cualquier servidor"
+          printf '%s\n' "$SSH_KEY" | tr -d '\r' > ~/.ssh/deploy && chmod 600 ~/.ssh/deploy
+          # Huella fija: nada de "aceptar cualquier servidor". Del secreto solo se toma el tipo y la clave
+          # (admite la salida completa de ssh-keyscan) y se asocian al host/puerto reales del despliegue.
+          KEY="$(grep -v '^#' <<<"$KNOWN_HOSTS" | grep -oE 'ssh-ed25519 [A-Za-z0-9+/=]+' | sort -u)" ||
+            { echo "VPS_KNOWN_HOSTS no contiene una clave ssh-ed25519 (usa: ssh-keyscan -t ed25519 <host>)"; exit 1; }
+          [[ "$KEY" != *$'\n'* ]] ||
+            { echo "VPS_KNOWN_HOSTS contiene varias claves ED25519 distintas; conserva solo la del VPS verificada"; exit 1; }
+          if [[ "$PORT" == 22 ]]; then printf '%s %s\n' "$HOST" "$KEY"; else printf '[%s]:%s %s\n' "$HOST" "$PORT" "$KEY"; fi > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+          ssh-keygen -lf ~/.ssh/known_hosts >/dev/null ||
+            { echo "La clave ED25519 de VPS_KNOWN_HOSTS no tiene un formato válido"; exit 1; }
           # La clave solo puede ejecutar deploy.sh en el VPS (comando forzado); esto son sus argumentos.
-          ssh -i ~/.ssh/deploy -p "${PORT:-22}" -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o BatchMode=yes \
+          ssh -i ~/.ssh/deploy -p "$PORT" -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o BatchMode=yes \
+            -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
             -o ServerAliveInterval=15 "deploy@${HOST}" "deploy ${DIGEST} ${GITHUB_SHA}"
       - name: Borrar la clave
         if: always()

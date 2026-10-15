@@ -4,6 +4,7 @@ Este registro compara el proyecto actual con `_to_delete/pulse-fases-0-4.tar.gz`
 
 ## Sin publicar — CI y despliegue (14 oct 2026)
 
+- Preparación SSH del despliegue: clave ED25519 del secret asociada al host/puerto configurado, validación de campos y formato, rechazo de claves ambiguas y compatibilidad con saltos de línea de Windows. Se conserva la verificación estricta; la guía explica cómo verificar la huella y corregir los secrets de `production`.
 - Contenedor de la prueba de humo renombrado de `p` a `pulse-ci-smoke`, para evitar el rechazo de Docker observado en Actions. Logs y limpieza se ejecutan también cuando falla la prueba.
 
 - Trivy 0.65.0 → 0.76.0: descarga directa desde GitHub Releases con reintentos, errores HTTP visibles y verificación de un SHA-256 fijado. Se conserva Trivy Action 0.36.0, actualizada previamente, y se omite su instalador automático.

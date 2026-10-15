@@ -100,11 +100,19 @@ echo 'command="/opt/docker/pulse/deploy.sh",restrict ssh-ed25519 AAAA…contenid
   | sudo tee /home/deploy/.ssh/authorized_keys > /dev/null
 sudo chown deploy:deploy /home/deploy/.ssh/authorized_keys && sudo chmod 600 /home/deploy/.ssh/authorized_keys
 ```
-Huella del servidor (para que Actions no se conecte a un impostor). En tu PC:
+Huella del servidor (para que Actions no se conecte a un impostor). En tu PC, usa exactamente el mismo dominio/IP y puerto que guardarás en `VPS_HOST` y `VPS_PORT`:
 ```bash
 ssh-keyscan -p 22 -t ed25519 <IP-del-VPS>
 ```
-y compárala con la del VPS: `ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub` (mismo `SHA256:…` que `ssh-keyscan … | ssh-keygen -lf -`).
+y compárala con la de la consola del proveedor del VPS: `ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub` (mismo `SHA256:…` que `ssh-keyscan … | ssh-keygen -lf -`). La consulta por red no verifica por sí sola la identidad del servidor.
+
+También puedes obtener la clave pública directamente en esa consola confiable:
+
+```bash
+cat /etc/ssh/ssh_host_ed25519_key.pub
+```
+
+`VPS_KNOWN_HOSTS` debe contener la clave pública ED25519 completa, no solo la huella `SHA256:…` ni la clave privada del usuario `deploy`. El workflow acepta la línea de `ssh-keyscan` o la clave pública anterior y la asocia al host y puerto configurados; rechaza varias claves ED25519 distintas. Para el puerto 22, el archivo generado usa `HOST ssh-ed25519 CLAVE`; para otro puerto, `[HOST]:PUERTO ssh-ed25519 CLAVE`.
 
 Prueba desde tu PC: `ssh -i pulse_deploy deploy@<IP> status` → debe responder `imagen:` vacía y `estado: ausente`.
 Cualquier otro comando (`ssh -i pulse_deploy deploy@<IP> bash`) debe responder “acción no permitida”.
@@ -117,10 +125,10 @@ En el repositorio → **Settings → Environments → New environment** → `pro
 
 | Nombre | Valor |
 |---|---|
-| `VPS_HOST` | IP o nombre del VPS |
+| `VPS_HOST` | Solo IP o nombre del VPS, sin `:puerto`, `ssh://` ni `usuario@` |
 | `VPS_PORT` | `22` (o tu puerto SSH) |
 | `VPS_SSH_KEY` | contenido completo de `pulse_deploy` (la **privada**) |
-| `VPS_KNOWN_HOSTS` | la línea que devolvió `ssh-keyscan` |
+| `VPS_KNOWN_HOSTS` | clave pública ED25519 del servidor, obtenida o contrastada con la consola del proveedor |
 
 Después **borra `pulse_deploy` de tu PC** (la pública puede quedarse). En **Settings → Actions → General**, deja
 *Workflow permissions* en “Read repository contents”: el workflow pide por sí mismo los permisos extra.
@@ -155,6 +163,12 @@ Abre `https://pulse.espectro.uk/registro`, usa el código y configura tu passkey
 Agrega en Uptime Kuma un monitor HTTP a `https://pulse.espectro.uk/healthz`.
 
 ---
+
+## Si falla la verificación de la clave del servidor
+
+`No ED25519 host key is known …` significa que el cliente no tiene una entrada válida para ese destino; no demuestra un fallo de la clave privada de acceso. Revisa los secrets del entorno `production`, separa host y puerto y guarda la clave ED25519 completa. Conserva `StrictHostKeyChecking=yes`.
+
+Si la identidad del servidor cambia, verifica la nueva huella desde la consola del proveedor antes de sustituir el secret. Después de actualizar el secret, **Re-run failed jobs** repite el despliegue con la imagen ya construida.
 
 ## Día a día
 
