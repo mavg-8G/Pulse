@@ -4,7 +4,7 @@ services:
   pulse:
     # La imagen la construye y firma GitHub Actions; deploy.sh escribe el digest en release.env
     # y arranca con: docker compose --env-file release.env up -d
-    image: ${PULSE_IMAGE:?falta PULSE_IMAGE: usa deploy.sh o --env-file release.env}
+    image: ${PULSE_IMAGE:?falta PULSE_IMAGE - usa deploy.sh o --env-file release.env}
     container_name: pulse
     restart: unless-stopped
     env_file: .env            # solo configuración NO secreta
