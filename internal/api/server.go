@@ -2,14 +2,18 @@
 package api
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"pulse/internal/auth"
 	"pulse/internal/clock"
 	"pulse/internal/config"
 	"pulse/internal/crypto"
+	"pulse/internal/db"
 	"pulse/internal/gmail"
 	"pulse/internal/importer"
 	"pulse/internal/passkey"
@@ -26,8 +30,10 @@ type Deps struct {
 	Log    *slog.Logger
 	Static http.Handler // frontend; nil en tests de API
 	Push   *push.Service
-	Gmail  *gmail.Syncer         // nil: Gmail no configurado
-	PubSub *gmail.PubSubVerifier // nil: sin avisos en tiempo real
+	// Google: credenciales por variables de entorno (nil: ninguna). Las guardadas en
+	// Ajustes por un admin tienen prioridad.
+	Google   *GoogleSettings
+	GoogleEP *gmail.Endpoints // nil: los de Google; el servidor falso en pruebas
 }
 
 type Server struct {
@@ -48,9 +54,14 @@ type Server struct {
 	limImport   *auth.Limiter
 	limGmail    *auth.Limiter
 	limWebhook  *auth.Limiter
-	gmail       *gmail.Syncer
-	pubsub      *gmail.PubSubVerifier
 	limMFA      *auth.Limiter
+
+	googleEnv *GoogleSettings
+	googleEP  gmail.Endpoints
+	gmailRT   atomic.Pointer[gmailRuntime]
+	gmailMu   sync.Mutex // serializa setGmail
+	gmailCtx  context.Context
+	gmailStop func()
 }
 
 func New(d Deps) *Server {
@@ -65,12 +76,25 @@ func New(d Deps) *Server {
 		limImport:   auth.NewLimiter(d.Clock, 30, 30, time.Hour),
 		limGmail:    auth.NewLimiter(d.Clock, 3, 3, time.Minute),
 		limWebhook:  auth.NewLimiter(d.Clock, 120, 120, time.Minute),
-		gmail:       d.Gmail,
-		pubsub:      d.PubSub,
 		limMFA:      auth.NewLimiter(d.Clock, 6, 6, 5*time.Minute),
+		googleEnv:   d.Google,
+		googleEP:    gmail.GoogleEndpoints(),
 	}
 	if s.log == nil {
 		s.log = slog.Default()
+	}
+	if d.GoogleEP != nil {
+		s.googleEP = *d.GoogleEP
+	}
+	gs, err := s.loadGoogle(context.Background())
+	if err != nil {
+		s.log.Error("gmail: no se pudieron leer las credenciales guardadas en Ajustes", "err", err.Error())
+	}
+	switch {
+	case gs != nil:
+		s.gmailRT.Store(s.buildGmail(*gs, "ajustes"))
+	case d.Google != nil:
+		s.gmailRT.Store(s.buildGmail(*d.Google, "env"))
 	}
 	return s
 }
@@ -124,6 +148,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("PUT /api/gmail/gemini", s.withStepUp(s.gmailGemini))
 	mux.HandleFunc("DELETE /api/gmail", s.full(s.gmailDisconnect))
 	mux.HandleFunc("POST /api/gmail/webhook", s.gmailWebhook)
+	mux.HandleFunc("GET /api/admin/gmail", s.full(s.adminGmail))
+	mux.HandleFunc("PUT /api/admin/gmail", s.adminOnly(s.adminSetGmail))
+	mux.HandleFunc("DELETE /api/admin/gmail", s.adminOnly(s.adminDeleteGmail))
 	mux.HandleFunc("GET /api/push/vapid-key", s.full(s.pushKey))
 	mux.HandleFunc("GET /api/push/subscriptions", s.full(s.pushSubscriptions))
 	mux.HandleFunc("POST /api/push/subscribe", s.full(s.pushSubscribe))
@@ -168,12 +195,18 @@ func (s *Server) Handler() http.Handler {
 	return s.realIP(s.logRequests(s.securityHeaders(s.csrf(mux))))
 }
 
+// healthz lo consultan Docker, Uptime Kuma y deploy/smoke.sh. Falla si la base no responde
+// o su esquema no es el que espera este binario (migración a medias, restauración antigua).
 func (s *Server) healthz(w http.ResponseWriter, r *http.Request) {
-	if err := s.store.DB.PingContext(r.Context()); err != nil {
-		writeJSON(w, 503, map[string]string{"status": "error"})
+	v, err := db.Version(r.Context(), s.store.DB)
+	latest, lerr := db.Latest()
+	out := map[string]any{"status": "ok", "schema": v, "gmail": s.gm() != nil, "push": s.push != nil}
+	if err != nil || lerr != nil || v != latest {
+		out["status"] = "error"
+		writeJSON(w, 503, out)
 		return
 	}
-	writeJSON(w, 200, map[string]string{"status": "ok"})
+	writeJSON(w, 200, out)
 }
 
 func (s *Server) importer() *importer.Importer {

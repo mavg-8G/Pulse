@@ -39,14 +39,15 @@ type gmailStatus struct {
 }
 
 func (s *Server) gmailStatus(w http.ResponseWriter, r *http.Request) error {
-	out := gmailStatus{Available: s.gmail != nil, Senders: mailparse.Senders(), Shadow: true}
-	if s.gmail == nil {
+	g := s.gm()
+	out := gmailStatus{Available: g != nil, Senders: mailparse.Senders(), Shadow: true}
+	if g == nil {
 		writeJSON(w, 200, out)
 		return nil
 	}
-	out.GeminiAvailable = s.gmail.Gemini != nil
-	out.Realtime = s.gmail.Topic != ""
-	out.PollMinutes = int(s.gmail.Interval / time.Minute)
+	out.GeminiAvailable = g.Gemini != nil
+	out.Realtime = g.Topic != ""
+	out.PollMinutes = int(g.Interval / time.Minute)
 	id := ident(r)
 	c, err := s.store.Gmail(r.Context(), id.user.ID)
 	if errors.Is(err, store.ErrNotFound) {
@@ -73,12 +74,13 @@ func (s *Server) gmailStatus(w http.ResponseWriter, r *http.Request) error {
 
 // POST /api/gmail/connect (con step-up): devuelve la URL de Google a la que ir.
 func (s *Server) gmailConnect(w http.ResponseWriter, r *http.Request) error {
-	if s.gmail == nil {
+	g := s.gm()
+	if g == nil {
 		return errGmailOff
 	}
 	id := ident(r)
 	state, challenge := gmail.NewState(s.keys.Lookup, id.user.ID, id.sess.ID, s.clock.Now())
-	writeJSON(w, 200, map[string]string{"url": s.gmail.Client.AuthURL(state, challenge, "")})
+	writeJSON(w, 200, map[string]string{"url": g.Client.AuthURL(state, challenge, "")})
 	return nil
 }
 
@@ -86,7 +88,8 @@ func (s *Server) gmailConnect(w http.ResponseWriter, r *http.Request) error {
 // (Google vuelve con una navegación entre sitios: la cookie SameSite=Strict no viajaría a
 // un GET directo; por eso el canje lo hace el frontend con fetch desde el propio origen.)
 func (s *Server) gmailCallback(w http.ResponseWriter, r *http.Request) error {
-	if s.gmail == nil {
+	g := s.gm()
+	if g == nil {
 		return errGmailOff
 	}
 	id := ident(r)
@@ -108,7 +111,7 @@ func (s *Server) gmailCallback(w http.ResponseWriter, r *http.Request) error {
 	if in.Code == "" || len(in.Code) > 512 {
 		return badRequest("Falta el código de Google.")
 	}
-	email, err := s.gmail.Connect(r.Context(), id.user, id.seal(), in.Code, verifier)
+	email, err := g.Connect(r.Context(), id.user, id.seal(), in.Code, verifier)
 	if err != nil {
 		var ae *gmail.APIError
 		if errors.As(err, &ae) {
@@ -124,7 +127,8 @@ func (s *Server) gmailCallback(w http.ResponseWriter, r *http.Request) error {
 
 // POST /api/gmail/sync: "Sincronizar ahora".
 func (s *Server) gmailSync(w http.ResponseWriter, r *http.Request) error {
-	if s.gmail == nil {
+	g := s.gm()
+	if g == nil {
 		return errGmailOff
 	}
 	id := ident(r)
@@ -133,7 +137,7 @@ func (s *Server) gmailSync(w http.ResponseWriter, r *http.Request) error {
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 25*time.Second)
 	defer cancel()
-	res, err := s.gmail.SyncUser(ctx, id.user.ID)
+	res, err := g.SyncUser(ctx, id.user.ID)
 	if err != nil {
 		if gmail.Temporary(err) && !errors.Is(err, context.DeadlineExceeded) {
 			return errf(502, "google", "Gmail no respondió. Pulse lo reintentará solo en unos minutos.")
@@ -148,7 +152,8 @@ func (s *Server) gmailSync(w http.ResponseWriter, r *http.Request) error {
 }
 
 func (s *Server) gmailOptions(w http.ResponseWriter, r *http.Request) error {
-	if s.gmail == nil {
+	g := s.gm()
+	if g == nil {
 		return errGmailOff
 	}
 	var in struct {
@@ -171,7 +176,8 @@ func (s *Server) gmailOptions(w http.ResponseWriter, r *http.Request) error {
 // PUT /api/gmail/gemini (con step-up): enviar correos redactados a un tercero es una
 // decisión de privacidad, así que exige confirmar identidad y queda auditada.
 func (s *Server) gmailGemini(w http.ResponseWriter, r *http.Request) error {
-	if s.gmail == nil {
+	g := s.gm()
+	if g == nil {
 		return errGmailOff
 	}
 	var in struct {
@@ -180,7 +186,7 @@ func (s *Server) gmailGemini(w http.ResponseWriter, r *http.Request) error {
 	if err := decode(w, r, &in); err != nil {
 		return err
 	}
-	if in.Enabled && s.gmail.Gemini == nil {
+	if in.Enabled && g.Gemini == nil {
 		return errf(409, "gemini_disabled", "El servidor no tiene Gemini configurado.")
 	}
 	id := ident(r)
@@ -197,13 +203,14 @@ func (s *Server) gmailGemini(w http.ResponseWriter, r *http.Request) error {
 }
 
 func (s *Server) gmailDisconnect(w http.ResponseWriter, r *http.Request) error {
-	if s.gmail == nil {
+	g := s.gm()
+	if g == nil {
 		return errGmailOff
 	}
 	id := ident(r)
 	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
 	defer cancel()
-	if err := s.gmail.Disconnect(ctx, id.user, id.seal()); err != nil {
+	if err := g.Disconnect(ctx, id.user, id.seal()); err != nil {
 		return err
 	}
 	s.audit(r, id.user.ID, "gmail_disconnected", nil)
@@ -214,15 +221,17 @@ func (s *Server) gmailDisconnect(w http.ResponseWriter, r *http.Request) error {
 // POST /api/gmail/webhook: aviso push de Pub/Sub. No usa cookies: lo autentica el JWT de Google.
 // Siempre responde rápido (Pub/Sub reintenta si tarda); la sincronización corre aparte.
 func (s *Server) gmailWebhook(w http.ResponseWriter, r *http.Request) {
-	if s.gmail == nil || s.pubsub == nil {
+	rt := s.gmailRT.Load()
+	if rt == nil || rt.pubsub == nil {
 		w.WriteHeader(404)
 		return
 	}
+	g := rt.syncer
 	if !s.limWebhook.Allow(clientIP(r)) {
 		w.WriteHeader(429)
 		return
 	}
-	if err := s.pubsub.Verify(r.Context(), r.Header.Get("Authorization")); err != nil {
+	if err := rt.pubsub.Verify(r.Context(), r.Header.Get("Authorization")); err != nil {
 		s.log.Warn("gmail: aviso de Pub/Sub rechazado", "ip", clientIP(r))
 		w.WriteHeader(401)
 		return
@@ -250,10 +259,10 @@ func (s *Server) gmailWebhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	hid, _ := strconv.ParseUint(strings.Trim(string(note.HistoryID), `"`), 10, 64)
-	uid, err := s.store.GmailUserByEmailHash(r.Context(), s.gmail.EmailHash(note.EmailAddress))
+	uid, err := s.store.GmailUserByEmailHash(r.Context(), g.EmailHash(note.EmailAddress))
 	if err == nil {
 		if fresh, err := s.store.GmailTrigger(r.Context(), uid, hid); err == nil && fresh {
-			s.gmail.Trigger(uid)
+			g.Trigger(uid)
 		}
 	}
 	w.WriteHeader(204) // igual para cuentas desconocidas: no revela quién usa Pulse

@@ -6,6 +6,8 @@ import { dateTimeLabel } from '../lib/dates'
 import { financeKeys } from '../lib/queries'
 import type { GmailStatus, GmailSyncResult } from '../lib/types'
 import { useToast } from './Toast'
+import { GmailServerSettings } from './GmailServerSettings'
+import { useMe } from '../lib/queries'
 
 const errorText: Record<string, string> = {
   revocado: 'Google retiró el acceso (lo quitaste desde tu cuenta de Google o cambiaste la contraseña).',
@@ -26,6 +28,7 @@ export function GmailSettings({ tz }: { tz: string }) {
   const ask = useConfirm()
   const qc = useQueryClient()
   const toast = useToast()
+  const isAdmin = useMe().data?.role === 'admin'
   const status = useQuery({ queryKey: ['gmail'], queryFn: () => get<GmailStatus>('/api/gmail') })
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -80,7 +83,9 @@ export function GmailSettings({ tz }: { tz: string }) {
       <div className="section-head"><h2 id="h-gmail">Correo del banco (Gmail)</h2></div>
       {(error || status.error) && <p className="error" role="alert" style={{ marginBottom: 10 }}>{error || errorMessage(status.error)}</p>}
       {s && !s.available && (
-        <p className="hint">La conexión con Gmail todavía no está configurada en el servidor. Mientras tanto puedes importar correos .eml desde Movimientos.</p>
+        <p className="hint">
+          La conexión con Gmail todavía no está configurada{isAdmin ? '. Añade abajo las credenciales de Google.' : '; pide a quien administra Pulse que la active en Ajustes.'} Mientras tanto puedes importar correos .eml desde Movimientos.
+        </p>
       )}
       {s?.available && !s.connected && (
         <div className="list">
@@ -147,6 +152,7 @@ export function GmailSettings({ tz }: { tz: string }) {
           Remitentes que lee Pulse: {s.senders.join(', ')}.
         </p>
       )}
+      {isAdmin && <GmailServerSettings />}
     </section>
   )
 }

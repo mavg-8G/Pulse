@@ -31,8 +31,9 @@ var ErrDecrypt = errors.New("no se pudo descifrar (dato alterado o clave incorre
 // Keyring guarda las subclaves derivadas de la KEK. La KEK cruda no se conserva.
 type Keyring struct {
 	wrap   cipher.AEAD
-	lookup []byte // HMAC para buscar tokens/códigos sin guardarlos en claro
-	pepper []byte // HMAC aplicado a contraseñas antes del hash lento
+	lookup []byte  // HMAC para buscar tokens/códigos sin guardarlos en claro
+	pepper []byte  // HMAC aplicado a contraseñas antes del hash lento
+	server *Sealer // ajustes del servidor que no pertenecen a ningún usuario
 }
 
 func derive(kek []byte, info string) []byte {
@@ -74,6 +75,7 @@ func NewKeyring(kek []byte) (*Keyring, error) {
 		wrap:   newGCM(derive(kek, "pulse/v1/dek-wrap")),
 		lookup: derive(kek, "pulse/v1/lookup"),
 		pepper: derive(kek, "pulse/v1/password-pepper"),
+		server: &Sealer{g: newGCM(derive(kek, "pulse/v1/server-settings")), userID: "server"},
 	}, nil
 }
 
@@ -153,6 +155,9 @@ func (k *Keyring) Pepper(password string) []byte {
 	m.Write([]byte(password))
 	return m.Sum(nil)
 }
+
+// Server cifra los ajustes del servidor (p. ej. credenciales de Google).
+func (k *Keyring) Server() *Sealer { return k.server }
 
 // Sealer cifra campos de un usuario concreto.
 type Sealer struct {

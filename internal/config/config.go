@@ -147,7 +147,14 @@ var (
 	reTopic = regexp.MustCompile(`^projects/[a-z][a-z0-9-]{4,28}[a-z0-9]/topics/[A-Za-z][\w.~+%-]{2,254}$`)
 	reSA    = regexp.MustCompile(`^[a-z0-9-]+@[a-z0-9-]+\.iam\.gserviceaccount\.com$`)
 	reModel = regexp.MustCompile(`^[a-z0-9][a-z0-9.-]{1,60}$`)
+	reOAuth = regexp.MustCompile(`^[\w.-]{1,200}\.apps\.googleusercontent\.com$`)
 )
+
+// ValidGoogleClientID, ValidPubSubTopic y ValidServiceAccount validan lo que un admin
+// escribe en Ajustes → Gmail (las variables de entorno usan las mismas reglas).
+func ValidGoogleClientID(v string) bool { return reOAuth.MatchString(v) }
+func ValidPubSubTopic(v string) bool    { return reTopic.MatchString(v) }
+func ValidServiceAccount(v string) bool { return reSA.MatchString(v) }
 
 func (c *Config) loadGmail(get func(k, def string) string) []error {
 	var errs []error

@@ -19,17 +19,15 @@ import (
 	"pulse/internal/config"
 	"pulse/internal/gmail"
 	"pulse/internal/gmail/gmailtest"
-	"pulse/internal/importer"
 	"pulse/internal/push"
 )
 
 const pubsubSA = "pubsub-push@pulse-123456.iam.gserviceaccount.com"
 
 type gmailEnv struct {
-	g      *gmailtest.Server
-	syncer *gmail.Syncer
-	push   *push.Service
-	rec    *pushRecorder
+	g    *gmailtest.Server
+	push *push.Service
+	rec  *pushRecorder
 }
 
 // withGmail monta el servidor con Gmail (contra el Google falso), Pub/Sub y push.
@@ -51,18 +49,15 @@ func withGmail(t *testing.T, e *env, gemini bool) *gmailEnv {
 	t.Cleanup(g.Close)
 	rec := &pushRecorder{}
 	svc := &push.Service{Store: e.st, Keys: e.keys, Sender: rec}
-	s := &gmail.Syncer{Store: e.st, Keys: e.keys, Clock: e.clock, Interval: 15 * time.Minute, Topic: cfg.GmailPubSubTopic,
-		Client:   &gmail.Client{ClientID: gmailtest.ClientID, ClientSecret: gmailtest.ClientSecret, RedirectURL: origin + "/ajustes/gmail", EP: g.Endpoints(), HTTP: gmail.NewHTTPClient()},
-		Importer: &importer.Importer{Store: e.st, Keys: e.keys, Clock: e.clock, DefaultTZ: "America/Guayaquil"}}
+	gs := &api.GoogleSettings{ClientID: gmailtest.ClientID, ClientSecret: gmailtest.ClientSecret, PubSubTopic: cfg.GmailPubSubTopic, PubSubSA: pubsubSA}
 	if gemini {
-		s.Gemini = &gmail.Gemini{Key: "k", Model: "m", Base: g.Endpoints().Gemini, HTTP: gmail.NewHTTPClient()}
+		gs.GeminiKey = "k"
 	}
-	v := &gmail.PubSubVerifier{CertsURL: g.Endpoints().Certs, Audience: cfg.GmailPubSubAudience, ServiceAccount: pubsubSA, HTTP: gmail.NewHTTPClient(), Now: e.clock.Now}
-	srv := api.New(api.Deps{Config: cfg, Store: e.st, Keys: e.keys, Hasher: &auth.Hasher{Keys: e.keys, Iterations: 1000}, Clock: e.clock, Push: svc, Gmail: s, PubSub: v,
+	ep := g.Endpoints()
+	srv := api.New(api.Deps{Config: cfg, Store: e.st, Keys: e.keys, Hasher: &auth.Hasher{Keys: e.keys, Iterations: 1000}, Clock: e.clock, Push: svc, Google: gs, GoogleEP: &ep,
 		Log: slog.New(slog.NewTextHandler(io.Discard, nil))})
-	s.OnImported, s.OnBroken = srv.AfterImport, srv.GmailBroken
 	e.h = srv.Handler()
-	return &gmailEnv{g: g, syncer: s, push: svc, rec: rec}
+	return &gmailEnv{g: g, push: svc, rec: rec}
 }
 
 // connectGmail hace el flujo completo: step-up → URL de Google → "aceptar" → callback.

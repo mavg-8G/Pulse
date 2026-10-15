@@ -4,6 +4,8 @@ import (
 	"encoding/base32"
 	"strings"
 	"testing"
+
+	"pulse/internal/db"
 )
 
 func mustB32(t *testing.T, s string) []byte {
@@ -113,8 +115,17 @@ func TestIPRealSoloDesdeProxyConfiable(t *testing.T) {
 
 func TestHealthz(t *testing.T) {
 	e := newEnv(t)
-	if r := e.client().do("GET", "/healthz", nil); r.Code != 200 || r.str("status") != "ok" {
+	latest, _ := db.Latest()
+	r := e.client().do("GET", "/healthz", nil)
+	if r.Code != 200 || r.str("status") != "ok" || r.Body["schema"] != float64(latest) || r.Body["gmail"] != false || r.Body["push"] != false {
 		t.Fatalf("healthz: %d %s", r.Code, r.Raw)
+	}
+	// Una base con el esquema atrasado (p. ej. un respaldo viejo restaurado sin migrar) no está sana.
+	if _, err := e.st.DB.Exec(`DELETE FROM schema_migrations WHERE version = ?`, latest); err != nil {
+		t.Fatal(err)
+	}
+	if r := e.client().do("GET", "/healthz", nil); r.Code != 503 || r.str("status") != "error" {
+		t.Fatalf("healthz con esquema atrasado: %d %s", r.Code, r.Raw)
 	}
 }
 

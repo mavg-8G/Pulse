@@ -28,7 +28,11 @@ Sin Gmail también puedes subir un correo `.eml` desde **Movimientos → Importa
 4. **Credenciales → Crear credenciales → ID de cliente de OAuth** → *Aplicación web*:
    - URI de redireccionamiento autorizado: `https://pulse.espectro.uk/ajustes/gmail`
    - (Para probar en tu PC, añade también `http://localhost:8080/ajustes/gmail`.)
-5. Copia el **ID de cliente** a `.env` y el **secreto** a un Docker secret:
+5. En Pulse, con tu cuenta **admin**: **Ajustes → Correo del banco (Gmail) → Configuración del servidor (admin)**. Pega el **ID de cliente** y el **secreto**, pulsa **Guardar credenciales** y confirma tu identidad. Se aplica al momento, sin reiniciar ni tocar el VPS. El secreto se guarda cifrado con la KEK y nunca se vuelve a mostrar; la misma pantalla te enseña la URI de redireccionamiento exacta para el paso 4.
+
+<details><summary>Alternativa: variables de entorno (lo que hacías antes)</summary>
+
+Si prefieres no guardarlo en la base, copia el **ID de cliente** a `.env` y el **secreto** a un Docker secret:
 
 ```sh
 cd /opt/docker/pulse
@@ -38,10 +42,10 @@ sudo chown 65532:65532 secrets/google_client_secret && sudo chmod 400 secrets/go
 
 ```env
 PULSE_GOOGLE_CLIENT_ID=1234567890-abc.apps.googleusercontent.com
-PULSE_GMAIL_POLL_INTERVAL=15m
 ```
 
-Descomenta en `docker-compose.yml` `PULSE_GOOGLE_CLIENT_SECRET_FILE` y el secreto `google_client_secret`, y `docker compose up -d`.
+Descomenta en `docker-compose.yml` `PULSE_GOOGLE_CLIENT_SECRET_FILE` y el secreto `google_client_secret`, y `docker compose up -d`. Lo guardado en Ajustes tiene prioridad sobre estas variables; **Borrar** en Ajustes vuelve a ellas.
+</details>
 
 Con esto ya funciona por **polling** (cada 15 min). En Pulse: **Ajustes → Correo del banco (Gmail) → Conectar Gmail**.
 
@@ -55,7 +59,7 @@ Con esto ya funciona por **polling** (cada 15 min). En Pulse: **Ajustes → Corr
    - Endpoint: `https://pulse.espectro.uk/api/gmail/webhook`
    - **Habilitar autenticación** → cuenta de servicio `pubsub-push@<proyecto>.iam.gserviceaccount.com`; audiencia: `https://pulse.espectro.uk/api/gmail/webhook`.
    - Si Google pide el rol *Creador de tokens de cuenta de servicio* para el agente de Pub/Sub, acéptalo.
-5. `.env`:
+5. En **Ajustes → Configuración del servidor (admin) → Tiempo real con Pub/Sub**, escribe el tema `projects/<proyecto>/topics/gmail-pulse` y la cuenta de servicio `pubsub-push@<proyecto>.iam.gserviceaccount.com` y guarda. (O, con variables de entorno, en `.env`:)
 
 ```env
 PULSE_GMAIL_PUBSUB_TOPIC=projects/<proyecto>/topics/gmail-pulse
@@ -71,7 +75,7 @@ El polling sigue activo como respaldo.
 ## 3. Gemini (opcional)
 
 1. Crea una clave en <https://aistudio.google.com/apikey>.
-2. `printf '%s' 'AIza…' > secrets/gemini_key` (dueño 65532, permisos 400), descomenta `PULSE_GEMINI_KEY_FILE` y el secreto `gemini_key`.
+2. Pégala en **Ajustes → Configuración del servidor (admin) → Gemini** y guarda. (Alternativa: `printf '%s' 'AIza…' > secrets/gemini_key` con dueño 65532 y permisos 400, y descomenta `PULSE_GEMINI_KEY_FILE` y el secreto `gemini_key`.)
 3. Cada persona lo activa en Ajustes (pide confirmar identidad).
 
 ## Problemas frecuentes

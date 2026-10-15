@@ -41,6 +41,8 @@ const eventText: Record<string, string> = {
   gmail_broken: 'Pulse perdió el acceso a Gmail',
   gmail_connect_failed: 'Conexión con Gmail fallida',
   gmail_shadow_changed: 'Modo sombra cambiado',
+  gmail_server_configured: 'Credenciales de Google del servidor cambiadas',
+  gmail_server_cleared: 'Credenciales de Google del servidor borradas',
   gemini_enabled: 'Gemini activado',
   gemini_disabled: 'Gemini desactivado',
   email_imported: 'Correo importado',

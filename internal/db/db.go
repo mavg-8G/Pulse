@@ -88,6 +88,12 @@ func ensureTable(ctx context.Context, db *sql.DB) error {
 	return err
 }
 
+// Latest devuelve la versión de esquema que espera este binario.
+func Latest() (int, error) {
+	ms, err := loadMigrations()
+	return len(ms), err
+}
+
 // Version devuelve la versión de esquema aplicada.
 func Version(ctx context.Context, db *sql.DB) (int, error) {
 	if err := ensureTable(ctx, db); err != nil {

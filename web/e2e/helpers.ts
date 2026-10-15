@@ -8,7 +8,7 @@ import { join } from 'node:path'
 const DIR = process.env.PULSE_E2E_DIR || fileURLToPath(new URL('../.e2e/', import.meta.url))
 export const BASE_URL = `http://localhost:${process.env.PULSE_E2E_PORT || 8091}`
 
-export function createInvite(email = ''): string {
+export function createInvite(email = '', role: 'user' | 'admin' = 'user'): string {
   const env = {
     ...process.env,
     PULSE_ENV: 'development',
@@ -16,7 +16,7 @@ export function createInvite(email = ''): string {
     PULSE_DB_PATH: join(DIR, 'pulse.db'),
     PULSE_KEK_FILE: join(DIR, 'secrets/pulse_kek'),
   }
-  const args = ['invite', 'create', ...(email ? ['--email', email] : [])]
+  const args = ['invite', 'create', '--role', role, ...(email ? ['--email', email] : [])]
   const out = execFileSync(join(DIR, process.platform === 'win32' ? 'pulse.exe' : 'pulse'), args, { env }).toString()
   return out.match(/PLS(-[A-Z0-9]{4}){5}/)![0]
 }
@@ -38,10 +38,10 @@ export async function freshCode(u: User): Promise<string> {
   return u.totp.generate()
 }
 
-export async function register(page: Page, email = uniqueEmail()): Promise<User> {
+export async function register(page: Page, email = uniqueEmail(), role: 'user' | 'admin' = 'user'): Promise<User> {
   const password = 'caballo bateria grapa correcta'
   await page.goto('/registro')
-  await page.getByLabel('Código de invitación').fill(createInvite())
+  await page.getByLabel('Código de invitación').fill(createInvite('', role))
   await page.getByLabel('Email').fill(email)
   await page.getByLabel('Contraseña', { exact: true }).fill(password)
   await page.getByLabel('Repite la contraseña').fill(password)

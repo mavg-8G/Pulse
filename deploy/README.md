@@ -204,5 +204,39 @@ Si la identidad del servidor cambia, verifica la nueva huella desde la consola d
 | Cambiar `.env` | `cd /opt/docker/pulse && sudo nano .env && docker compose --env-file release.env up -d` |
 
 Los respaldos de `data/backups/` están en el mismo disco: protegen de un despliegue fallido, no de perder el VPS.
-Los backups cifrados fuera del servidor llegan en la Fase 8; mientras tanto copia de vez en cuando
-`data/backups/` (y guarda la KEK aparte: sin ella no sirven).
+
+## Respaldos fuera del servidor (cifrados)
+
+`deploy/backup-offsite.sh` hace un respaldo en caliente, lo cifra con [age](https://age-encryption.org) y lo sube a una carpeta de Nextcloud. En el VPS no queda ninguna copia sin cifrar.
+
+1. **En tu PC** (no en el VPS): `age-keygen -o pulse-backup.key`. Guarda ese archivo junto a la KEK, fuera del servidor: sin los dos, los respaldos no se pueden leer. Copia la línea `public key: age1…`.
+2. En Nextcloud crea la carpeta `pulse-backups` y una **contraseña de aplicación** (Ajustes personales → Seguridad).
+3. En el VPS:
+
+```sh
+sudo apt install age
+cd /opt/docker/pulse
+sudo cp ~/backup-offsite.sh . && sudo chmod 750 backup-offsite.sh
+printf '%s' 'contraseña-de-aplicación' | sudo tee secrets/nextcloud_app_password >/dev/null && sudo chmod 400 secrets/nextcloud_app_password
+sudo tee backup.env >/dev/null <<'ENV'
+AGE_RECIPIENT=age1…
+NEXTCLOUD_URL=https://nube.ejemplo/remote.php/dav/files/<usuario>/pulse-backups
+NEXTCLOUD_USER=<usuario>
+ENV
+sudo ./backup-offsite.sh            # prueba: debe terminar con «✓ respaldo cifrado subido»
+echo '30 3 * * * root /opt/docker/pulse/backup-offsite.sh >> /opt/docker/pulse/backup.log 2>&1' | sudo tee /etc/cron.d/pulse-backup
+```
+
+**Restaurar en una máquina limpia**: despliega Pulse con la misma KEK, descarga el `.age` y
+
+```sh
+age -d -i pulse-backup.key 2026…-fuera.db.age > data/backups/restaurar.db
+docker compose --env-file release.env stop pulse
+docker compose --env-file release.env run --rm --no-deps pulse restore /data/backups/restaurar.db
+docker compose --env-file release.env up -d && ./smoke.sh https://pulse.espectro.uk
+```
+
+La CI repite este recorrido (respaldo → base vacía → `restore` → arranque sano) en cada push.
+Los respaldos antiguos de Nextcloud no se borran solos: configura allí la retención que prefieras.
+
+`/healthz` responde 503 si la base no contesta o su esquema no coincide con el del binario; además indica si Gmail y push están activos (`"gmail"`, `"push"`). En Uptime Kuma usa un monitor HTTP con palabra clave `"status":"ok"`.

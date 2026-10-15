@@ -164,6 +164,18 @@ export interface GmailStatus {
   imported: number
 }
 
+export interface GmailServerConfig {
+  source: '' | 'env' | 'ajustes'
+  client_id: string
+  client_secret_set: boolean
+  pubsub_topic: string
+  pubsub_sa: string
+  gemini_key_set: boolean
+  redirect_uri: string
+  webhook_url: string
+  audience: string
+}
+
 export interface GmailSyncResult {
   found: number
   created: number

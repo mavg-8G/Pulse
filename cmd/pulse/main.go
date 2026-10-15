@@ -36,7 +36,6 @@ import (
 	"pulse/internal/crypto"
 	"pulse/internal/db"
 	"pulse/internal/gmail"
-	"pulse/internal/importer"
 	"pulse/internal/mailparse"
 	"pulse/internal/push"
 	"pulse/internal/store"
@@ -131,12 +130,18 @@ func serve() error {
 			}
 			notifications = &push.Service{Store: a.store, Keys: a.keys, Sender: sender, Log: log}
 		}
-		syncer, verifier, err := gmailSetup(a, log)
+		google, err := googleFromEnv(a.cfg)
 		if err != nil {
 			return err
 		}
+		var ep *gmail.Endpoints
+		if a.cfg.GoogleFakeURL != "" {
+			fake := gmail.FakeEndpoints(a.cfg.GoogleFakeURL)
+			ep = &fake
+			log.Warn("Gmail usa un servidor FALSO de Google (solo pruebas)", "url", a.cfg.GoogleFakeURL)
+		}
 		srv := api.New(api.Deps{Config: a.cfg, Store: a.store, Keys: a.keys, Hasher: &auth.Hasher{Keys: a.keys},
-			Clock: clock.Real{}, Log: log, Static: webui.Handler(), Push: notifications, Gmail: syncer, PubSub: verifier})
+			Clock: clock.Real{}, Log: log, Static: webui.Handler(), Push: notifications, Google: google, GoogleEP: ep})
 		hs := &http.Server{
 			Addr: a.cfg.Listen, Handler: srv.Handler(),
 			ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, WriteTimeout: 30 * time.Second,
@@ -151,12 +156,7 @@ func serve() error {
 			close(pushDone)
 		}
 		gmailDone := make(chan struct{})
-		if syncer != nil {
-			syncer.OnImported, syncer.OnBroken = srv.AfterImport, srv.GmailBroken
-			go func() { defer close(gmailDone); syncer.Run(ctx) }()
-		} else {
-			close(gmailDone)
-		}
+		go func() { defer close(gmailDone); srv.RunGmail(ctx) }()
 		defer func() { stop(); <-pushDone; <-gmailDone }()
 		go func() { // limpieza periódica de sesiones y desafíos caducados
 			t := time.NewTicker(10 * time.Minute)
@@ -420,37 +420,23 @@ func parseCmd(args []string) error {
 	return nil
 }
 
-// gmailSetup prepara la integración con Gmail si hay credenciales de Google.
-func gmailSetup(a *app, log *slog.Logger) (*gmail.Syncer, *gmail.PubSubVerifier, error) {
-	if !a.cfg.GmailEnabled() {
-		return nil, nil, nil
+// googleFromEnv lee las credenciales de Google de las variables de entorno (nil si no hay).
+// Un admin también puede configurarlas en Ajustes → Gmail, y entonces tienen prioridad.
+func googleFromEnv(cfg *config.Config) (*api.GoogleSettings, error) {
+	if !cfg.GmailEnabled() {
+		return nil, nil
 	}
-	secret, err := readSecret(a.cfg.GoogleClientSecretFile)
+	secret, err := readSecret(cfg.GoogleClientSecretFile)
 	if err != nil {
-		return nil, nil, fmt.Errorf("leyendo el secreto OAuth de Google: %w", err)
+		return nil, fmt.Errorf("leyendo el secreto OAuth de Google: %w", err)
 	}
-	ep := gmail.GoogleEndpoints()
-	if a.cfg.GoogleFakeURL != "" {
-		ep = gmail.FakeEndpoints(a.cfg.GoogleFakeURL)
-		log.Warn("Gmail usa un servidor FALSO de Google (solo pruebas)", "url", a.cfg.GoogleFakeURL)
-	}
-	httpc := gmail.NewHTTPClient()
-	client := &gmail.Client{ClientID: a.cfg.GoogleClientID, ClientSecret: secret, RedirectURL: a.cfg.Origin() + "/ajustes/gmail", EP: ep, HTTP: httpc}
-	s := &gmail.Syncer{Store: a.store, Keys: a.keys, Client: client, Clock: clock.Real{}, Log: log,
-		Interval: a.cfg.GmailPollInterval, Topic: a.cfg.GmailPubSubTopic,
-		Importer: &importer.Importer{Store: a.store, Keys: a.keys, Clock: clock.Real{}, DefaultTZ: a.cfg.DefaultTZ}}
-	if a.cfg.GeminiKeyFile != "" {
-		key, err := readSecret(a.cfg.GeminiKeyFile)
-		if err != nil {
-			return nil, nil, fmt.Errorf("leyendo la clave de Gemini: %w", err)
+	gs := &api.GoogleSettings{ClientID: cfg.GoogleClientID, ClientSecret: secret, PubSubTopic: cfg.GmailPubSubTopic, PubSubSA: cfg.GmailPubSubSA}
+	if cfg.GeminiKeyFile != "" {
+		if gs.GeminiKey, err = readSecret(cfg.GeminiKeyFile); err != nil {
+			return nil, fmt.Errorf("leyendo la clave de Gemini: %w", err)
 		}
-		s.Gemini = &gmail.Gemini{Key: key, Model: a.cfg.GeminiModel, Base: ep.Gemini, HTTP: httpc}
 	}
-	var v *gmail.PubSubVerifier
-	if a.cfg.GmailPubSubTopic != "" {
-		v = &gmail.PubSubVerifier{CertsURL: ep.Certs, Audience: a.cfg.GmailPubSubAudience, ServiceAccount: a.cfg.GmailPubSubSA, HTTP: httpc, Now: time.Now}
-	}
-	return s, v, nil
+	return gs, nil
 }
 
 func readSecret(path string) (string, error) {

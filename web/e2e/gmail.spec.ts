@@ -4,6 +4,9 @@ import { fileURLToPath } from 'node:url'
 import { apiGet, expect, expectAccessible, freshCode, register, test } from './helpers'
 
 const DIR = process.env.PULSE_E2E_DIR || fileURLToPath(new URL('../.e2e/', import.meta.url))
+// Las mismas credenciales que acepta el Google falso (fake-google.mjs).
+const CLIENT_ID = 'pulse-e2e.apps.googleusercontent.com'
+const CLIENT_SECRET = 'secreto-e2e'
 const google = () => readFileSync(join(DIR, 'fake-google.url'), 'utf8').trim()
 
 test('conectar Gmail con step-up, sincronizar un consumo y desconectar', async ({ page }) => {
@@ -63,4 +66,46 @@ test('si se cancela el permiso en Google, Pulse lo explica', async ({ page }) =>
   await expect(page).toHaveURL(/\/ajustes\/gmail$/)
   await page.getByRole('link', { name: 'Volver a Ajustes' }).click()
   await expect(page.getByRole('heading', { name: 'Ajustes' })).toBeVisible()
+})
+
+test('un admin configura las credenciales de Google desde Ajustes y se aplican sin reiniciar', async ({ page }) => {
+  test.setTimeout(120_000)
+  const u = await register(page, undefined, 'admin')
+  await page.goto('/ajustes')
+  const section = page.getByRole('region', { name: 'Correo del banco (Gmail)' })
+  await section.getByText('Configuración del servidor (admin)').click()
+  const form = section.getByRole('form', { name: 'Credenciales de Google' })
+  await expect(form.getByText('variables de entorno', { exact: false })).toBeVisible()
+  await expect(form.getByTestId('gmail-redirect-uri')).toHaveText(/\/ajustes\/gmail$/)
+
+  await form.getByLabel('ID de cliente').fill(CLIENT_ID)
+  await form.getByLabel('Secreto del cliente').fill(CLIENT_SECRET)
+  await form.getByRole('button', { name: 'Guardar credenciales' }).click()
+  const stepUp = page.getByRole('dialog', { name: 'Confirma que eres tú' })
+  await stepUp.getByLabel('Código de tu app de autenticación').fill(await freshCode(u))
+  await stepUp.getByRole('button', { name: 'Verificar código' }).click()
+  await expect(page.getByText('Credenciales de Google guardadas')).toBeVisible()
+  await expect(form.getByText('guardadas aquí, cifradas', { exact: false })).toBeVisible()
+  await expect(form.getByLabel('Secreto del cliente')).toHaveValue('')
+  await expectAccessible(page, 'Ajustes de Gmail del servidor')
+
+  // Ya con las credenciales de Ajustes, conectar Gmail funciona (step-up todavía vigente).
+  const gmailAddress = `a${Date.now()}@gmail.com`
+  await page.request.get(`${google()}/__login?email=${encodeURIComponent(gmailAddress)}`)
+  await section.getByRole('button', { name: 'Conectar Gmail' }).click()
+  await expect(page.getByText(`Gmail conectado: ${gmailAddress}`)).toBeVisible()
+
+  // Borrar vuelve a la configuración por variables de entorno (al volver de Google el bloque está plegado).
+  await section.getByText('Configuración del servidor (admin)').click()
+  await section.getByRole('button', { name: 'Borrar', exact: true }).click()
+  await page.getByRole('alertdialog', { name: '¿Borrar las credenciales de Google?' }).getByRole('button', { name: 'Borrar credenciales' }).click()
+  await expect(page.getByText('Credenciales borradas')).toBeVisible()
+  await expect(form.getByText('variables de entorno', { exact: false })).toBeVisible()
+})
+
+test('una persona sin rol admin no ve la configuración del servidor', async ({ page }) => {
+  await register(page)
+  await page.goto('/ajustes')
+  await expect(page.getByRole('region', { name: 'Correo del banco (Gmail)' })).toBeVisible()
+  await expect(page.getByText('Configuración del servidor (admin)')).toHaveCount(0)
 })

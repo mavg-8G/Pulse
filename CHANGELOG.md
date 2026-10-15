@@ -2,6 +2,14 @@
 
 Cambios relevantes de Pulse. Las entradas «Sin publicar» describen cambios posteriores a la versión declarada `0.2.0`; sus fechas corresponden al registro del trabajo y no a una publicación o etiqueta de GitHub. Las secciones históricas conservan el contexto de cada etapa.
 
+## Sin publicar — fase 8 y Gmail desde Ajustes (15 oct 2026)
+
+- **Gmail se configura desde la app**: un admin pega en Ajustes → Gmail → *Configuración del servidor* el ID y el secreto de OAuth (y, opcionalmente, el tema/cuenta de Pub/Sub y la clave de Gemini). Se guardan cifrados con una subclave de la KEK (migración `0008_ajustes_servidor`), se aplican en caliente sin reiniciar y nunca se devuelven. La pantalla muestra la URI de redirección y el endpoint del webhook a copiar en Google Cloud. Exige rol admin y step-up; queda en la actividad de seguridad. Las variables de entorno siguen funcionando y lo guardado en Ajustes tiene prioridad; *Borrar* vuelve a ellas.
+- `/healthz` responde 503 si el esquema de la base no coincide con el binario e informa si Gmail y push están activos.
+- `deploy/backup-offsite.sh`: respaldo en caliente cifrado con `age` y subido a Nextcloud por WebDAV, sin dejar copias en claro; guía de restauración en una máquina limpia.
+- CI: restaura el respaldo en una base vacía, comprueba que conserva los datos y que el contenedor arranca sano.
+- Pruebas: configuración por admin (permisos, step-up, validación, cifrado en reposo, conservación del secreto, persistencia tras reinicio, vuelta a variables de entorno), reemplazo en caliente de la sincronización y `/healthz` con esquema atrasado; E2E de admin y de usuario sin rol admin en escritorio y móvil.
+
 ## Sin publicar — landing y pulido visual (14 oct 2026)
 
 - `/` sin sesión es una landing pública (qué es Pulse, cómo funciona, importación desde el banco, privacidad); el acceso pasa a `/entrar`. Con sesión, `/` sigue siendo el panel. Cerrar sesión lleva a `/entrar`.

@@ -572,15 +572,16 @@ Se construyen y prueban solo con archivos `.eml`, antes de tocar la API de Gmail
 - **Pendiente de aceptación**: un consumo real con tu tarjeta aparece en Pulse en menos de 1 minuto (Pub/Sub) o 15 minutos (polling). Configuración en `deploy/GMAIL.md`.
 
 ### Fase 8 — Producción endurecida (1 semana)
-- [ ] Contenedor `read_only`, sin capacidades, Docker secrets, límites de recursos
-- [ ] Backups cifrados con `age` + copia a Nextcloud
-- [ ] `/healthz` enriquecido + monitores en Uptime Kuma y Beszel
+- [x] Contenedor `read_only`, sin capacidades, Docker secrets, límites de recursos
+- [x] Backups cifrados con `age` + copia a Nextcloud (`deploy/backup-offsite.sh`)
+- [x] `/healthz` enriquecido (esquema, Gmail, push) · [ ] **Tú**: monitores en Uptime Kuma y Beszel
 - [ ] Detector de plantillas cambiadas y reporte de conciliación
-- [ ] Imagen firmada en GHCR; `deploy/smoke.sh` tras cada despliegue
+- [x] Imagen firmada en GHCR; `deploy/smoke.sh` tras cada despliegue
+- [x] Credenciales de Google (OAuth, Pub/Sub, Gemini) configurables por un admin desde Ajustes, cifradas y aplicadas en caliente
 - **Tests**:
-  - Restauración automática de backup en CI.
+  - [x] Restauración automática de backup en CI (base vacía → `restore` → arranque sano con los datos).
   - ZAP baseline sin alertas medias/altas; Trivy sin CVEs críticas.
-  - El contenedor arranca con sistema de archivos de solo lectura (prueba en CI).
+  - [x] El contenedor arranca con sistema de archivos de solo lectura (prueba en CI).
   - Smoke test contra producción después de cada deploy.
 - **Terminado cuando**: restauras un backup en una máquina limpia y todo funciona; los monitores están en verde.
 
