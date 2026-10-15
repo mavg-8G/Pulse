@@ -95,6 +95,35 @@ func (s *Store) TemplateAlerts(ctx context.Context, userID string, sl *crypto.Se
 
 // ---------- reportes y conciliación ----------
 
+// ReportActivity reads only the fields needed for analytics, without decrypting
+// merchants or loading transaction descriptions into memory.
+type ReportActivity struct {
+	AccountID, CategoryID, Kind string
+	AmountCents                 int64
+	OccurredAt                  time.Time
+}
+
+func (s *Store) ReportActivity(ctx context.Context, userID string, from, to, historyFrom, now time.Time) ([]ReportActivity, error) {
+	rows, err := s.DB.QueryContext(ctx, `SELECT account_id, category_id, kind, amount_cents, occurred_at
+		FROM transactions WHERE user_id = ? AND occurred_at <= ?
+		AND ((occurred_at >= ? AND occurred_at < ?) OR occurred_at >= ?) ORDER BY occurred_at`, userID, TS(now), TS(from), TS(to), TS(historyFrom))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []ReportActivity{}
+	for rows.Next() {
+		var a ReportActivity
+		var occurred string
+		if err := rows.Scan(&a.AccountID, &a.CategoryID, &a.Kind, &a.AmountCents, &occurred); err != nil {
+			return nil, err
+		}
+		a.OccurredAt = ParseTS(occurred)
+		out = append(out, a)
+	}
+	return out, rows.Err()
+}
+
 // SpentByAccount suma compras menos reversos por cuenta en [from, to).
 func (s *Store) SpentByAccount(ctx context.Context, userID string, from, to time.Time) (map[string]int64, error) {
 	rows, err := s.DB.QueryContext(ctx, `SELECT account_id, SUM(CASE kind WHEN 'refund' THEN -amount_cents ELSE amount_cents END)

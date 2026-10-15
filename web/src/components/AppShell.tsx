@@ -20,9 +20,9 @@ const nav = [
   { to: '/', label: 'Inicio', icon: <IconHome />, end: true },
   { to: '/movimientos', label: 'Movimientos', icon: <IconList /> },
   { to: '/plan', label: 'Plan', icon: <IconPlan /> },
+  { to: '/reportes', label: 'Reportes', icon: <IconReport /> },
   { to: '/ajustes', label: 'Ajustes', icon: <IconSettings />, end: true },
 ]
-const reportsLink = { to: '/reportes', label: 'Reportes', icon: <IconReport /> }
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { data: me } = useMe()
@@ -84,7 +84,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <NavLink to="/" className="brand"><PulseMark /><span><span translate="no">Pulse</span><small>Encuentra tu equilibrio</small></span></NavLink>
           <button className="btn btn-primary side-add" onClick={() => open()}><IconPlus /> Nuevo gasto<span className="side-add-dot" aria-hidden="true" /></button>
           <p className="nav-section-label">Mi día a día</p>
-          <div className="side-nav-group">{nav.slice(0, 3).map((n) => <NavLink key={n.to} to={n.to} end={n.end} className="side-link">{n.icon}<span>{n.label}</span>{n.to === '/movimientos' && !!dashboard?.pending_review && <span className="nav-count">{dashboard.pending_review}</span>}</NavLink>)}<NavLink to={reportsLink.to} className="side-link">{reportsLink.icon}<span>{reportsLink.label}</span></NavLink></div>
+          <div className="side-nav-group">{nav.slice(0, 4).map((n) => <NavLink key={n.to} to={n.to} end={n.end} className="side-link">{n.icon}<span>{n.label}</span>{n.to === '/movimientos' && !!dashboard?.pending_review && <span className="nav-count">{dashboard.pending_review}</span>}</NavLink>)}</div>
           <p className="nav-section-label">Organización</p>
           <div className="side-nav-group">{manage.map((n) => <NavLink key={n.to} to={n.to} className="side-link">{n.icon}<span>{n.label}</span><span className="nav-count" aria-hidden="true">{n.count}</span></NavLink>)}<NavLink to="/ajustes" end className="side-link"><IconSettings /><span>Ajustes</span></NavLink></div>
           <Link to="/plan" className="sidebar-insight"><div><span className="eyebrow">Este mes</span><span className="live-dot" /></div><strong className="num">{dashboard ? money(dashboard.spent_cents) : '—'}</strong><p>{dashboard?.has_budgets ? `Presupuesto: ${money(dashboard.budget.budget_cents)}` : 'Cada gasto cuenta. Tú marcas el ritmo.'}</p><svg className="sidebar-wave" viewBox="0 0 180 38" aria-hidden="true"><path className="wave-base" d="M0 23h180" /><path className="wave-line" pathLength="100" d="M0 23h34l6-6 5 6h13l8-17 10 30 9-21 7 8h22l5-9 7 9h54" /></svg><span className="sidebar-insight-link">{monthLabel(current)} <IconArrow /></span></Link>
@@ -94,12 +94,12 @@ export function AppShell({ children }: { children: ReactNode }) {
           <header className="workspace-topbar">
             <Link className="mobile-brand" to="/" aria-label="Pulse, inicio"><PulseMark /><strong>Pulse</strong></Link>
             <div className="workspace-label"><span>Espacio personal</span><span className="breadcrumb-divider">/</span><strong>{pageName}</strong></div>
-            <div className="workspace-tools"><span className="workspace-date">{date}</span><Link className="topbar-profile avatar" to="/ajustes/cuenta" aria-label="Mi cuenta">{initial}</Link></div>
+            <div className="workspace-tools"><span className="workspace-date">{date}</span><button className="btn btn-primary mobile-add" onClick={() => open()} aria-label="Nuevo gasto"><IconPlus /><span>Nuevo</span></button><Link className="topbar-profile avatar" to="/ajustes/cuenta" aria-label="Mi cuenta">{initial}</Link></div>
           </header>
-          <div className={`page-content ${['/ajustes', '/ajustes/cuenta'].includes(location.pathname) ? 'settings-layout' : ''}`} key={location.pathname}>{children}</div>
+          <div className={`page-content ${['/ajustes', '/ajustes/cuenta'].includes(location.pathname) ? 'settings-layout' : ''}`} data-view={location.pathname.split('/').filter(Boolean).at(-1) ?? 'inicio'} key={location.pathname}>{children}</div>
           <footer className="workspace-footer"><span><IconPulse /> Pulse</span><span>Un gasto a la vez.</span></footer>
         </main>
-        <nav className="tabbar" aria-label="Principal">{nav.slice(0, 2).map((n) => <NavLink key={n.to} to={n.to} end={n.end} className="tab">{n.icon}{n.label}</NavLink>)}<button className="tab-add" onClick={() => open()} aria-label="Nuevo gasto"><IconPlus /></button>{nav.slice(2).map((n) => <NavLink key={n.to} to={n.to} className="tab">{n.icon}{n.label}</NavLink>)}</nav>
+        <nav className="tabbar" aria-label="Principal">{nav.map((n) => <NavLink key={n.to} to={n.to} end={n.end} className="tab">{n.icon}{n.label}</NavLink>)}</nav>
       </div>
       <Sheet open={sheet.open} title={sheet.tx ? 'Editar gasto' : 'Nuevo gasto'} onClose={() => setSheet({ open: false })}><TxForm key={sheet.tx?.id ?? 'new'} tx={sheet.tx} onDone={() => setSheet({ open: false })} /></Sheet>
     </TxSheetCtx.Provider>

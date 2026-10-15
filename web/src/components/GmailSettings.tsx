@@ -34,17 +34,19 @@ export function GmailSettings({ tz }: { tz: string }) {
   const [error, setError] = useState('')
   const s = status.data
 
-  async function run(fn: () => Promise<void>) {
+  async function run(fn: () => Promise<void | string>) {
     setError('')
     setBusy(true)
+    let message: void | string = undefined
     try {
-      await fn()
+      message = await fn()
     } catch (e) {
       setError(errorMessage(e))
     } finally {
+      await qc.invalidateQueries({ queryKey: ['gmail'] })
       setBusy(false)
-      qc.invalidateQueries({ queryKey: ['gmail'] })
     }
+    if (message) toast(message)
   }
   const connect = () =>
     run(async () => {
@@ -57,13 +59,13 @@ export function GmailSettings({ tz }: { tz: string }) {
       const r = await post<GmailSyncResult>('/api/gmail/sync')
       financeKeys.forEach((k) => qc.invalidateQueries({ queryKey: k }))
       qc.invalidateQueries({ queryKey: ['accounts'] })
-      toast(syncSummary(r))
+      return syncSummary(r)
     })
   const disconnect = async () => {
     if (!(await ask({ title: '¿Desconectar Gmail?', body: 'Pulse dejará de leer tus correos y Google revocará el acceso. Los gastos ya importados se conservan.', confirm: 'Desconectar Gmail', danger: true }))) return
     run(async () => {
       await del('/api/gmail')
-      toast('Gmail desconectado')
+      return 'Gmail desconectado'
     })
   }
   const setShadow = (shadow: boolean) =>
@@ -74,7 +76,7 @@ export function GmailSettings({ tz }: { tz: string }) {
     if (enabled && !(await ask({ title: '¿Activar Gemini?', body: 'Los correos del banco que Pulse no sepa leer se enviarán a Gemini (Google) sin tu nombre, emails ni números largos.', confirm: 'Activar Gemini' }))) return
     run(async () => {
       await api('PUT', '/api/gmail/gemini', { enabled })
-      toast(enabled ? 'Gemini activado' : 'Gemini desactivado')
+      return enabled ? 'Gemini activado' : 'Gemini desactivado'
     })
   }
 

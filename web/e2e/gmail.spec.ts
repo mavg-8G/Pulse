@@ -24,7 +24,11 @@ test('conectar Gmail con step-up, sincronizar un consumo y desconectar', async (
   const stepUp = page.getByRole('dialog', { name: 'Confirma que eres tú' })
   await expect(stepUp).toBeVisible()
   await stepUp.getByLabel('Código de tu app de autenticación').fill(await freshCode(u))
+  const verified = page.waitForResponse((r) => r.url().endsWith('/api/auth/step-up/totp') && r.request().method() === 'POST')
+  const connected = page.waitForResponse((r) => r.url().endsWith('/api/gmail/callback') && r.request().method() === 'POST')
   await stepUp.getByRole('button', { name: 'Verificar código' }).click()
+  expect((await verified).ok()).toBeTruthy()
+  expect((await connected).ok()).toBeTruthy()
 
   // Google (falso) acepta y vuelve a /ajustes/gmail; Pulse canjea el código y limpia la URL.
   await expect(page.getByText(`Gmail conectado: ${gmailAddress}`)).toBeVisible()
@@ -92,7 +96,9 @@ test('un admin configura las credenciales de Google desde Ajustes y se aplican s
   // Ya con las credenciales de Ajustes, conectar Gmail funciona (step-up todavía vigente).
   const gmailAddress = `a${Date.now()}@gmail.com`
   await page.request.get(`${google()}/__login?email=${encodeURIComponent(gmailAddress)}`)
+  const connected = page.waitForResponse((r) => r.url().endsWith('/api/gmail/callback') && r.request().method() === 'POST')
   await section.getByRole('button', { name: 'Conectar Gmail' }).click()
+  expect((await connected).ok()).toBeTruthy()
   await expect(page.getByText(`Gmail conectado: ${gmailAddress}`)).toBeVisible()
 
   // Borrar vuelve a la configuración por variables de entorno (al volver de Google el bloque está plegado).

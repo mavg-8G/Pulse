@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"sort"
 	"strings"
 	"time"
 
@@ -53,59 +52,18 @@ func (s *Server) reportSummary(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	type monthTotal struct {
-		Month      string `json:"month"`
-		SpentCents int64  `json:"spent_cents"`
-	}
-	type idTotal struct {
-		ID         string `json:"id"`
-		SpentCents int64  `json:"spent_cents"`
-	}
-	byMonth := []monthTotal{}
-	var total int64
-	for _, m := range months {
-		f, t, _ := budget.MonthRange(m, s.loc(id))
-		spent, err := s.store.SpentByCategory(ctx, id.user.ID, f, t)
-		if err != nil {
-			return err
-		}
-		var sum int64
-		for _, v := range spent {
-			sum += v
-		}
-		total += sum
-		byMonth = append(byMonth, monthTotal{m, sum})
-	}
 	cats, err := s.store.Categories(ctx, id.user.ID)
 	if err != nil {
 		return err
 	}
-	spent, err := s.store.SpentByCategory(ctx, id.user.ID, from, to)
+	now := s.clock.Now().In(s.loc(id))
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	historyFrom := today.AddDate(0, 0, -90)
+	activity, err := s.store.ReportActivity(ctx, id.user.ID, from, to, historyFrom, now)
 	if err != nil {
 		return err
 	}
-	rolled := rollup(cats, spent)
-	byCat := []idTotal{}
-	for _, c := range cats {
-		if c.ParentID == "" && rolled[c.ID] != 0 {
-			byCat = append(byCat, idTotal{c.ID, rolled[c.ID]})
-		}
-	}
-	accs, err := s.store.SpentByAccount(ctx, id.user.ID, from, to)
-	if err != nil {
-		return err
-	}
-	byAcc := []idTotal{}
-	for k, v := range accs {
-		if v != 0 {
-			byAcc = append(byAcc, idTotal{k, v})
-		}
-	}
-	for _, l := range [][]idTotal{byCat, byAcc} {
-		sort.Slice(l, func(i, j int) bool { return l[i].SpentCents > l[j].SpentCents })
-	}
-	writeJSON(w, 200, map[string]any{"from": months[0], "to": months[len(months)-1], "total_cents": total,
-		"months": byMonth, "by_category": byCat, "by_account": byAcc})
+	writeJSON(w, 200, buildReportSummary(months, from, to, now, cats, activity))
 	return nil
 }
 

@@ -53,14 +53,14 @@ export function Movements() {
   return (
     <>
       <div className="page-head">
-        <h1>Movimientos</h1>
+        <div><p className="page-kicker">Tu actividad</p><h1>Movimientos</h1><p className="page-description">Cada compra, devolución y detalle, en un solo lugar.</p></div>
         <div className="row-actions" style={{ alignItems: 'center' }}>
           <MonthSwitch month={month} onChange={(m) => { setMonth(m); setLimit(PAGE) }} label={monthLabel(month)} />
           <button className="btn btn-sm" onClick={() => fileRef.current?.click()}>Importar correo</button>
           <input ref={fileRef} type="file" accept=".eml,message/rfc822" multiple hidden aria-label="Archivo .eml del banco" onChange={(e) => importFiles(e.target.files)} />
         </div>
       </div>
-      <div className="filters">
+      <div className="filters panel" role="search" aria-label="Filtrar movimientos">
         <input className="input search" type="search" name="q" autoComplete="off" placeholder="Buscar comercio o nota…" aria-label="Buscar" value={q} onChange={(e) => setQ(e.target.value)} />
         <select className="select" aria-label="Categoría" value={category} onChange={(e) => setCategory(e.target.value)}>
           <option value="">Todas las categorías</option>

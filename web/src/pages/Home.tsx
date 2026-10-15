@@ -34,7 +34,7 @@ export function Home() {
   return (
     <>
       <div className="page-head home-heading">
-        <div><h1>Inicio</h1><p className="page-description">Tu dinero, a tu ritmo. Todo el mes en un vistazo.</p></div>
+        <div><p className="page-kicker">Tu espacio personal</p><h1>Inicio</h1><p className="page-description">Tu dinero, a tu ritmo. Todo el mes en un vistazo.</p></div>
         <MonthSwitch month={month} onChange={setMonth} label={label} />
       </div>
       {isLoading && <div className="dashboard-skeleton" role="status" aria-label="Cargando resumen"><div /><div /><div /></div>}

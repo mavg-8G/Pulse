@@ -18,10 +18,10 @@ export function Categories() {
     <>
       <p className="small"><Link to="/ajustes">Ajustes</Link></p>
       <div className="page-head">
-        <h1>Categorías</h1>
+        <div><p className="page-kicker">Tu organización</p><h1>Categorías</h1><p className="page-description">Dale a tus gastos un orden que tenga sentido para ti.</p></div>
         <button className="btn btn-primary" onClick={() => setEdit({ open: true })}>Agregar categoría</button>
       </div>
-      <ul className="list">
+      <ul className="list category-collection">
         {tops.map((c) => (
           <li key={c.id}>
             <button className="tx" onClick={() => setEdit({ open: true, cat: c })}>
@@ -53,7 +53,7 @@ function CategoryForm({ cat, all, onDone, onEdit }: { cat?: Category; all: Categ
   const toast = useToast()
   const [name, setName] = useState(cat?.name ?? '')
   const [icon, setIcon] = useState(cat?.icon ?? '🏷️')
-  const [color, setColor] = useState(cat?.color ?? '#2a9d8f')
+  const [color, setColor] = useState(cat?.color ?? '#618675')
   const [parent, setParent] = useState(cat?.parent_id ?? '')
   const [error, setError] = useState('')
   const subs = cat ? all.filter((c) => c.parent_id === cat.id) : []

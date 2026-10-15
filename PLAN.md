@@ -2,7 +2,14 @@
 
 Registro de gastos personales multiusuario: categorías, cuentas (origen), fechas y plan de gastos (tope mensual por categoría). PWA instalable en escritorio y móvil, modo claro/oscuro, notificaciones push, ingreso manual y captura automática desde Gmail.
 
-**Estado (15 oct 2026): fases 0–8 implementadas y la 9 en curso** (reportes, CSV, gastos fijos, gastos sin conexión y precisión del modo sombra listos; faltan bancos nuevos, que esperan `.eml` reales). Faltan dos aceptaciones con datos reales: la entrega push en un teléfono físico (`deploy/PUSH.md`) y un consumo real llegando por Gmail con el proyecto de Google Cloud configurado (`deploy/GMAIL.md`). Los parsers se validaron con correos sintéticos reconstruidos de las capturas: hay que confirmarlos con `.eml` reales. Ver §0 para los cambios respecto al plan original.
+**Estado (15 oct 2026): fases 0–8 implementadas y la 9 en curso**. Están listos el rediseño de todas las vistas, las estadísticas y gráficas de líneas de Reportes, las proyecciones de la próxima semana/mes por categoría y total, CSV, gastos fijos, gastos sin conexión y métricas del modo sombra. Faltan las aceptaciones de entrega push en un teléfono físico ([guía](deploy/PUSH.md)) y de un consumo real llegando por Gmail con el proyecto de Google Cloud configurado ([guía](deploy/GMAIL.md)), además de los monitores de producción. Los parsers se validaron con correos sintéticos reconstruidos de las capturas: hay que confirmarlos con `.eml` reales. Ver §0 para los cambios respecto al plan original y [`CHANGELOG.md`](CHANGELOG.md) para la verificación de cada entrega.
+
+### Próximos pasos
+
+1. Confirmar el resultado de CI y el despliegue tras publicar los cambios; completar los monitores de producción y la restauración en una máquina limpia.
+2. Validar la PWA instalada y la entrega de push en un teléfono físico, y comprobar una importación real por Gmail.
+3. Comparar las proyecciones semanales y mensuales con el gasto real acumulado y revisar la precisión por banco antes de desactivar el modo sombra.
+4. Incorporar correos `.eml` reales y nuevos bancos; establecer imágenes de referencia para detectar cambios visuales automáticamente.
 
 Principios rectores:
 1. **Backend mínimo** — un binario Go que sirve API + frontend, SQLite en un archivo, un contenedor detrás de Caddy en `pulse.espectro.uk`.
@@ -20,11 +27,11 @@ Principios rectores:
 | argon2id | PBKDF2-HMAC-SHA256 (600 000 iteraciones, recomendación OWASP) + pimienta HMAC derivada de la KEK | Biblioteca estándar de Go; un volcado de la BD sin la KEK no permite atacar contraseñas. El formato lleva algoritmo e iteraciones: se puede migrar a argon2id rehaciendo el hash en el siguiente login |
 | `go-webauthn/webauthn` y `pquerna/otp` | Verificación WebAuthn y TOTP propias con la biblioteca estándar | Sin dependencias externas; cubiertas con vectores del RFC 6238, un autenticador por software y fuzzing |
 | Integridad multiusuario solo en código | Además, claves foráneas compuestas `(id, user_id)` en SQLite | Aunque el código fallara, la BD rechaza mezclar datos de usuarios |
-| Backups cifrados | Pendiente (Fase 8) | Ver `deploy/README.md` para el respaldo manual mientras tanto |
+| Backups cifrados | Respaldo en caliente con `VACUUM INTO`, cifrado externo con `age` y copia a Nextcloud; restauración automatizada en CI | Guía y procedimiento de restauración en `deploy/README.md` |
 | Polling con `history.list` | `messages.list` con la consulta de remitentes bancarios (`from:(…) newer_than:Nd`); `historyId` solo para descartar avisos de Pub/Sub viejos | `history.list` devuelve ids de **todos** los correos nuevos; con la consulta filtrada en Google, Pulse nunca ve ni el id de un correo que no sea del banco. Sin historial que caduque, no hay "resincronización completa" que probar |
 | Callback OAuth `GET /api/gmail/callback` | Google vuelve a la página `/ajustes/gmail`, que envía código y `state` con `fetch` a `POST /api/gmail/callback` | La cookie de sesión es `SameSite=Strict` y no viaja en la redirección desde Google; además el código no queda en logs de acceso |
 | `state` y verificador PKCE guardados | `state` firmado con HMAC (usuario + sesión + caducidad 10 min); verificador = HMAC(nonce) con clave del servidor | Nada que guardar ni limpiar; el verificador nunca viaja en la URL |
-| Modo sombra (sin detalle) | Activado por defecto: todo lo importado queda "Por revisar". Apagado: solo se confirma solo lo que el parser leyó con seguridad **y** tiene una regla de comercio del usuario | Evita que un gasto mal clasificado cuente en el presupuesto sin que lo veas |
+| Modo sombra (sin detalle) | Activado por defecto: todo lo importado queda "Por revisar". Apagado: lectura segura con regla de comercio, o categoría del diccionario si el banco alcanza 20 revisiones y 98 % de aciertos | La precisión se mide con las correcciones de monto, fecha, tipo y cuenta |
 | Gemini como fallback | Solo para remitentes bancarios con plantilla desconocida, activación por usuario con step-up, texto redactado (también el nombre en el asunto), resultado validado y siempre por revisar | Mínimo dato posible a un tercero |
 | Push "nuevo gasto" | Aviso "Nuevo gasto por revisar" (o "Gasto registrado") para consumos de las últimas 24 h, con la preferencia de alertas de presupuesto y "ocultar montos" | La primera sincronización (90 días) no inunda de avisos |
 
@@ -275,16 +282,19 @@ Montos en centavos enteros. `PRAGMA foreign_keys=ON; journal_mode=WAL; secure_de
 
 ## 8. Pantallas
 
-1. **Inicio** — gastado del mes, restante, últimos gastos, alertas, "+ Gasto".
+1. **Inicio** — gasto del mes, presupuesto, saldo disponible o exceso, promedio diario, cierre estimado, últimos movimientos y pendientes de revisión.
 2. **Movimientos** — filtros, búsqueda, edición.
-3. **Revisar** — importados pendientes: confirmar / corregir / descartar; al corregir categoría ofrece "aplicar siempre a este comercio".
-4. **Plan** — presupuestos con progreso y proyección.
-5. **Reportes** — por categoría, cuenta y mes; exportar CSV (step-up).
+3. **Por revisar**, dentro de Movimientos — importados pendientes: confirmar / corregir / descartar; al corregir categoría ofrece "aplicar siempre a este comercio".
+4. **Plan** — presupuestos con progreso y proyección, y gestión de gastos fijos mensuales.
+5. **Reportes** — estadísticas y líneas de 3/6/12 meses, distribución por categoría y cuenta, proyecciones de la próxima semana o mes por categoría y total, CSV (step-up) y conciliación.
 6. **Cuentas** (con institución y sufijo de tarjeta) y **Categorías**.
-7. **Ajustes** — tema claro/oscuro/sistema, Gmail, notificaciones, **Seguridad** (passkeys, TOTP, códigos de recuperación, sesiones activas, actividad reciente).
-8. **Registro** (con código de invitación) y **Login** (contraseña + passkey/TOTP).
+7. **Ajustes** — tema claro/oscuro/sistema, animaciones, Gmail, notificaciones y privacidad.
+8. **Mi cuenta** — contraseña, passkeys, TOTP, códigos de recuperación, sesiones activas, actividad de seguridad y cierre de sesión.
+9. **Registro** (con código de invitación), **Entrar** (contraseña + passkey/TOTP), portada y páginas públicas bilingües de presentación, privacidad y términos.
 
 Responsive (navegación inferior en móvil, lateral en escritorio). PWA con app shell en caché; **los datos de la API no se cachean** en el service worker, y los gastos offline pendientes de enviar se guardan en IndexedDB solo hasta sincronizar. Al cerrar sesión se limpian caché e IndexedDB.
+
+La identidad visual usa azul petróleo con acentos suaves en salvia, lavanda y azul grisáceo. Las vistas claro/oscuro, formularios, tablas, gráficas y páginas públicas comparten estilos; los colores personalizados de cuentas y categorías se conservan con menor saturación al mostrarse.
 
 ---
 
@@ -303,7 +313,7 @@ CRUD   /api/accounts  /api/categories  /api/budgets  /api/merchant-rules
 GET    /api/transactions?...         POST/PATCH/DELETE /api/transactions[/{id}]
 POST   /api/transactions/{id}/confirm
 GET    /api/reports/summary          GET /api/reports/export.csv   (step-up)
-GET    /api/gmail/connect (step-up)  GET /api/gmail/callback   DELETE /api/gmail
+POST   /api/gmail/connect (step-up)  POST /api/gmail/callback  DELETE /api/gmail
 POST   /api/gmail/webhook            (JWT OIDC Google)
 POST   /api/ingest/email             (token + HMAC, desactivable)
 GET    /api/push/vapid-key           POST|DELETE /api/push/subscribe
@@ -312,6 +322,8 @@ GET    /*                            → frontend embebido
 ```
 
 Todo bajo `/api` (excepto auth pública, webhook y healthz) exige sesión con MFA completado.
+
+`/api/reports/summary` incluye las estadísticas, series mensuales y proyecciones; la ampliación no añade un endpoint ni una migración. Las proyecciones usan hasta 90 días completos de historial, independientemente del rango mensual solicitado.
 
 ---
 
@@ -513,12 +525,15 @@ Primero la red de seguridad, luego las funcionalidades.
 ### Fase 3 — Frontend PWA ✅ (1,5 semanas)
 - [x] Layout responsive (navegación inferior en móvil, lateral en escritorio)
 - [x] Tema claro / oscuro / sistema
-- [x] Inicio, Movimientos, formulario de gasto en 3 toques, Cuentas, Categorías, Ajustes → Seguridad
+- [x] Inicio, Movimientos, formulario de gasto, Cuentas, Categorías, Ajustes y Mi cuenta (seguridad y sesiones)
+- [x] Rediseño de todas las vistas con azul petróleo y acentos suaves, temas claro/oscuro coordinados, tarjetas y formularios adaptables; portada, acceso, páginas legales e iconos PWA incluidos
+- [x] Cinco accesos en la barra móvil (Inicio, Movimientos, Plan, Reportes y Ajustes) y Nuevo gasto en la cabecera
 - [x] Manifest + service worker (app shell; la API nunca se cachea), limpieza al cerrar sesión
 - **Tests**:
   - Vitest: lectura y formato de montos, fechas en zona local.
   - Playwright en viewport de escritorio y de iPhone/Android: crear, editar y borrar un gasto; filtros.
-  - Pendiente: regresión visual con capturas de referencia (se genera la referencia la primera vez que corra la CI).
+  - Capturas y comprobación de accesibilidad y desbordamiento horizontal de todas las vistas en escritorio/móvil y claro/oscuro (`web/e2e/design.spec.ts`).
+  - Pendiente: establecer capturas de referencia y una comparación automática de píxeles; las capturas actuales se revisan visualmente.
   - axe-core sin violaciones en ambos temas.
   - PWA: manifest válido, service worker registrado, la app carga sin conexión (shell) y tras cerrar sesión no queda ningún dato en caché/IndexedDB.
 - **Terminado cuando**: la instalas en tu teléfono y en el escritorio y registras gastos manuales desde ambos.
@@ -590,10 +605,16 @@ Se construyen y prueban solo con archivos `.eml`, antes de tocar la API de Gmail
 - [x] Métricas del modo sombra: cada gasto importado anota si se confirmó tal cual o hubo que corregir monto, fecha, tipo o cuenta; Ajustes → Gmail muestra los aciertos por banco
 - [x] Auto-confirmación por banco: con el modo sombra apagado, un banco con ≥ 20 revisiones y ≥ 98 % de aciertos se confirma solo si la categoría salió del diccionario (antes solo con regla de comercio)
 - [x] Reportes (por mes, categoría y cuenta), exportación CSV con step-up, gastos fijos mensuales y gastos sin conexión (IndexedDB hasta enviar; id del cliente para no duplicar)
+- [x] Estadísticas de gasto neto, promedio diario, compra promedio, compras y devoluciones, y variación entre meses cerrados; gráficas de líneas del total y categoría con valores exactos y tabla
+- [x] Proyecciones para la próxima semana calendario y el próximo mes por categoría principal y total, basadas en hasta 90 días completos; mínimo 7 días y aviso antes de 28, devoluciones descontadas y subcategorías incluidas
+- [x] Periodo de Reportes independiente del historial de proyección; selecciones conservadas entre 3/6/12 meses y movimientos futuros excluidos de los indicadores
+- [x] Pruebas de analítica para aislamiento entre usuarios, zona horaria, cambios de horario, meses bisiestos, historial insuficiente y redondeo; E2E de estadísticas y proyecciones en escritorio/móvil
+- [x] Avisos de éxito de Gmail después de actualizar el estado y el contador de importados; pruebas OAuth esperan explícitamente la respuesta del servidor
+- [ ] Contrastar las proyecciones con los resultados reales de las próximas semanas y meses antes de ajustar el método de estimación
 - [ ] **Tú**: revisar en unas semanas los aciertos reales por banco antes de apagar el modo sombra
 - [ ] Más bancos (débito, transferencias) siguiendo el mismo proceso: `.eml` → golden → fuzz → sombra
 
-**Duración estimada total**: 10–12 semanas a tiempo parcial.
+**Estimación original**: 10–12 semanas a tiempo parcial; la fase 9 continúa según las aceptaciones y mejoras pendientes.
 
 ---
 

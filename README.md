@@ -2,7 +2,7 @@
 
 Registro de gastos personales: cuentas y tarjetas, categorías, plan de gastos mensual con avisos y proyección. PWA para escritorio y móvil, modo claro/oscuro. Multiusuario **solo por invitación**, con MFA y aislamiento de datos por usuario (ver [`PLAN.md`](PLAN.md) §4).
 
-Estado: **fases 0–8 implementadas y fase 9 en curso**. Incluye reportes, CSV, conciliación, gastos fijos, registro sin conexión y métricas de revisión de Gmail, además de los controles de producción. Quedan aceptaciones con datos y dispositivos reales, configuración de monitores y nuevos bancos; el seguimiento está en [`PLAN.md`](PLAN.md). Los cambios se registran en [`CHANGELOG.md`](CHANGELOG.md).
+Estado: **fases 0–8 implementadas y fase 9 en curso**. Incluye el rediseño de todas las vistas, estadísticas y gráficas de líneas, proyecciones semanales y mensuales, CSV, conciliación, gastos fijos, registro sin conexión y métricas de revisión de Gmail. Quedan aceptaciones con datos y dispositivos reales, configuración de monitores y nuevos bancos; el roadmap está en [`PLAN.md`](PLAN.md). Los cambios se registran en [`CHANGELOG.md`](CHANGELOG.md).
 
 ## Funciones
 
@@ -12,8 +12,9 @@ Estado: **fases 0–8 implementadas y fase 9 en curso**. Incluye reportes, CSV, 
 - Acceso por invitación, TOTP o passkeys, gestión de sesiones y cifrado de campos sensibles con claves por usuario.
 - Presentación pública y páginas de privacidad y términos en español e inglés, accesibles sin sesión; exportación y supresión de cuentas mediante CLI, y retención del registro de seguridad de 365 días.
 - Inicio con gasto mensual, barra de presupuesto, saldo disponible o exceso, referencia del día del mes y cierre estimado; temas claro/oscuro y control de animaciones con respeto al movimiento reducido.
+- Diseño común en todas las vistas, con azul petróleo y acentos suaves en salvia, lavanda y azul grisáceo; navegación móvil con Reportes, tarjetas de cuentas/categorías y formularios adaptados a cada pantalla.
 - Respaldos en caliente, copia externa cifrada con `age` a Nextcloud y restauración verificada en CI. Configuración en [`deploy/README.md`](deploy/README.md).
-- Reportes de 3, 6 o 12 meses por categoría y cuenta, exportación CSV con confirmación de identidad y conciliación con los totales de tus estados de cuenta.
+- Reportes de 3, 6 o 12 meses: estadísticas de compras y devoluciones, líneas del total y por categoría, y proyecciones de la próxima semana o mes por categoría y total. Exportación CSV con confirmación de identidad y conciliación con tus estados de cuenta.
 - Gastos fijos mensuales y cola local para enviar gastos manuales nuevos cuando vuelve la conexión, con identificadores que evitan duplicarlos al reenviar.
 
 ## Navegación
@@ -25,18 +26,26 @@ Estado: **fases 0–8 implementadas y fase 9 en curso**. Incluye reportes, CSV, 
 | `/` con sesión | Resumen del mes, presupuesto, últimos movimientos y distribución por categoría |
 | `/movimientos` | Registro, búsqueda, edición e importación de gastos |
 | `/plan` | Presupuestos, seguimiento del gasto por categoría y gastos fijos |
-| `/reportes` | Evolución mensual, distribución por categoría/cuenta, CSV y conciliación |
+| `/reportes` | Estadísticas, líneas mensuales, proyecciones semanales/mensuales por categoría y total, CSV y conciliación |
 | `/ajustes` | Apariencia, Gmail, notificaciones y privacidad |
 | `/ajustes/cuenta` | Mi cuenta: sesiones, contraseña, segundo factor, actividad de seguridad y cierre de sesión |
 | `/ajustes/cuentas` y `/ajustes/categorias` | Organización de cuentas, tarjetas y categorías |
 
-El perfil de la barra lateral y el avatar de la cabecera abren **Mi cuenta**. Las preferencias generales permanecen en **Ajustes**.
+El perfil de la barra lateral y el avatar de la cabecera abren **Mi cuenta**. Las preferencias generales permanecen en **Ajustes**. En móvil, la barra inferior reúne Inicio, Movimientos, Plan, Reportes y Ajustes; **Nuevo gasto** está en la cabecera.
+
+## Apariencia
+
+Todas las vistas comparten una paleta de azul petróleo con acentos suaves en salvia, lavanda y azul grisáceo. Incluye los temas claro y oscuro, la portada, el acceso, las páginas legales y los iconos de la PWA. Cuentas, categorías y presupuestos se presentan en tarjetas; Ajustes y Mi cuenta agrupan sus controles en secciones que se distribuyen en columnas en escritorio y se apilan en móvil.
+
+Los colores personalizados de cuentas y categorías se conservan y se presentan con menor saturación. Las ilustraciones de portada y acceso muestran datos de ejemplo identificados como tales. Las animaciones respetan la preferencia de movimiento reducido y se pueden pausar desde Ajustes.
 
 ## Conectar Gmail
 
 Un administrador configura el **ID de cliente OAuth** y el **secreto** en **Ajustes → Correo del banco (Gmail) → Configuración del servidor (admin)**. La pantalla muestra la URI de redirección y el webhook que debes registrar en Google Cloud. También permite configurar Pub/Sub y Gemini. Guardar requiere confirmar la identidad; las credenciales se cifran y se aplican sin reiniciar. Lo guardado en la app tiene prioridad sobre las variables de entorno; al borrarlo se vuelve a ellas.
 
 Después, cada persona conecta su Gmail desde Ajustes. La primera sincronización consulta notificaciones bancarias de los **últimos 90 días**, con un límite de **1.000 mensajes por sincronización**. Las huellas para evitar duplicados se conservan 90 días y los avisos de nuevos gastos se limitan a consumos de las últimas 24 horas. El modo sombra deja los importados **Por revisar**.
+
+Al sincronizar o cambiar la conexión, el aviso de éxito aparece después de actualizar el estado y el contador de importados en pantalla.
 
 **Ajustes → Gmail** muestra los aciertos por banco según tus revisiones: corregir monto, día, tipo o cuenta cuenta como una corrección; cambiar la categoría o el comercio no. Con el modo sombra apagado, también se pueden confirmar automáticamente gastos con categoría del diccionario cuando el banco alcanza al menos **20 revisiones y 98 % de aciertos**, siempre que la lectura tenga suficiente confianza. Revisa los resultados reales antes de desactivar el modo sombra.
 
@@ -56,7 +65,11 @@ Esta unión se aplica al arrancar. Bajar la migración no vuelve a separar las c
 
 ## Reportes, conciliación y gastos fijos
 
-En **Reportes**, elige 3, 6 o 12 meses para comparar el gasto mensual y su distribución por categoría y cuenta. **Exportar CSV** descarga los movimientos del periodo tras confirmar tu identidad; la descarga queda en la actividad de seguridad y los campos de texto se protegen frente a la interpretación como fórmulas en hojas de cálculo.
+En **Reportes**, elige 3, 6 o 12 meses para ver el gasto neto, el promedio diario, la compra promedio, el número de compras y las devoluciones. El cambio mensual compara los dos últimos meses cerrados para evitar comparar un mes parcial con uno completo. La gráfica de líneas muestra la evolución del total y permite compararlo con una categoría, consultar valores exactos por mes mediante un selector y abrir una tabla. El gráfico admite desplazamiento con teclado y conserva las selecciones al cambiar de periodo. Se conserva la distribución por categoría y cuenta. Los indicadores incluyen los movimientos hasta el momento de la consulta, sin adelantar gastos con fecha futura.
+
+Las **proyecciones** estiman el gasto de la próxima semana calendario (lunes a domingo) o del próximo mes calendario, tanto total como por categoría principal, incluyendo sus subcategorías. Usan el promedio diario de compras menos devoluciones desde el primer movimiento dentro de los últimos 90 días completos hasta ayer, incluyendo los días sin movimientos. Requieren al menos 7 días de historial y muestran un aviso si hay menos de 28. Las categorías con saldo negativo se estiman en cero; el total suma las estimaciones redondeadas de las categorías. La línea punteada representa el gasto acumulado estimado y la tabla detalla los importes por categoría. Cambiar el rango de 3/6/12 meses no cambia la base de las proyecciones. No anticipan gastos extraordinarios ni suman por separado los gastos fijos, que ya pueden estar representados en el historial.
+
+**Exportar CSV** descarga los movimientos del periodo tras confirmar tu identidad; la descarga queda en la actividad de seguridad y los campos de texto se protegen frente a la interpretación como fórmulas en hojas de cálculo.
 
 En **Conciliación**, selecciona un mes e introduce el total del estado de cuenta de cada cuenta o tarjeta. Pulse lo compara con lo registrado y muestra la diferencia. La comparación usa el **mes calendario de tu zona horaria**, por lo que puede diferir de un estado de tarjeta con otra fecha de corte.
 
@@ -167,7 +180,13 @@ La exportación contiene datos personales descifrados: entrégala por un canal s
 | `make e2e` | Playwright en escritorio y móvil: registro, TOTP, passkey (autenticador virtual), gastos, plan, PWA sin conexión, accesibilidad (axe) en ambos temas, CSP sin violaciones |
 | `make check` | Formato y vet, detector de carreras, pruebas del frontend y E2E; el fuzzing se ejecuta aparte con `make fuzz` |
 
-La suite E2E incluye landing pública, páginas legales, Mi cuenta, configuración de Google por un admin, reportes, exportación con confirmación de identidad, conciliación, gastos fijos, envío tras recuperar la conexión y accesibilidad. Cada ejecución utiliza puerto y datos propios dentro de `web/.e2e/`.
+La suite E2E incluye landing pública, páginas legales, Mi cuenta, configuración de Google por un admin, estadísticas y proyecciones de Reportes, exportación con confirmación de identidad, conciliación, gastos fijos y envío tras recuperar la conexión. La revisión del diseño recorre las vistas públicas y privadas en escritorio/móvil y claro/oscuro, comprueba accesibilidad con axe y ausencia de desbordamiento horizontal, y genera capturas para inspección. Cada ejecución utiliza puerto y datos propios dentro de `web/.e2e/`; las capturas no constituyen todavía una comparación automática contra imágenes de referencia.
+
+Para ejecutar solo las pruebas del rediseño y Reportes desde la raíz:
+
+```bash
+npm --prefix web run e2e -- design.spec.ts reportes.spec.ts
+```
 
 Para instalar Chromium antes de las pruebas E2E: `cd web && npx playwright install chromium` (en Linux CI: `--with-deps chromium`). Para revisar dependencias: `npm audit` en `web/` y `go mod verify` en la raíz. La CI también comprueba vulnerabilidades Go alcanzables con `govulncheck`, escanea la imagen con Trivy y ejecuta OWASP ZAP baseline contra las páginas públicas del contenedor, bloqueando alertas de riesgo medio o alto.
 
@@ -178,3 +197,5 @@ Ver [`deploy/README.md`](deploy/README.md). Un push a `main` ejecuta las pruebas
 `/healthz` comprueba la base y que el esquema coincida con el binario; devuelve 503 si falla esa comprobación e informa si Gmail y push están activos. La guía de despliegue incluye la copia externa con `deploy/backup-offsite.sh`, la restauración en una máquina limpia y la configuración de monitores.
 
 La migración `0009_reportes_recurrentes` añade las revisiones de importación, avisos de plantillas, totales de conciliación y gastos recurrentes; se aplica al arrancar como las migraciones anteriores. El despliegue debe conservar la base y la KEK para mantener acceso a los campos cifrados.
+
+El rediseño y las estadísticas/proyecciones ampliadas no requieren una migración adicional. La migración `0010_unir_cuentas_repetidas` se describe en la sección de importación bancaria.

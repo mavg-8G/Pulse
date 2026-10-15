@@ -22,12 +22,19 @@ func TestReportesYExportacionCSV(t *testing.T) {
 	if r.Body["total_cents"].(float64) != 4000 || len(r.Body["months"].([]any)) != 12 || r.str("to") != "2026-10" {
 		t.Fatalf("resumen: %s", r.Raw)
 	}
+	forecast := r.Body["forecast"].(map[string]any)
+	if r.Body["purchase_count"].(float64) != 2 || forecast["ready"] != true || forecast["history_days"].(float64) != 39 {
+		t.Fatalf("analytics: %s", r.Raw)
+	}
 	if r := a.must(200, "GET", "/api/reports/summary?from=2026-10&to=2026-10", nil); r.Body["total_cents"].(float64) != 1500 {
 		t.Fatalf("resumen de un mes: %s", r.Raw)
 	}
 	a.must(400, "GET", "/api/reports/summary?from=2026-11&to=2026-10", nil)
 	if r := b.must(200, "GET", "/api/reports/summary", nil); r.Body["total_cents"].(float64) != 0 {
 		t.Fatal("B ve los gastos de A en el resumen")
+	}
+	if r := b.must(200, "GET", "/api/reports/summary", nil); r.Body["forecast"].(map[string]any)["ready"] != false {
+		t.Fatal("B ve el historial de A en la proyección")
 	}
 
 	// Exportar exige step-up y neutraliza fórmulas

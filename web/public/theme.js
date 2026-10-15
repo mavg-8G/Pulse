@@ -5,7 +5,7 @@ try {
   if (t === 'light' || t === 'dark') {
     document.documentElement.dataset.theme = t
     document.addEventListener('DOMContentLoaded', function () {
-      var c = t === 'dark' ? '#171411' : '#f7f3ed'
+      var c = t === 'dark' ? '#121c27' : '#f3f5f8'
       document.querySelectorAll('meta[name="theme-color"]').forEach(function (m) { m.content = c })
     })
   }

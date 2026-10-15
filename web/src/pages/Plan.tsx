@@ -26,7 +26,7 @@ export function Plan() {
   return (
     <>
       <div className="page-head">
-        <h1>Plan de gastos</h1>
+        <div><p className="page-kicker">A tu ritmo</p><h1>Plan de gastos</h1><p className="page-description">Haz espacio para lo que importa y sigue tu presupuesto.</p></div>
         <MonthSwitch month={month} onChange={setMonth} label={monthLabel(month)} />
       </div>
       {isLoading && <p className="loading">Cargando…</p>}
@@ -39,7 +39,7 @@ export function Plan() {
       )}
       {s && s.lines.length > 0 && (
         <>
-          <div className="panel budget" aria-label="Total del plan">
+          <div className="panel budget plan-total" aria-label="Total del plan">
             <div className="budget-top">
               <span className="muted">Total del plan</span>
               <span className="num">
@@ -53,7 +53,7 @@ export function Plan() {
             </div>
             {s.unbudgeted_cents > 0 && <p className="small faint" style={{ marginTop: 8 }}>Fuera del plan este mes: {money(s.unbudgeted_cents)}</p>}
           </div>
-          <ul className="list section">
+          <ul className="list section budget-grid">
             {s.lines.map((l) => (
               <li key={l.budget_id}>
                 <button className="tx budget" style={{ display: 'block' }} onClick={() => setEdit({ open: true, line: l })} aria-label={`${l.name}: ${l.percent}% usado. Editar presupuesto`}>

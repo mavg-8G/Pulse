@@ -2,6 +2,27 @@
 
 Cambios relevantes de Pulse. Las entradas «Sin publicar» describen cambios posteriores a la versión declarada `0.2.0`; sus fechas corresponden al registro del trabajo y no a una publicación o etiqueta de GitHub. Las secciones históricas conservan el contexto de cada etapa.
 
+La guía de uso y desarrollo está en [`README.md`](README.md); el roadmap y las aceptaciones pendientes, en [`PLAN.md`](PLAN.md).
+
+## Sin publicar — rediseño visual de todas las vistas (15 oct 2026)
+
+- Nueva paleta de azul petróleo, azul grisáceo, salvia y lavanda con superficies suaves, modo oscuro azul profundo y contraste ajustado para textos pequeños.
+- Navegación lateral oscura, cabeceras y controles renovados. La barra móvil incluye Reportes y el botón Nuevo gasto pasa a la cabecera.
+- Inicio con indicadores de colores suaves; Movimientos con filtros agrupados; cuentas, categorías y presupuestos en tarjetas; Ajustes y Mi cuenta organizados en secciones distribuidas en columnas en escritorio y apiladas en móvil.
+- Reportes, tablas, gráficas, formularios y diálogos comparten la nueva apariencia. Se conserva el color elegido por el usuario para las cuentas y categorías, con menor saturación en su presentación.
+- Portada y acceso con una ilustración de ejemplo compartida, y páginas legales, iconos instalables y color del navegador actualizados con la misma identidad.
+- Los avisos de éxito de Gmail esperan a que se actualice el estado de la conexión y su contador de importados, para presentar un resultado consistente al terminar la operación.
+- Verificación: compilación, TypeScript y 41 pruebas Vitest correctos; capturas y accesibilidad de todas las vistas en escritorio/móvil y claro/oscuro. La suite completa pasó 57/62 casos inicialmente; los cinco restantes quedaron verificados en repeticiones selectivas, con navegación real en la revisión visual y esperas explícitas de las respuestas de OAuth en Gmail.
+
+## Sin publicar — estadísticas y proyecciones en Reportes (15 oct 2026)
+
+- Indicadores de gasto neto, promedio diario, compra promedio y variación entre meses cerrados; detalle del número de compras y las devoluciones.
+- Gráfica de líneas del total y una categoría seleccionable, con selector de valores exactos por mes, desplazamiento accesible con teclado y tabla alternativa. Las selecciones se conservan al cambiar entre 3, 6 y 12 meses. El mes en curso se identifica como parcial y los movimientos futuros quedan fuera de los indicadores.
+- Proyecciones por categoría principal y total para la próxima semana calendario o el próximo mes, con gráfica acumulada punteada, tabla y explicación de la base de cálculo. Se usan hasta 90 días completos, con mínimo de 7 y aviso de historial limitado antes de 28.
+- Agregación que respeta la zona horaria, suma subcategorías, descuenta devoluciones y mantiene el total proyectado igual a la suma de las categorías. Consulta de analítica sin descifrar comercios ni descripciones.
+- La base de las proyecciones es independiente del periodo elegido en Reportes. Las categorías con neto negativo se proyectan en cero y el total suma sus estimaciones redondeadas. Sin migraciones adicionales de base de datos.
+- Verificación: compilación del frontend, 41 pruebas Vitest, pruebas y `go vet` de API/store, y 6 E2E de Reportes en escritorio/móvil correctos. Incluyen accesibilidad en claro/oscuro, historial insuficiente, cambios de periodo, proyecciones, CSV y conciliación. Capturas revisadas en escritorio y móvil.
+
 ## Sin publicar — correos de Produbanco y cuentas duplicadas (15 oct 2026)
 
 - Normalización del HTML de correos: los saltos del código fuente se tratan como espacios antes de separar etiquetas, para leer importes como `USD` y `20.00` aunque estén en líneas distintas.

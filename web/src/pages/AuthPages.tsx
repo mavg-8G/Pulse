@@ -6,10 +6,19 @@ import { useAuth } from '../lib/auth'
 import { deviceName, passkeyAssertion, passkeyError, passkeysSupported, registerPasskey } from '../lib/webauthn'
 import { PulseMark } from '../components/icons'
 import { finePointer } from '../lib/device'
+import { MoneyScene } from '../components/MoneyScene'
 
 function AuthLayout({ title, lead, children }: { title: string; lead?: string; children: React.ReactNode }) {
   return (
     <main className="auth">
+      <div className="auth-frame">
+      <aside className="auth-story" aria-label="Bienvenido a Pulse">
+        <span className="page-kicker">Menos ruido. Más claridad.</span>
+        <h2>Un poco de orden.<br />Más tranquilidad.</h2>
+        <p>Tus gastos, tus planes y lo que viene. Un espacio para entender tu dinero a tu manera.</p>
+        <MoneyScene />
+        <div className="auth-story-tags"><span>Registra</span><span>Organiza</span><span>Anticipa</span></div>
+      </aside>
       <div className="auth-card">
         <Link to="/" className="brand" aria-label="Pulse, volver al inicio">
           <PulseMark />
@@ -23,6 +32,7 @@ function AuthLayout({ title, lead, children }: { title: string; lead?: string; c
           <a href="/privacidad">Privacidad</a>
           <a href="/terminos">Términos</a>
         </p>
+      </div>
       </div>
     </main>
   )

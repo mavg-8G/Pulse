@@ -192,9 +192,27 @@ export interface ReportSummary {
   from: string
   to: string
   total_cents: number
-  months: { month: string; spent_cents: number }[]
+  purchase_cents: number
+  refund_cents: number
+  purchase_count: number
+  elapsed_days: number
+  months: { month: string; spent_cents: number; by_category: { id: string; spent_cents: number }[] }[]
   by_category: { id: string; spent_cents: number }[]
   by_account: { id: string; spent_cents: number }[]
+  forecast: {
+    ready: boolean
+    history_days: number
+    history_from: string
+    history_to: string
+    week_from: string
+    week_to: string
+    month_from: string
+    month_to: string
+    month_days: number
+    week_cents: number
+    month_cents: number
+    by_category: { id: string; week_cents: number; month_cents: number }[]
+  }
 }
 
 export interface Reconciliation {

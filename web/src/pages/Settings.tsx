@@ -142,7 +142,7 @@ export function Settings({ view = 'prefs' }: { view?: 'prefs' | 'account' }) {
     <>
       {view === 'account' ? <>
       <div className="page-head">
-        <div><p className="small"><Link to="/ajustes">Ajustes</Link></p><h1>Mi cuenta</h1></div>
+        <div><p className="small"><Link to="/ajustes">Ajustes</Link></p><h1>Mi cuenta</h1><p className="page-description">Tu perfil, tus dispositivos y la seguridad de tu espacio.</p></div>
       </div>
 
       <section className="account-card" aria-label="Tu cuenta">
@@ -235,7 +235,7 @@ export function Settings({ view = 'prefs' }: { view?: 'prefs' | 'account' }) {
 
       </> : <>
       <div className="page-head">
-        <h1>Ajustes</h1>
+        <div><p className="page-kicker">Hecho a tu medida</p><h1>Ajustes</h1><p className="page-description">Personaliza tu espacio y conecta lo que necesitas.</p></div>
       </div>
 
       <section aria-labelledby="h-look">

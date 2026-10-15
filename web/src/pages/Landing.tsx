@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { PulseMark } from '../components/icons'
+import { MoneyScene } from '../components/MoneyScene'
 
 // Un mes de ejemplo (centavos por día). Solo ilustra: no son datos de nadie.
 const SAMPLE = [0, 1240, 0, 450, 0, 0, 3890, 820, 0, 0, 1675, 0, 560, 0, 9450, 0, 0, 1320, 0, 2210, 640, 0, 0, 4150, 0, 780, 0, 0, 1980, 0]
@@ -40,6 +41,8 @@ export function Landing() {
 
       <main id="contenido">
         <section className="landing-hero" aria-labelledby="landing-title">
+          <div className="landing-copy">
+          <p className="page-kicker">Dale espacio a lo que importa</p>
           <h1 id="landing-title">Tu dinero tiene pulso.</h1>
           <p className="landing-lead">
             Registra cada gasto, ponle un tope a cada categoría y mira tu mes en un solo trazo. Pulse es un registro personal de
@@ -49,6 +52,9 @@ export function Landing() {
             <Link to="/entrar" className="btn btn-primary">Entrar</Link>
             <Link to="/registro" className="btn">Tengo una invitación</Link>
           </div>
+          <p className="landing-caption">Personal, privado y a tu ritmo.</p>
+          </div>
+          <MoneyScene />
         </section>
 
         <figure className="landing-trace" aria-label="Ejemplo: el pulso de un mes, un pico por cada día con gastos">

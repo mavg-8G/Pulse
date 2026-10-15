@@ -23,15 +23,15 @@ export function Accounts() {
     <>
       <p className="small"><Link to="/ajustes">Ajustes</Link></p>
       <div className="page-head">
-        <h1>Cuentas y tarjetas</h1>
+        <div><p className="page-kicker">Tu organización</p><h1>Cuentas y tarjetas</h1><p className="page-description">Un lugar para cada forma de pagar.</p></div>
         <button className="btn btn-primary" onClick={() => setEdit({ open: true })}>Agregar cuenta</button>
       </div>
       <p className="muted" style={{ marginBottom: 16 }}>
         Los últimos dígitos de cada tarjeta permitirán asignar automáticamente los gastos que lleguen por correo.
       </p>
-      <ul className="list">
+      <ul className="list account-collection">
         {accounts.map((a) => (
-          <li key={a.id}>
+          <li key={a.id} className={a.archived ? 'is-archived' : ''}>
             <button className="tx" onClick={() => setEdit({ open: true, acc: a })}>
               <span className="tx-icon" style={{ background: `color-mix(in srgb, ${a.color} 20%, transparent)` }} aria-hidden="true">{a.icon || '💳'}</span>
               <span className="tx-main">
@@ -65,7 +65,7 @@ function AccountForm({ acc, onDone }: { acc?: Account; onDone: () => void }) {
     type: acc?.type ?? ('credit_card' as AccountType),
     institution: acc?.institution ?? '',
     card_suffix: acc?.card_suffix ?? '',
-    color: acc?.color ?? '#a4452f',
+    color: acc?.color ?? '#356c78',
     icon: acc?.icon ?? '💳',
   })
   const [error, setError] = useState('')
