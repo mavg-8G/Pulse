@@ -18,7 +18,7 @@ function AuthLayout({ title, lead, children }: { title: string; lead?: string; c
         {lead && <p className="muted">{lead}</p>}
         {children}
         <p className="auth-legal small muted">
-          <a href="/privacidad">Privacidad</a> · <a href="/terminos">Términos</a>
+          <a href="/acerca">Qué es Pulse</a> · <a href="/privacidad">Privacidad</a> · <a href="/terminos">Términos</a>
         </p>
       </div>
     </main>

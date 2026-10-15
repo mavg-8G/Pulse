@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Pulse es un registro personal de gastos: cuentas, categorías, presupuestos mensuales y captura opcional de las notificaciones de compra de tu banco desde Gmail." />
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/legal.css" />
+    <script src="/theme.js"></script>
+    <title>Pulse · Registro personal de gastos</title>
+  </head>
+  <body>
+    <main>
+      <header>
+        <img src="/icon.svg" alt="" />
+        <a href="/acerca">Pulse</a>
+        <nav aria-label="Idioma y acceso"><a href="/about" hreflang="en" lang="en">English</a><a href="/">Entrar</a></nav>
+      </header>
+
+      <h1>Pulse — tu registro personal de gastos</h1>
+      <p class="lead">Pulse te ayuda a ver en qué se va tu dinero. Registra tus gastos, ordénalos por cuenta y categoría, ponle un
+        presupuesto mensual a cada categoría y recibe un aviso antes de pasarte. Si quieres, Pulse lee las notificaciones de compra
+        que tu banco envía a tu Gmail y las convierte en gastos para que solo tengas que revisarlos.</p>
+      <div class="actions">
+        <a class="btn btn-primary" href="/">Entrar</a>
+        <a class="btn" href="/privacidad">Política de privacidad</a>
+        <a class="btn" href="/terminos">Términos y condiciones</a>
+      </div>
+      <p class="meta">Pulse es una aplicación web (PWA) privada, solo por invitación y de uso personal. Es gratuita, sin publicidad ni analítica.</p>
+
+      <h2>Qué hace Pulse</h2>
+      <div class="features">
+        <div class="box"><h3>Cuentas y categorías</h3><p>Cuentas bancarias, tarjetas de crédito y débito, efectivo y billeteras, con tus propias categorías y subcategorías.</p></div>
+        <div class="box"><h3>Plan del mes</h3><p>Un presupuesto por categoría, el avance del mes y alertas en los umbrales que elijas.</p></div>
+        <div class="box"><h3>Registro manual</h3><p>Agrega un gasto en segundos desde el teléfono o la computadora, con fecha, notas y devoluciones.</p></div>
+        <div class="box"><h3>Notificaciones</h3><p>Avisos push de presupuestos, gastos nuevos por revisar y eventos de seguridad de tu cuenta.</p></div>
+        <div class="box"><h3>En todos tus equipos</h3><p>Se instala en el móvil y en el escritorio, con modo claro y oscuro.</p></div>
+        <div class="box"><h3>Seguro por defecto</h3><p>Segundo factor obligatorio (passkeys o app de autenticación) y cifrado por usuario de los datos sensibles.</p></div>
+      </div>
+
+      <h2 id="gmail">Por qué Pulse pide acceso a Gmail</h2>
+      <p>Conectar Gmail es <strong>opcional</strong>. Si lo conectas, Pulse solicita el permiso
+        <code>https://www.googleapis.com/auth/gmail.readonly</code> con un único fin: leer las
+        <strong>notificaciones de compra que envía tu banco</strong> (por ahora Banco Pichincha, Produbanco y Diners Club / Titanium)
+        y crear el gasto correspondiente, para que no tengas que escribirlo.</p>
+      <ul>
+        <li>La búsqueda en Gmail se filtra en los servidores de Google por remitente bancario y por fecha. Pulse nunca lista, abre ni descarga otros correos.</li>
+        <li>Cada notificación se procesa en memoria para extraer monto, fecha, comercio y últimos dígitos de la tarjeta, y se descarta. Pulse no guarda correos.</li>
+        <li>Los gastos importados quedan “Por revisar” hasta que los confirmas.</li>
+        <li>Pulse nunca envía, modifica ni borra correos, y no usa datos de Gmail para publicidad ni para entrenar modelos de IA.</li>
+        <li>Puedes desconectarlo cuando quieras desde Ajustes; Pulse revoca su acceso en Google y borra la conexión.</li>
+      </ul>
+      <p>Todos los detalles (qué se guarda, cuánto tiempo y con quién se comparte) están en la <a href="/privacidad">Política de privacidad</a>.</p>
+
+      <h2>Quién puede usar Pulse</h2>
+      <p>Pulse es solo por invitación: necesitas un código de quien administra este servidor de Pulse. Si te invitaron,
+        <a href="/">entra o crea tu cuenta</a>.</p>
+
+      <footer>
+        <a href="/privacidad">Política de privacidad</a>
+        <a href="/terminos">Términos y condiciones</a>
+        <a href="/about" hreflang="en" lang="en">English</a>
+      </footer>
+    </main>
+  </body>
+</html>

@@ -61,3 +61,16 @@ footer a { margin-right: 16px; }
   td { border: 0; padding: 2px 0; }
   td:first-child { color: var(--ink); font-weight: 600; }
 }
+
+/* Cabecera: idioma y acceso */
+header nav { margin-left: auto; display: flex; gap: 14px; font-size: 0.92rem; }
+header nav a { font-weight: 500; font-size: 0.92rem; color: var(--accent); }
+/* Portada pública (/about, /acerca) */
+.lead { font-size: 1.12rem; color: var(--ink-2); margin: 0 0 22px; }
+.actions { display: flex; flex-wrap: wrap; gap: 12px; margin: 0 0 8px; }
+.btn { display: inline-block; padding: 10px 18px; border-radius: 10px; font-weight: 600; text-decoration: none; border: 1px solid var(--line); color: var(--ink); background: var(--surface); }
+.btn-primary { background: #a4452f; border-color: #a4452f; color: #fff; }
+.features { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; margin: 16px 0; }
+.features .box { margin: 0; }
+.features h3 { margin: 0 0 4px; }
+code { overflow-wrap: anywhere; }

@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Pulse is a private personal expense tracker: accounts, categories, monthly budgets and optional automatic capture of bank purchase notifications from Gmail." />
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/legal.css" />
+    <script src="/theme.js"></script>
+    <title>Pulse · Personal expense tracker</title>
+  </head>
+  <body>
+    <main>
+      <header>
+        <img src="/icon.svg" alt="" />
+        <a href="/about">Pulse</a>
+        <nav aria-label="Language and access"><a href="/acerca" hreflang="es" lang="es">Español</a><a href="/">Sign in</a></nav>
+      </header>
+
+      <h1>Pulse — your personal expense tracker</h1>
+      <p class="lead">Pulse helps you see where your money goes. Record your expenses, organize them by account and category,
+        set a monthly budget for each category and get notified before you overspend. Optionally, Pulse can read the purchase
+        notifications your bank sends to your Gmail and turn them into expenses for you to review.</p>
+      <div class="actions">
+        <a class="btn btn-primary" href="/">Sign in</a>
+        <a class="btn" href="/privacy">Privacy Policy</a>
+        <a class="btn" href="/terms">Terms of Service</a>
+      </div>
+      <p class="meta">Pulse is a private, invitation-only web app (PWA) for personal use. It is free, has no ads and no analytics.</p>
+
+      <h2>What Pulse does</h2>
+      <div class="features">
+        <div class="box"><h3>Accounts and categories</h3><p>Bank accounts, credit and debit cards, cash and wallets, with your own categories and subcategories.</p></div>
+        <div class="box"><h3>Monthly plan</h3><p>A budget per category, progress for the month and alerts at the thresholds you choose.</p></div>
+        <div class="box"><h3>Manual entry</h3><p>Add an expense in seconds from your phone or computer, with dates, notes and refunds.</p></div>
+        <div class="box"><h3>Notifications</h3><p>Push notifications for budgets, new expenses to review and security events on your account.</p></div>
+        <div class="box"><h3>Works everywhere</h3><p>Installable on mobile and desktop, light and dark mode, usable offline for the app shell.</p></div>
+        <div class="box"><h3>Secure by default</h3><p>Mandatory two-factor sign-in (passkeys or authenticator app) and per-user encryption of sensitive data.</p></div>
+      </div>
+
+      <h2 id="gmail">Why Pulse asks for access to Gmail</h2>
+      <p>Connecting Gmail is <strong>optional</strong>. If you connect it, Pulse requests the
+        <code>https://www.googleapis.com/auth/gmail.readonly</code> scope for one purpose only: to read the
+        <strong>purchase notification emails sent by your bank</strong> (currently Banco Pichincha, Produbanco and Diners Club / Titanium)
+        and create the corresponding expense in your account, so you don’t have to type it.</p>
+      <ul>
+        <li>The Gmail search is filtered on Google’s side by the bank sender addresses and by date. Pulse never lists, opens or downloads any other email.</li>
+        <li>Each notification is processed in memory to extract the amount, date, merchant and last digits of the card, and is then discarded. Pulse does not store emails.</li>
+        <li>Imported expenses are marked “To review” until you confirm them.</li>
+        <li>Pulse never sends email, never modifies or deletes your email, and does not use Gmail data for advertising or to train AI models.</li>
+        <li>You can disconnect at any time from Settings; Pulse then revokes its access token with Google and deletes the connection.</li>
+      </ul>
+      <p>Full details, including what is stored, for how long and who it is shared with, are in the <a href="/privacy">Privacy Policy</a>.</p>
+
+      <h2>Who can use Pulse</h2>
+      <p>Pulse is invitation-only: you need an invitation code from the person who administers this Pulse server. If you were invited,
+        <a href="/">sign in or create your account</a>.</p>
+
+      <footer>
+        <a href="/privacy">Privacy Policy</a>
+        <a href="/terms">Terms of Service</a>
+        <a href="/acerca" hreflang="es" lang="es">Español</a>
+      </footer>
+    </main>
+  </body>
+</html>

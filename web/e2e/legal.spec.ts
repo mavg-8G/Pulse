@@ -3,6 +3,10 @@ import { expect, expectAccessible, register, test } from './helpers'
 const pages = [
   { path: '/privacidad', title: 'Política de privacidad' },
   { path: '/terminos', title: 'Términos y condiciones' },
+  { path: '/privacy', title: 'Privacy Policy' },
+  { path: '/terms', title: 'Terms of Service' },
+  { path: '/about', title: 'Pulse — your personal expense tracker' },
+  { path: '/acerca', title: 'Pulse — tu registro personal de gastos' },
 ]
 
 test('páginas legales públicas: HTML estático, con CSP y sin sesión', async ({ request }) => {
@@ -19,6 +23,13 @@ test('páginas legales públicas: HTML estático, con CSP y sin sesión', async 
   const priv = await (await request.get('/privacidad')).text()
   expect(priv).toContain('Limited Use requirements') // declaración exigida por Google para gmail.readonly
   expect(priv).toContain('12 meses') // debe coincidir con store.AuditRetention
+  const en = await (await request.get('/privacy')).text()
+  for (const t of ['Limited Use requirements', 'gmail.readonly', 'Data accessed', 'How the data is used', 'How the data is stored', 'How the data is shared', 'Retention and deletion', '12 months'])
+    expect(en, t).toContain(t)
+  // La portada pública explica el propósito y enlaza la política (requisito de Google).
+  const about = await (await request.get('/about')).text()
+  expect(about).toContain('href="/privacy"')
+  expect(about).toContain('Why Pulse asks for access to Gmail')
 })
 
 test('páginas legales accesibles en ambos temas y enlazadas desde el acceso', async ({ page }) => {
@@ -31,6 +42,9 @@ test('páginas legales accesibles en ambos temas y enlazadas desde el acceso', a
     }
   }
   await page.emulateMedia({ colorScheme: 'light' })
+  await page.goto('/')
+  await page.getByRole('link', { name: 'Qué es Pulse' }).click()
+  await expect(page).toHaveURL(/\/acerca$/)
   await page.goto('/')
   await page.getByRole('link', { name: 'Privacidad' }).click()
   await expect(page).toHaveURL(/\/privacidad$/)

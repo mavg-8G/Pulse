@@ -10,7 +10,7 @@ Estado: **fases 0–7 implementadas**. Incluye respaldos, CI/CD y páginas públ
 - Plan mensual con proyección y umbrales de gasto; notificaciones Web Push, resúmenes y horario silencioso. Configuración en [`deploy/PUSH.md`](deploy/PUSH.md).
 - Importación de correos `.eml` de Banco Pichincha, Produbanco y Diners/Titanium. Gmail opcional mediante OAuth, sincronización periódica o Pub/Sub y modo sombra; Gemini opcional para plantillas desconocidas. Configuración en [`deploy/GMAIL.md`](deploy/GMAIL.md).
 - Acceso por invitación, TOTP o passkeys, gestión de sesiones y cifrado de campos sensibles con claves por usuario.
-- Páginas `/privacidad` y `/terminos` accesibles sin sesión, exportación y supresión de cuentas mediante CLI, y retención del registro de seguridad de 365 días.
+- Presentación pública y páginas de privacidad y términos en español e inglés, accesibles sin sesión; exportación y supresión de cuentas mediante CLI, y retención del registro de seguridad de 365 días.
 
 ## Estructura
 ```
@@ -54,6 +54,36 @@ PULSE_KEK_FILE=.dev/pulse_kek go run ./cmd/pulse invite create
 
 Para compilar el frontend embebido y el binario de distribución: `make build`. La PWA y su service worker se comprueban contra esa compilación, no con el servidor de desarrollo de Vite.
 
+## Primera cuenta y código de invitación
+
+El código lo genera quien administra el servidor y se muestra en la terminal al crear la invitación. Para crear tu primera cuenta con rol de administrador, ejecuta en la consola del VPS, con Pulse ya desplegado:
+
+```bash
+sudo docker exec pulse /pulse invite create --role admin --email tu@correo.com --ttl 2h
+```
+
+Sustituye `tu@correo.com` por tu correo. Copia el código que empieza por `PLS-`, abre [Crear cuenta](https://pulse.espectro.uk/registro) y pégalo en **Código de invitación**. Usa el mismo correo y configura una passkey o una app de autenticación.
+
+El código se muestra **una sola vez**, permite un único registro y, en este ejemplo, vence en dos horas. Si lo perdiste o caducó, genera otra invitación. `pulse invite list` muestra el estado de las invitaciones, pero no recupera los códigos.
+
+Para invitar a otra persona con el rol normal de usuario:
+
+```bash
+sudo docker exec pulse /pulse invite create --email persona@example.com
+```
+
+Sin `--ttl`, la vigencia es de 72 horas. En desarrollo local con Windows, `./scripts/dev.ps1` muestra una invitación en la terminal al arrancar; esa invitación corresponde a la base local y no sirve para el VPS.
+
+## Páginas públicas
+
+| Contenido | Español | Inglés |
+|---|---|---|
+| Presentación de Pulse y uso opcional de Gmail | `/acerca` | `/about` |
+| Política de privacidad | `/privacidad` | `/privacy` |
+| Términos y condiciones | `/terminos` | `/terms` |
+
+Estas páginas sirven contenido HTML legible sin ejecutar la aplicación y permiten cambiar de idioma. La pantalla de acceso enlaza a **Qué es Pulse**, **Privacidad** y **Términos**. El service worker conserva sus rutas públicas y no las sustituye por la aplicación.
+
 ## Administración y privacidad
 
 Ejecuta la CLI con las mismas variables de configuración y claves que el servidor. La [guía de despliegue](deploy/README.md) incluye los comandos equivalentes en Docker y el procedimiento de restauración.
@@ -68,7 +98,7 @@ Ejecuta la CLI con las mismas variables de configuración y claves que el servid
 | `pulse restore respaldo.db` | Restaurar un respaldo con el servidor detenido |
 | `pulse parse correo.eml` | Probar el parser sin guardar movimientos |
 
-La exportación contiene datos personales descifrados: entrégala por un canal seguro y elimina el archivo después. La supresión conserva el registro de seguridad hasta que vence su retención; los respaldos anteriores se eliminan al rotar. Si existía una conexión con Gmail, el usuario también puede retirar el acceso desde su cuenta de Google. Los textos públicos están en `web/public/privacidad.html` y `web/public/terminos.html`.
+La exportación contiene datos personales descifrados: entrégala por un canal seguro y elimina el archivo después. La supresión conserva el registro de seguridad hasta que vence su retención; los respaldos anteriores se eliminan al rotar. Si existía una conexión con Gmail, el usuario también puede retirar el acceso desde su cuenta de Google. Los textos públicos están en `web/public/`, con una página HTML por ruta y estilos compartidos en `legal.css`.
 
 ## Pruebas
 

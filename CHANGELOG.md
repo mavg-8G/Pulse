@@ -2,6 +2,15 @@
 
 Cambios relevantes de Pulse. Las entradas «Sin publicar» describen cambios posteriores a la versión declarada `0.2.0`; sus fechas corresponden al registro del trabajo y no a una publicación o etiqueta de GitHub. Las secciones históricas conservan el contexto de cada etapa.
 
+## Sin publicar — páginas bilingües y primera cuenta (14 oct 2026)
+
+- Presentación pública de Pulse en `/acerca` y `/about`, con funciones, acceso por invitación y explicación del uso opcional de Gmail.
+- Política de privacidad y términos en inglés (`/privacy` y `/terms`), con navegación entre idiomas y enlaces a las páginas en español. Textos españoles reorganizados y contacto dirigido a quien administra la instancia.
+- Enlace **Qué es Pulse** desde la pantalla de acceso y estilos compartidos para la navegación, las acciones y la presentación pública.
+- Rutas públicas de ambos idiomas excluidas del reemplazo de navegación del service worker. Pruebas de HTML público, enlaces y accesibilidad ampliadas a las seis páginas.
+- README actualizado con las rutas públicas y el procedimiento para crear la primera cuenta administradora: dónde generar y copiar el código `PLS-`, vigencia, uso único, recuperación mediante una invitación nueva y diferencia entre el entorno local y el VPS.
+- Verificación: compilación del frontend, 41 pruebas unitarias y 6 E2E de páginas públicas en escritorio/móvil correctos; incluyen accesibilidad en ambos temas y navegación con el service worker activo.
+
 ## Sin publicar — dependencias y documentación (14 oct 2026)
 
 - Dependencias directas del frontend actualizadas a las versiones estables actuales y lockfile regenerado: React/React DOM 19.3.1, React Router 7.18.4, SimpleWebAuthn 14.0.0 y TanStack Query 5.104.2.

@@ -21,7 +21,7 @@ export default defineConfig({
         importScripts: ['/push-sw.js'],
         globPatterns: ['**/*.{js,css,html,svg,png,woff2,webmanifest}'],
         navigateFallback: '/index.html',
-        navigateFallbackDenylist: [/^\/api\//, /^\/healthz/, /^\/privacidad/, /^\/terminos/],
+        navigateFallbackDenylist: [/^\/api\//, /^\/healthz/, /^\/(privacidad|terminos|privacy|terms|about|acerca)$/],
         // La API NUNCA se guarda en caché: son datos bancarios.
         runtimeCaching: [{ urlPattern: /\/api\//, handler: 'NetworkOnly' }],
         cleanupOutdatedCaches: true,
