@@ -51,7 +51,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     { to: '/ajustes/cuentas', label: 'Cuentas y tarjetas', icon: <IconWallet />, count: accounts.filter((a) => !a.archived).length },
     { to: '/ajustes/categorias', label: 'Categorías', icon: <IconTag />, count: categories.filter((c) => !c.archived && !c.is_system).length },
   ]
-  const pageName = manage.find((n) => n.to === location.pathname)?.label ?? nav.find((n) => n.to === location.pathname)?.label ?? 'Mi espacio'
+  const pageName = location.pathname === '/ajustes/cuenta' ? 'Mi cuenta' : manage.find((n) => n.to === location.pathname)?.label ?? nav.find((n) => n.to === location.pathname)?.label ?? 'Mi espacio'
   const date = new Intl.DateTimeFormat('es-EC', { weekday: 'long', day: 'numeric', month: 'long', timeZone: tz }).format(new Date())
   const initial = me?.email.slice(0, 1).toUpperCase() ?? 'P'
 
@@ -68,15 +68,15 @@ export function AppShell({ children }: { children: ReactNode }) {
           <p className="nav-section-label">Organización</p>
           <div className="side-nav-group">{manage.map((n) => <NavLink key={n.to} to={n.to} className="side-link">{n.icon}<span>{n.label}</span><span className="nav-count" aria-hidden="true">{n.count}</span></NavLink>)}<NavLink to="/ajustes" end className="side-link"><IconSettings /><span>Ajustes</span></NavLink></div>
           <Link to="/plan" className="sidebar-insight"><div><span className="eyebrow">Este mes</span><span className="live-dot" /></div><strong className="num">{dashboard ? money(dashboard.spent_cents) : '—'}</strong><p>{dashboard?.has_budgets ? `Presupuesto: ${money(dashboard.budget.budget_cents)}` : 'Cada gasto cuenta. Tú marcas el ritmo.'}</p><svg className="sidebar-wave" viewBox="0 0 180 38" aria-hidden="true"><path className="wave-base" d="M0 23h180" /><path className="wave-line" pathLength="100" d="M0 23h34l6-6 5 6h13l8-17 10 30 9-21 7 8h22l5-9 7 9h54" /></svg><span className="sidebar-insight-link">{monthLabel(current)} <IconArrow /></span></Link>
-          <Link className="side-profile" to="/ajustes"><span className="avatar">{initial}</span><span><strong>Mi cuenta</strong><small>{me?.email}</small></span><IconSettings /></Link>
+          <Link className="side-profile" to="/ajustes/cuenta"><span className="avatar">{initial}</span><span><strong>Mi cuenta</strong><small>{me?.email}</small></span><IconSettings /></Link>
         </nav>
         <main className="main" id="contenido">
           <header className="workspace-topbar">
             <Link className="mobile-brand" to="/" aria-label="Pulse, inicio"><PulseMark /><strong>Pulse</strong></Link>
             <div className="workspace-label"><span>Espacio personal</span><span className="breadcrumb-divider">/</span><strong>{pageName}</strong></div>
-            <div className="workspace-tools"><span className="workspace-date">{date}</span><Link className="topbar-profile avatar" to="/ajustes" aria-label="Mi cuenta">{initial}</Link></div>
+            <div className="workspace-tools"><span className="workspace-date">{date}</span><Link className="topbar-profile avatar" to="/ajustes/cuenta" aria-label="Mi cuenta">{initial}</Link></div>
           </header>
-          <div className={`page-content ${location.pathname === '/ajustes' ? 'settings-layout' : ''}`} key={location.pathname}>{children}</div>
+          <div className={`page-content ${['/ajustes', '/ajustes/cuenta'].includes(location.pathname) ? 'settings-layout' : ''}`} key={location.pathname}>{children}</div>
           <footer className="workspace-footer"><span><IconPulse /> Pulse</span><span>Un gasto a la vez.</span></footer>
         </main>
         <nav className="tabbar" aria-label="Principal">{nav.slice(0, 2).map((n) => <NavLink key={n.to} to={n.to} end={n.end} className="tab">{n.icon}{n.label}</NavLink>)}<button className="tab-add" onClick={() => open()} aria-label="Nuevo gasto"><IconPlus /></button>{nav.slice(2).map((n) => <NavLink key={n.to} to={n.to} className="tab">{n.icon}{n.label}</NavLink>)}</nav>

@@ -588,75 +588,6 @@ a.settings-row {
   margin-top: 8px;
   color: var(--ink-2);
 }
-.pulse {
-  margin-top: 22px;
-  position: relative;
-}
-.pulse svg {
-  display: block;
-  width: 100%;
-  height: 140px;
-  overflow: visible;
-}
-.pulse .trace {
-  fill: none;
-  stroke: var(--accent);
-  stroke-width: 2.25;
-  stroke-linejoin: round;
-  stroke-linecap: round;
-}
-/* el único momento animado de la app: el pulso se dibuja de izquierda a derecha */
-.pulse-plot svg {
-  animation: draw 1.2s cubic-bezier(0.3, 0.6, 0.2, 1) both;
-}
-.pulse .base {
-  stroke: var(--line);
-  stroke-width: 1;
-}
-.pulse-plot {
-  position: relative;
-}
-.pulse-dot {
-  position: absolute;
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: var(--accent);
-  transform: translate(-50%, -50%);
-}
-.pulse-dot::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  border: 2px solid var(--accent);
-}
-.pulse .axis {
-  display: flex;
-  justify-content: space-between;
-  font-size: 0.78rem;
-  color: var(--ink-3);
-  margin-top: 6px;
-}
-@keyframes draw {
-  from {
-    clip-path: inset(0 100% 0 0);
-  }
-  to {
-    clip-path: inset(0 0 0 0);
-  }
-}
-@keyframes beat {
-  0% {
-    transform: scale(1);
-    opacity: 0.45;
-  }
-  70%,
-  100% {
-    transform: scale(2.6);
-    opacity: 0;
-  }
-}
 .plan-strip {
   color: inherit;
   text-decoration: none;
@@ -1172,66 +1103,40 @@ details.more summary {
 .dashboard .panel { min-width: 0; border-radius: 20px; padding: 24px; box-shadow: 0 3px 16px -12px color-mix(in srgb, var(--ink) 15%, transparent); }
 .card-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .card-heading h2 { font-size: 1rem; font-weight: 600; letter-spacing: -0.025em; }
-.activity-badge { display: inline-flex; align-items: center; gap: 7px; padding: 5px 8px; border: 1px solid color-mix(in srgb, var(--accent) 15%, var(--line)); border-radius: 7px; color: var(--accent); background: color-mix(in srgb, var(--accent) 4%, var(--surface)); font-size: 0.72rem; font-weight: 550; }
 .live-dot { display: inline-block; flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 12%, transparent); }
-.spending-card { background: radial-gradient(ellipse at 100% 0%, color-mix(in srgb, var(--accent) 5%, transparent), transparent 55%), var(--surface); overflow: hidden; }
-.spending-card .hero-amount { margin-top: 16px; font-size: clamp(2.5rem, 4vw, 3.6rem); letter-spacing: -0.055em; font-weight: 650; }
-.spending-card .hero-sub { margin-top: 8px; font-size: 0.8rem; }
-.spending-card .pulse { margin-top: 14px; }
-.pulse { margin-right: 0; margin-left: 0; margin-bottom: 0; }
-.pulse svg { height: 162px; }
-.pulse-gridline { stroke: var(--line); stroke-width: 1; stroke-dasharray: 3 5; opacity: 0.6; }
-.pulse-plot svg { animation: draw 1.2s var(--ease-out) both; }
-.pulse .trace { stroke-width: 2.3; }
-.pulse .axis { font-size: 0.72rem; margin-top: 8px; }
-.pulse-dot { width: 7px; height: 7px; }
-.pulse-idle { position: absolute; inset: 10px 0 24px; display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: none; }
-.pulse-idle svg { width: min(230px, 65%); height: 66px; }
-.idle-wave-base { fill: none; stroke: color-mix(in srgb, var(--accent) 14%, var(--surface)); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-.idle-wave { fill: none; stroke: var(--accent); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
-.pulse-idle > span { margin-top: 8px; font-size: 0.72rem; color: var(--ink-3); }
-.pulse-empty .trace { stroke: color-mix(in srgb, var(--accent) 30%, var(--line)); }
-.chart-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 12px; margin-top: 12px; border-top: 1px solid var(--line); font-size: 0.72rem; color: var(--ink-3); }
-.chart-foot > span:first-child { display: flex; align-items: center; gap: 6px; }
-.chart-foot svg { width: 14px; height: 14px; color: var(--accent); }
-.chart-foot > span:last-child { white-space: nowrap; }
+.spending-card { background: radial-gradient(ellipse at 100% 0%, color-mix(in srgb, var(--accent) 7%, transparent), transparent 60%), var(--surface); overflow: hidden; display: grid; align-content: start; }
+.spending-card .card-heading h2 { font-family: var(--font-ui); font-size: 0.85rem; color: var(--ink-2); font-weight: 600; letter-spacing: 0; }
+.spending-card .hero-amount { margin-top: 12px; font-size: clamp(2.6rem, 5vw, 3.8rem); letter-spacing: -0.05em; font-weight: 650; }
+.spending-card .hero-sub { margin-top: 8px; font-size: 0.9rem; }
+.spending-card .hero-sub strong { color: var(--ink); font-weight: 650; }
+.status-chip { display: inline-flex; align-items: center; gap: 7px; padding: 4px 10px; border-radius: 99px; font-size: 0.75rem; font-weight: 650; background: color-mix(in srgb, currentColor 10%, var(--surface)); white-space: nowrap; }
+.status-chip .dot { width: 7px; height: 7px; }
+.meter { position: relative; height: 14px; margin-top: 20px; border-radius: 99px; background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--line); }
+.meter-fill { position: absolute; inset: 0 auto 0 0; border-radius: inherit; min-width: 14px; transform-origin: left center; }
+.meter-pace { position: absolute; top: -5px; bottom: -5px; width: 3px; margin-left: -1.5px; border-radius: 2px; background: var(--ink); box-shadow: 0 0 0 2px var(--surface); }
+.meter-pace-key { display: inline-block; flex: none; width: 3px; height: 12px; border-radius: 2px; background: var(--ink); margin-top: 3px; }
+.meter-legend { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-top: 10px; font-size: 0.9rem; color: var(--ink-2); }
+.meter-legend strong { font-family: var(--font-display); font-size: 1.15rem; font-weight: 650; letter-spacing: -0.02em; }
+.meter-hint { display: flex; gap: 8px; margin-top: 10px; font-size: 0.75rem; color: var(--ink-3); }
+.budget-cta { display: flex; align-items: center; gap: 12px; margin-top: 18px; padding: 14px 16px; border-radius: 14px; border: 1px dashed color-mix(in srgb, var(--accent) 40%, var(--line)); background: color-mix(in srgb, var(--accent) 5%, var(--surface)); color: var(--ink); text-decoration: none; transition: border-color var(--t-fast) var(--ease-out), background var(--t-fast) var(--ease-out); }
+.budget-cta:hover { border-style: solid; border-color: var(--accent); background: var(--accent-soft); }
+.budget-cta > svg { width: 20px; height: 20px; color: var(--accent); flex: none; }
+.budget-cta > svg:last-child { width: 16px; height: 16px; margin-left: auto; transition: transform var(--t-fast) var(--ease-out); }
+.budget-cta:hover > svg:last-child { transform: translateX(3px); }
+.budget-cta strong { display: block; font-size: 0.9rem; }
+.budget-cta small { display: block; color: var(--ink-2); font-size: 0.78rem; }
+.spend-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 12px; margin: 22px 0 0; padding-top: 18px; border-top: 1px solid var(--line); }
+.spend-stats dt { font-size: 0.75rem; color: var(--ink-3); }
+.spend-stats dd { margin: 2px 0 0; font-family: var(--font-display); font-size: 1.2rem; font-weight: 650; letter-spacing: -0.02em; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.stat-badge { font-family: var(--font-ui); font-size: 0.7rem; font-weight: 650; letter-spacing: 0; padding: 2px 8px; border-radius: 99px; background: color-mix(in srgb, var(--warn) 14%, var(--surface)); color: var(--warn); text-decoration: none; }
+@media (min-width: 900px) {
+  .spending-card { grid-template-columns: minmax(0, 1fr) minmax(200px, 260px); column-gap: 40px; }
+  .spending-card > :not(.spend-stats) { grid-column: 1; }
+  .spending-card > .spend-stats { grid-column: 2; grid-row: 1 / span 6; grid-template-columns: 1fr; align-content: center; gap: 18px; margin: 0; padding: 0 0 0 32px; border-top: 0; border-left: 1px solid var(--line); }
+  .spend-stats dd { font-size: 1.45rem; }
+}
 .section-icon { display: grid; place-items: center; color: var(--ink-3); width: 32px; height: 32px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 9px; }
 .section-icon svg { width: 16px; height: 16px; }
-.budget-overview { display: flex; flex-direction: column; }
-.budget-ring { position: relative; width: 150px; height: 150px; margin: 16px auto; flex: none; }
-.budget-ring svg { display: block; width: 100%; height: 100%; overflow: visible; }
-.budget-ring circle { fill: none; stroke-width: 7; }
-.ring-base { stroke: var(--surface-2); }
-.ring-value { stroke: var(--accent); transform: rotate(-90deg); transform-box: fill-box; transform-origin: center; stroke-linecap: round; transition: stroke-dasharray var(--t-slow) var(--ease-out); }
-.budget-unset .ring-value { stroke: color-mix(in srgb, var(--accent) 20%, var(--line)); stroke-width: 4; }
-.budget-over .ring-value { stroke: var(--over); }
-.budget-warning .ring-value { stroke: var(--warn); }
-.budget-ring > div { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; }
-.budget-ring strong { font-family: var(--font-display); font-size: 2.6rem; letter-spacing: -0.04em; line-height: 1.2; font-weight: 650; }
-.budget-ring strong > span { font-size: 1.3rem; }
-.budget-ring > div > span { color: var(--ink-3); font-size: 0.72rem; }
-.budget-ring > div > svg { width: 26px; height: 26px; color: var(--accent); margin-bottom: 7px; }
-.budget-unset .budget-ring strong { font-size: 1.1rem; }
-.budget-intro { color: var(--ink-2); text-align: center; font-size: 0.77rem; line-height: 1.65; margin-bottom: 20px; }
-.budget-overview .btn { margin-top: auto; font-size: 0.8rem; }
-.budget-overview-amounts { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; width: 100%; }
-.budget-overview-amounts > div + div { border-left: 1px solid var(--line); padding-left: 15px; }
-.budget-overview-amounts span { display: block; font-size: 0.72rem; color: var(--ink-3); }
-.budget-overview-amounts strong { display: block; margin-top: 4px; font-size: 1rem; }
-.budget-projection { font-size: 0.72rem; color: var(--ink-2); display: flex; justify-content: space-between; gap: 8px; margin-top: 16px; }
-.budget-overview .card-bottom-link { margin-top: auto; padding-top: 15px; }
-.metric-grid { display: grid; grid-template-columns: 1fr; gap: 14px; }
-.metric-card { display: flex; align-items: center; gap: 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 15px; padding: 18px 20px; min-width: 0; }
-.metric-icon { display: grid; place-items: center; width: 39px; height: 39px; border-radius: 11px; background: var(--accent-soft); color: var(--accent); flex: none; }
-.metric-icon svg { width: 19px; height: 19px; }
-.metric-card > div { flex: 1; min-width: 0; }
-.metric-label, .metric-note { display: block; color: var(--ink-3); font-size: 0.72rem; }
-.metric-card strong { display: block; font-family: var(--font-display); letter-spacing: -0.03em; font-size: 1.5rem; margin: 3px 0; line-height: 1.2; font-weight: 600; }
-.metric-unit { font-family: var(--font-ui); font-weight: 400; font-size: 0.72rem; color: var(--ink-3); letter-spacing: 0; margin-left: 5px; }
-.metric-note { font-size: 0.72rem; }
-.metric-link { text-decoration: none; color: var(--ink); transition: border-color var(--t-fast) var(--ease-out); }
-.metric-link > svg { width: 16px; height: 16px; flex: none; color: var(--ink-3); }
-.metric-link:hover { border-color: var(--accent); }
 .dashboard-alerts { display: grid; gap: 10px; }
 .dashboard-alerts .notice { align-items: center; font-size: 0.83rem; }
 .dashboard-alerts .notice > span:nth-child(2) { flex: 1; }
@@ -1294,9 +1199,7 @@ details.more summary {
 .brand:hover .pulse-mark, .mobile-brand:hover .pulse-mark, .landing-brand:hover .pulse-mark { animation-name: logo-beat-again; }
 .brand:hover .pulse-mark-line, .mobile-brand:hover .pulse-mark-line, .landing-brand:hover .pulse-mark-line { animation-name: mark-trace-again; }
 .wave-line { stroke-dasharray: 100; animation: trace-reveal 1.6s var(--ease-out) 0.3s both; }
-.idle-wave { stroke-dasharray: 100; animation: trace-reveal 1.6s var(--ease-out) 0.3s both; }
 .live-dot { animation: soft-beat var(--beat) var(--ease-in-out) infinite; }
-.pulse-dot::after { animation: beat var(--beat) var(--ease-out) infinite 1.2s; }
 @keyframes page-enter { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes trace-reveal { from { stroke-dasharray: 100; stroke-dashoffset: 100; } to { stroke-dasharray: 100; stroke-dashoffset: 0; } }
 @keyframes soft-beat { 0%, 35%, 100% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 12%, transparent); } 15% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent) 4%, transparent); } }
@@ -1313,9 +1216,6 @@ details.more summary {
 /* ---------- escalas de escritorio, tablet y móvil ---------- */
 @media (min-width: 600px) {
   .workspace-date { display: inline-block; }
-  .metric-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .metric-card { padding: 17px 16px; gap: 11px; }
-  .metric-note { line-height: 1.6; }
   .quick-actions { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .quick-caption { grid-column: 1 / -1; }
 }
@@ -1326,70 +1226,32 @@ details.more summary {
   .workspace-label { display: flex; }
   .mobile-brand { display: none; }
   .workspace-topbar { margin-bottom: 22px; }
-  .dashboard-lead { grid-template-columns: minmax(0, 1.8fr) minmax(270px, 1fr); }
   .dashboard-lower { grid-template-columns: minmax(0, 1.35fr) minmax(270px, 1fr); }
-  .spending-card .pulse { margin-top: 10px; }
-  .spending-card .pulse svg { height: 124px; }
-  .spending-card .pulse-idle svg { height: 66px; }
-  .metric-card { padding: 18px 16px; }
-  .metric-card strong { font-size: 1.6rem; }
 }
 @media (min-width: 1200px) {
   .main { padding: 22px clamp(30px, 3vw, 52px) 30px; }
   .dashboard .panel { padding: 26px; }
-  .metric-card { padding: 20px 24px; }
-  .dashboard-lead { grid-template-columns: minmax(0, 2fr) minmax(310px, 1fr); }
   .dashboard-lower { grid-template-columns: minmax(0, 1.55fr) minmax(310px, 1fr); }
-  .settings-layout { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; align-items: start; grid-template-areas: 'title title' 'look data' 'security notifications' 'gmail notifications' 'sessions activity' 'privacy activity' 'logout logout'; }
-  .settings-layout > .page-head { grid-area: title; margin-bottom: 0; }
-  .settings-layout > section { background: var(--surface); border: 1px solid var(--line); border-radius: 20px; padding: 24px; margin: 0; min-width: 0; }
-  .settings-layout > section:has(#h-look) { grid-area: look; }
-  .settings-layout > section:has(#h-data) { grid-area: data; }
-  .settings-layout > section:has(#h-sec) { grid-area: security; }
-  .settings-layout > section:has(#h-notifications) { grid-area: notifications; }
-  .settings-layout > section:has(#h-sessions) { grid-area: sessions; }
-  .settings-layout > section:has(#h-activity) { grid-area: activity; }
-  .settings-layout > section:has(#h-gmail) { grid-area: gmail; }
-  .settings-layout > section:has(#h-legal) { grid-area: privacy; }
-  .settings-layout > div.section { grid-area: logout; margin-top: 0; max-width: 320px; }
+  /* Dos columnas que se llenan de arriba abajo: cada tarjeta mide lo suyo y no quedan huecos. */
+  .settings-layout { columns: 2; column-gap: 24px; }
+  .settings-layout > * { break-inside: avoid; margin: 0 0 24px; }
+  .settings-layout > .page-head { column-span: all; }
+  .settings-layout > section { display: block; background: var(--surface); border: 1px solid var(--line); border-radius: 20px; padding: 24px; min-width: 0; }
+  .settings-layout > .account-card { display: flex; }
   .settings-layout .list { border-radius: 12px; }
 }
 @media (max-width: 899px) {
   .main { padding-top: 18px; }
-  .dashboard-lead { grid-template-columns: 1fr; }
-  .budget-overview { display: grid; grid-template-columns: 135px minmax(0, 1fr); column-gap: 20px; align-items: center; }
-  .budget-overview > .card-heading { grid-column: 1 / -1; }
-  .budget-ring { width: 130px; height: 130px; grid-column: 1; grid-row: 2 / span 3; margin: 16px 0 0; }
-  .budget-intro { text-align: left; margin: 16px 0 10px; font-size: 0.73rem; }
-  .budget-overview > .btn { min-height: 38px; font-size: 0.74rem; margin-top: 0; }
-  .budget-overview > .budget-overview-amounts { margin-top: 16px; gap: 8px; }
-  .budget-overview-amounts strong { font-size: 0.88rem; }
-  .budget-overview-amounts > div + div { padding-left: 10px; }
-  .budget-projection { flex-wrap: wrap; font-size: 0.72rem; }
-  .budget-overview .card-bottom-link { margin-top: 8px; padding-top: 10px; font-size: 0.72rem; }
   .dashboard .panel { padding: 20px; }
 }
 @media (max-width: 599px) {
-  .budget-overview { grid-template-columns: 115px minmax(0, 1fr); gap: 0 14px; }
-  .budget-ring { width: 112px; height: 112px; }
-  .budget-overview > .btn { white-space: normal; padding: 8px 10px; line-height: 1.3; }
   .workspace-topbar { margin-bottom: 22px; padding-bottom: 14px; }
   .home-heading { gap: 18px; }
   .home-heading .month-switch { width: 100%; justify-content: space-between; }
   .home-heading .month-switch strong { flex: 1; }
   .page-description { font-size: 0.8rem; }
-  .activity-badge { font-size: 0.72rem; }
   .spending-card .hero-amount { font-size: 3rem; }
   .spending-card .hero-sub { font-size: 0.73rem; }
-  .chart-foot { font-size: 0.72rem; gap: 8px; }
-  .metric-grid { gap: 10px; }
-  .metric-card { padding: 14px 16px; }
-  .metric-card > div { display: grid; grid-template-columns: 1fr auto; column-gap: 10px; align-items: center; }
-  .metric-label { grid-column: 1; grid-row: 1; }
-  .metric-card strong { grid-column: 2; grid-row: 1 / span 2; font-size: 1.35rem; }
-  .metric-note { grid-column: 1; grid-row: 2; font-size: 0.72rem; margin-top: 4px; }
-  .metric-unit { display: none; }
-  .metric-icon { width: 35px; height: 35px; }
   .activity-empty { min-height: 260px; }
   .dashboard-lower .section-head h2 { font-size: 1rem; }
   .text-link { font-size: 0.72rem; }
@@ -1785,3 +1647,51 @@ dialog.sheet.confirm {
 .list.section {
   margin-top: 16px;
 }
+
+/* ---------- pulido y movimiento ----------
+   Todo entra una vez, breve y escalonado; solo el punto en vivo sigue latiendo.
+   El interruptor de Ajustes (data-motion) y prefers-reduced-motion lo apagan todo (ver arriba). */
+@keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes grow-x { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@keyframes pop { 0% { transform: scale(0.6); opacity: 0; } 70% { transform: scale(1.08); opacity: 1; } 100% { transform: scale(1); } }
+.dashboard > *, .page-content > .panel, .page-content > section, .page-content > .list, .page-content > ul { animation: rise var(--t-slow) var(--ease-out) both; }
+.dashboard > :nth-child(2), .page-content > :nth-child(3) { animation-delay: 60ms; }
+.dashboard > :nth-child(3), .page-content > :nth-child(4) { animation-delay: 120ms; }
+.dashboard > :nth-child(4), .page-content > :nth-child(5) { animation-delay: 180ms; }
+.dashboard > :nth-child(n + 5), .page-content > :nth-child(n + 6) { animation-delay: 240ms; }
+.meter-fill { animation: grow-x 900ms var(--ease-out) 200ms both; }
+.meter-pace { animation: pop 500ms var(--ease-out) 900ms both; }
+.track .fill { transform-origin: left center; animation: grow-x 700ms var(--ease-out) 250ms both; }
+.status-chip { animation: pop 400ms var(--ease-out) 500ms both; }
+.list > li { animation: rise var(--t-slow) var(--ease-out) both; }
+.list > li:nth-child(2) { animation-delay: 40ms; }
+.list > li:nth-child(3) { animation-delay: 80ms; }
+.list > li:nth-child(4) { animation-delay: 120ms; }
+.list > li:nth-child(n + 5) { animation-delay: 160ms; }
+.panel { transition: box-shadow var(--t-base) var(--ease-out), border-color var(--t-base) var(--ease-out); }
+.dashboard .panel:hover { box-shadow: 0 10px 30px -18px color-mix(in srgb, var(--ink) 35%, transparent); }
+.tx-icon { transition: transform var(--t-base) var(--ease-out); }
+.tx:hover .tx-icon { transform: scale(1.08) rotate(-4deg); }
+.btn, .icon-btn, .tab-add { transition: background var(--t-fast) var(--ease-out), border-color var(--t-fast) var(--ease-out), transform var(--t-fast) var(--ease-out), box-shadow var(--t-fast) var(--ease-out); }
+.btn:active:not(:disabled), .icon-btn:active, .tab-add:active { transform: scale(0.96); }
+.text-link svg, .card-bottom-link svg, .quick-actions > a > svg:last-child { transition: transform var(--t-fast) var(--ease-out); }
+.text-link:hover svg, .card-bottom-link:hover svg, .quick-actions > a:hover > svg:last-child { transform: translateX(3px); }
+.tab { position: relative; }
+.tab svg { transition: transform var(--t-base) var(--ease-out); }
+.tab[aria-current='page'] svg { transform: translateY(-2px); }
+.tab[aria-current='page']::after { content: ''; position: absolute; bottom: 2px; width: 4px; height: 4px; border-radius: 50%; background: currentColor; animation: pop 300ms var(--ease-out) both; }
+.side-link svg { transition: transform var(--t-base) var(--ease-out); }
+.side-link:hover svg { transform: translateX(2px); }
+/* Casillas de Ajustes como interruptores: siguen siendo checkbox nativos (teclado y lector de pantalla intactos). */
+.settings-row input[type='checkbox'] { appearance: none; flex: none; width: 40px; height: 24px; margin: 0; border-radius: 99px; background: color-mix(in srgb, var(--ink) 22%, var(--surface)); position: relative; cursor: pointer; transition: background var(--t-base) var(--ease-out); }
+.settings-row input[type='checkbox']::after { content: ''; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: var(--surface); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25); transition: transform var(--t-base) var(--ease-out); }
+.settings-row input[type='checkbox']:checked { background: var(--accent); }
+.settings-row input[type='checkbox']:checked::after { transform: translateX(16px); }
+.toggle-list > * + * { border-top: 1px solid var(--line); }
+.toggle-list .settings-row { cursor: pointer; }
+.dashboard-lower { align-items: start; }
+.account-card { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; padding: 20px; margin-bottom: 24px; background: var(--surface); border: 1px solid var(--line); border-radius: 20px; }
+.account-card .grow { flex: 1 1 200px; min-width: 0; }
+.account-card strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.account-card .small { display: block; }
+.avatar-lg { width: 48px; height: 48px; border-radius: 15px; font-size: 1.2rem; }

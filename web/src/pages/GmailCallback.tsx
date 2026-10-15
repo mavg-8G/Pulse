@@ -36,7 +36,7 @@ export function GmailCallback() {
       .then((r) => {
         qc.invalidateQueries({ queryKey: ['gmail'] })
         qc.invalidateQueries({ queryKey: ['activity'] })
-        toast(`Gmail conectado: ${r.email}. Buscando gastos de los últimos 7 días…`)
+        toast(`Gmail conectado: ${r.email}. Buscando gastos de los últimos 60 días…`)
         navigate('/ajustes', { replace: true })
       })
       .catch((e) => setError(errorMessage(e)))

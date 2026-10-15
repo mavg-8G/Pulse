@@ -15,7 +15,7 @@ test.describe('registro e inicio de sesión', () => {
     const u = await register(page)
     expect(u.recovery).toHaveLength(10)
 
-    await page.goto('/ajustes')
+    await page.goto('/ajustes/cuenta')
     await page.getByRole('button', { name: 'Cerrar sesión', exact: true }).last().click()
     await expect(page.getByRole('heading', { name: 'Entrar' })).toBeVisible()
 

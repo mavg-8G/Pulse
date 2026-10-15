@@ -23,7 +23,7 @@ test('registro con passkey e inicio de sesión con ella', async ({ page, context
   await page.getByRole('button', { name: 'Continuar' }).click()
   await expect(page.getByRole('heading', { name: 'Inicio' })).toBeVisible()
 
-  await page.goto('/ajustes')
+  await page.goto('/ajustes/cuenta')
   await expect(page.getByText(/^Passkey: /)).toBeVisible()
 
   await context.clearCookies()
@@ -35,7 +35,7 @@ test('registro con passkey e inicio de sesión con ella', async ({ page, context
   await expect(page.getByRole('heading', { name: 'Inicio' })).toBeVisible()
 
   // Cambiar la contraseña exige confirmar con la passkey (step-up)
-  await page.goto('/ajustes')
+  await page.goto('/ajustes/cuenta')
   await page.getByRole('button', { name: 'Cambiar' }).last().click()
   await page.getByLabel('Contraseña actual').fill(password)
   await page.getByLabel('Contraseña nueva').fill('otra frase bastante larga')

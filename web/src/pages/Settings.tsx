@@ -54,7 +54,8 @@ function browserName(ua: string) {
   return os ? `${b} en ${os}` : b
 }
 
-export function Settings() {
+/** Ajustes (preferencias) y Mi cuenta (sesiones y seguridad) comparten estado; `view` elige qué se muestra. */
+export function Settings({ view = 'prefs' }: { view?: 'prefs' | 'account' }) {
   const ask = useConfirm()
   const { motion, toggleMotion } = useMotion()
   const { data: me } = useMe()
@@ -137,51 +138,34 @@ export function Settings() {
 
   return (
     <>
+      {view === 'account' ? <>
       <div className="page-head">
-        <h1>Ajustes</h1>
+        <div><p className="small"><Link to="/ajustes">Ajustes</Link></p><h1>Mi cuenta</h1></div>
       </div>
 
-      <section aria-labelledby="h-look">
-        <div className="section-head"><h2 id="h-look">Apariencia</h2></div>
-        <div className="list">
-          <div className="settings-row">
-            <span className="grow">Tema</span>
-            <div className="seg" role="group" aria-label="Tema">
-              {(['system', 'light', 'dark'] as Theme[]).map((t) => (
-                <button key={t} aria-pressed={me?.theme === t} onClick={() => setTheme(t)}>
-                  {t === 'system' ? 'Sistema' : t === 'light' ? 'Claro' : 'Oscuro'}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="settings-row">
-            <span className="grow">Animaciones<br /><span className="small faint">El latido de Pulse y las transiciones. Tu preferencia se guarda en este dispositivo.</span></span>
-            <button className="btn btn-sm" onClick={toggleMotion} aria-pressed={motion} aria-label={motion ? 'Pausar animaciones' : 'Activar animaciones'}>
-              {motion ? <IconPause /> : <IconPulse />}{motion ? 'Pausar' : 'Activar'}
-            </button>
-          </div>
-          <div className="settings-row">
-            <span className="grow">Zona horaria<br /><span className="small faint">Define a qué día y mes pertenece cada gasto.</span></span>
-            <span className="muted">{tz}</span>
-          </div>
-        </div>
+      <section className="account-card" aria-label="Tu cuenta">
+        <span className="avatar avatar-lg" aria-hidden="true">{me?.email.slice(0, 1).toUpperCase()}</span>
+        <span className="grow"><strong>{me?.email}</strong><span className="small faint">Zona horaria {tz}</span></span>
+        <span className="row-actions">
+          <button className="btn btn-sm btn-danger" onClick={logout}>Cerrar sesión</button>
+        </span>
       </section>
 
-      <section className="section" aria-labelledby="h-data">
-        <div className="section-head"><h2 id="h-data">Tus datos</h2></div>
-        <div className="list">
-          <Link className="settings-row settings-link" to="/ajustes/cuentas">
-            <span className="grow">Cuentas y tarjetas</span><span className="faint">›</span>
-          </Link>
-          <Link className="settings-row settings-link" to="/ajustes/categorias">
-            <span className="grow">Categorías</span><span className="faint">›</span>
-          </Link>
-        </div>
+      <section className="section" aria-labelledby="h-sessions">
+        <div className="section-head"><h2 id="h-sessions">Dispositivos con sesión abierta</h2></div>
+        <ul className="list">
+          {(sessions.data ?? []).map((s) => (
+            <li key={s.id} className="settings-row">
+              <span className="grow">
+                {browserName(s.user_agent)} {s.current && <span className="badge">Este dispositivo</span>}
+                <br />
+                <span className="small faint">IP {s.ip}, activo {dateTimeLabel(s.last_seen_at, tz)}</span>
+              </span>
+              {!s.current && <button className="btn btn-sm btn-danger" onClick={() => revoke(s)} aria-label={`Cerrar la sesión de ${browserName(s.user_agent)}`}>Cerrar</button>}
+            </li>
+          ))}
+        </ul>
       </section>
-
-      <GmailSettings tz={tz} />
-
-      <NotificationSettings />
 
       <section className="section" aria-labelledby="h-sec">
         <div className="section-head"><h2 id="h-sec">Seguridad</h2></div>
@@ -231,22 +215,6 @@ export function Settings() {
         </ul>
       </section>
 
-      <section className="section" aria-labelledby="h-sessions">
-        <div className="section-head"><h2 id="h-sessions">Dispositivos con sesión abierta</h2></div>
-        <ul className="list">
-          {(sessions.data ?? []).map((s) => (
-            <li key={s.id} className="settings-row">
-              <span className="grow">
-                {browserName(s.user_agent)} {s.current && <span className="badge">Este dispositivo</span>}
-                <br />
-                <span className="small faint">IP {s.ip}, activo {dateTimeLabel(s.last_seen_at, tz)}</span>
-              </span>
-              {!s.current && <button className="btn btn-sm btn-danger" onClick={() => revoke(s)}>Cerrar sesión</button>}
-            </li>
-          ))}
-        </ul>
-      </section>
-
       <section className="section" aria-labelledby="h-activity">
         <div className="section-head"><h2 id="h-activity">Actividad de seguridad</h2></div>
         <ul className="list">
@@ -263,6 +231,56 @@ export function Settings() {
         </ul>
       </section>
 
+      </> : <>
+      <div className="page-head">
+        <h1>Ajustes</h1>
+      </div>
+
+      <section aria-labelledby="h-look">
+        <div className="section-head"><h2 id="h-look">Apariencia</h2></div>
+        <div className="list">
+          <div className="settings-row">
+            <span className="grow">Tema</span>
+            <div className="seg" role="group" aria-label="Tema">
+              {(['system', 'light', 'dark'] as Theme[]).map((t) => (
+                <button key={t} aria-pressed={me?.theme === t} onClick={() => setTheme(t)}>
+                  {t === 'system' ? 'Sistema' : t === 'light' ? 'Claro' : 'Oscuro'}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="settings-row">
+            <span className="grow">Animaciones<br /><span className="small faint">El latido de Pulse y las transiciones. Tu preferencia se guarda en este dispositivo.</span></span>
+            <button className="btn btn-sm" onClick={toggleMotion} aria-pressed={motion} aria-label={motion ? 'Pausar animaciones' : 'Activar animaciones'}>
+              {motion ? <IconPause /> : <IconPulse />}{motion ? 'Pausar' : 'Activar'}
+            </button>
+          </div>
+          <div className="settings-row">
+            <span className="grow">Zona horaria<br /><span className="small faint">Define a qué día y mes pertenece cada gasto.</span></span>
+            <span className="muted">{tz}</span>
+          </div>
+        </div>
+      </section>
+
+      <section className="section" aria-labelledby="h-data">
+        <div className="section-head"><h2 id="h-data">Tus datos</h2></div>
+        <div className="list">
+          <Link className="settings-row settings-link" to="/ajustes/cuenta">
+            <span className="grow">Mi cuenta<br /><span className="small faint">Sesiones abiertas, contraseña y seguridad</span></span><span className="faint">›</span>
+          </Link>
+          <Link className="settings-row settings-link" to="/ajustes/cuentas">
+            <span className="grow">Cuentas y tarjetas</span><span className="faint">›</span>
+          </Link>
+          <Link className="settings-row settings-link" to="/ajustes/categorias">
+            <span className="grow">Categorías</span><span className="faint">›</span>
+          </Link>
+        </div>
+      </section>
+
+      <GmailSettings tz={tz} />
+
+      <NotificationSettings />
+
       <section className="section" aria-labelledby="h-legal">
         <div className="section-head"><h2 id="h-legal">Privacidad</h2></div>
         <div className="list">
@@ -275,9 +293,7 @@ export function Settings() {
         </div>
       </section>
 
-      <div className="section">
-        <button className="btn btn-danger btn-block" onClick={logout}>Cerrar sesión</button>
-      </div>
+      </>}
 
       <Sheet open={sheet === 'totp'} title="App de autenticación" onClose={() => setSheet(null)}>
         <TotpSetup onDone={() => { setSheet(null); toast('App de autenticación activada'); reloadSecurity() }} />

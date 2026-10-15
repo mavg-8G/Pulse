@@ -60,7 +60,7 @@ function PreferenceForm({ prefs, onSave }: { prefs: NotificationPreferences; onS
   const toggles = [['budgets', 'Alertas de presupuesto'], ['security', 'Avisos de seguridad'], ['weekly', 'Resumen semanal'], ['monthly', 'Resumen mensual'], ['hide_amounts', 'Ocultar montos en las notificaciones'], ['quiet_enabled', 'Horario silencioso']] as const
   return (
     <form className="stack section" onSubmit={save}>
-      {toggles.map(([key, label]) => <label key={key} className="settings-row"><span className="grow">{label}</span><input type="checkbox" checked={form[key]} onChange={(e) => setForm({ ...form, [key]: e.target.checked })} /></label>)}
+      <div className="list toggle-list">{toggles.map(([key, label]) => <label key={key} className="settings-row"><span className="grow">{label}</span><input type="checkbox" checked={form[key]} onChange={(e) => setForm({ ...form, [key]: e.target.checked })} /></label>)}</div>
       {form.quiet_enabled && <div className="row-actions">
         <label className="field"><span>Silencio desde</span><input className="input" type="time" required value={timeText(form.quiet_start)} onChange={(e) => setForm({ ...form, quiet_start: minutes(e.target.value) })} /></label>
         <label className="field"><span>Silencio hasta</span><input className="input" type="time" required value={timeText(form.quiet_end)} onChange={(e) => setForm({ ...form, quiet_end: minutes(e.target.value) })} /></label>

@@ -1,8 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { MonthSwitch, useTxSheet } from '../components/AppShell'
-import { IconArrow, IconList, IconPlan, IconPlus, IconPulse, IconTag, IconWallet } from '../components/icons'
-import { PulseTrace } from '../components/PulseTrace'
+import { IconArrow, IconList, IconPlan, IconPlus, IconTag, IconWallet } from '../components/icons'
 import { TxGroups } from '../components/TxList'
 import { monthLabel, monthOf } from '../lib/dates'
 import { money } from '../lib/money'
@@ -31,7 +30,6 @@ export function Home() {
   const days = d?.daily_cents.length ?? 1
   const elapsed = today ?? days
   const average = d ? Math.round(d.spent_cents / Math.max(elapsed, 1)) : 0
-  const activeAccounts = accounts.filter((a) => !a.archived)
 
   return (
     <>
@@ -44,20 +42,7 @@ export function Home() {
       {d && (
         <div className="dashboard" key={month}>
           <div className="dashboard-lead">
-            <section className="panel spending-card" aria-label="Gastado en el mes">
-              <div className="card-heading"><span className="eyebrow">Gastado este mes</span><span className="activity-badge"><span className="live-dot" />{d.count ? 'Tu pulso del mes' : 'Listo para empezar'}</span></div>
-              <p className="hero-amount" data-testid="month-total">{money(d.spent_cents)}</p>
-              <p className="hero-sub">{d.count === 0 ? `Sin gastos en ${label.toLowerCase()}.` : `${d.count} ${d.count === 1 ? 'movimiento' : 'movimientos'} en ${label.toLowerCase()}`}</p>
-              <PulseTrace daily={d.daily_cents} today={today} />
-              <div className="chart-foot"><span><IconPulse />{d.count ? 'Cada pico representa un día de gastos' : 'Cada gasto dará forma a tu pulso'}</span><span>{today ? `Día ${today} de ${days}` : `${days} días`}</span></div>
-            </section>
-            <BudgetOverview dashboard={d} current={isCurrent} />
-          </div>
-
-          <div className="metric-grid" aria-label="Indicadores del mes">
-            <div className="metric-card"><span className="metric-icon"><IconPulse /></span><div><span className="metric-label">Promedio diario</span><strong className="num">{money(average)}</strong><span className="metric-note">{isCurrent ? 'En los días transcurridos' : 'En el mes seleccionado'}</span></div></div>
-            <div className="metric-card"><span className="metric-icon"><IconList /></span><div><span className="metric-label">Movimientos</span><strong className="num">{d.count}<span className="metric-unit"> este mes</span></strong><span className="metric-note">{d.pending_review ? `${d.pending_review} pendientes de revisión` : 'Tu registro de gastos'}</span></div></div>
-            <Link className="metric-card metric-link" to="/ajustes/cuentas"><span className="metric-icon"><IconWallet /></span><div><span className="metric-label">Cuentas y tarjetas</span><strong className="num">{activeAccounts.length}<span className="metric-unit"> {activeAccounts.length === 1 ? 'activa' : 'activas'}</span></strong><span className="metric-note">Organiza de dónde sale tu dinero</span></div><IconArrow /></Link>
+            <SpendingCard dashboard={d} label={label} average={average} today={today} days={days} current={isCurrent} />
           </div>
 
           {d.alerts.length > 0 && <div className="dashboard-alerts" aria-label="Avisos del plan">{topAlerts(d.alerts).map((a) => {
@@ -97,17 +82,46 @@ export function Home() {
   )
 }
 
-function BudgetOverview({ dashboard: d, current }: { dashboard: Dashboard; current: boolean }) {
-  const percent = Math.max(0, d.budget.percent)
-  const used = Math.min(100, percent)
+const statusText = { ok: 'Vas bien', warning: 'Cerca del tope', over: 'Te pasaste' } as const
+
+/** Gastado vs. presupuesto: el monto, una barra y lo que queda; se lee sin explicación. */
+function SpendingCard({ dashboard: d, label, average, today, days, current }: { dashboard: Dashboard; label: string; average: number; today: number | null; days: number; current: boolean }) {
+  const b = d.budget
+  const used = Math.min(100, Math.max(0, b.percent))
+  const pace = today ? Math.round((today / days) * 100) : null
   return (
-    <section className={`panel budget-overview ${d.has_budgets ? `budget-${d.budget.status}` : 'budget-unset'}`} aria-labelledby="h-budget-overview">
-      <div className="card-heading"><h2 id="h-budget-overview">Tu plan del mes</h2><span className="section-icon"><IconPlan /></span></div>
-      <div className="budget-ring" role={d.has_budgets ? 'progressbar' : undefined} aria-label={d.has_budgets ? 'Porcentaje del presupuesto utilizado' : undefined} aria-valuenow={d.has_budgets ? used : undefined} aria-valuetext={d.has_budgets ? `${percent}% del plan utilizado` : undefined} aria-valuemin={d.has_budgets ? 0 : undefined} aria-valuemax={d.has_budgets ? 100 : undefined}>
-        <svg viewBox="0 0 160 160" aria-hidden="true"><circle className="ring-base" cx="80" cy="80" r="67" /><circle className="ring-value" cx="80" cy="80" r="67" pathLength="100" strokeDasharray={d.has_budgets ? `${used} 100` : '3 5'} /></svg>
-        <div>{d.has_budgets ? <><strong className="num">{percent}<span>%</span></strong><span>del plan utilizado</span></> : <><IconPlan /><strong>Sin tope aún</strong><span>Tú marcas el ritmo</span></>}</div>
+    <section className={`panel spending-card ${d.has_budgets ? `budget-${b.status}` : 'budget-unset'}`} aria-labelledby="h-spent">
+      <div className="card-heading">
+        <h2 id="h-spent" className="eyebrow">Gastado en {label.toLowerCase()}</h2>
+        {d.has_budgets && <span className={`status-chip st-${b.status}`}><span className={`dot bg-${b.status}`} aria-hidden="true" />{statusText[b.status]}</span>}
       </div>
-      {d.has_budgets ? <><div className="budget-overview-amounts"><div><span>Disponible</span><strong className={`num ${d.budget.remaining_cents < 0 ? 'st-over' : ''}`}>{money(d.budget.remaining_cents)}</strong></div><div><span>Presupuesto</span><strong className="num">{money(d.budget.budget_cents)}</strong></div></div>{current && <p className="budget-projection">Cierre estimado <strong className="num">{money(d.budget.projected_cents)}</strong></p>}<Link className="card-bottom-link" to="/plan">Revisar mi plan <IconArrow /></Link></> : <><p className="budget-intro">Decide cuánto quieres gastar.<br />Pulse te avisa cuando te acerques al límite.</p><Link className="btn btn-soft btn-block" to="/plan">Crear presupuesto <IconArrow /></Link></>}
+      <p className="hero-amount num" data-testid="month-total">{money(d.spent_cents)}</p>
+      {d.has_budgets ? (
+        <>
+          <p className="hero-sub">de <strong className="num">{money(b.budget_cents)}</strong> de presupuesto</p>
+          <div className="meter" role="progressbar" aria-label="Porcentaje del presupuesto utilizado" aria-valuenow={used} aria-valuemin={0} aria-valuemax={100} aria-valuetext={`${b.percent}% del presupuesto usado`}>
+            <div className={`meter-fill bg-${b.status}`} style={{ width: `${used}%` }} />
+            {current && pace !== null && <span className="meter-pace" style={{ left: `${pace}%` }} title="Lo que llevas del mes" />}
+          </div>
+          <div className="meter-legend">
+            <span className="num">{b.percent}% usado</span>
+            {b.remaining_cents >= 0
+              ? <span>Te quedan <strong className="num st-ok">{money(b.remaining_cents)}</strong></span>
+              : <span>Te pasaste por <strong className="num st-over">{money(-b.remaining_cents)}</strong></span>}
+          </div>
+          {current && pace !== null && <p className="meter-hint"><span className="meter-pace-key" aria-hidden="true" />La marca es el día {today} de {days}: si la barra no la pasa, vas a buen ritmo.</p>}
+        </>
+      ) : (
+        <>
+          <p className="hero-sub">{d.count === 0 ? `Sin gastos en ${label.toLowerCase()}.` : `${d.count} ${d.count === 1 ? 'movimiento' : 'movimientos'} en ${label.toLowerCase()}`}</p>
+          <Link className="budget-cta" to="/plan"><IconPlan /><span><strong>Define un presupuesto</strong><small>y verás aquí cuánto te queda cada mes</small></span><IconArrow /></Link>
+        </>
+      )}
+      <dl className="spend-stats">
+        <div><dt>Promedio diario</dt><dd className="num">{money(average)}</dd></div>
+        {d.has_budgets && current && <div><dt>Cierre estimado</dt><dd className={`num ${b.projected_cents > b.budget_cents ? 'st-over' : ''}`}>{money(b.projected_cents)}</dd></div>}
+        <div><dt>Movimientos</dt><dd className="num">{d.count}{d.pending_review > 0 && <Link to="/movimientos" className="stat-badge">{d.pending_review} por revisar</Link>}</dd></div>
+      </dl>
     </section>
   )
 }

@@ -2,6 +2,15 @@
 
 Cambios relevantes de Pulse. Las entradas «Sin publicar» describen cambios posteriores a la versión declarada `0.2.0`; sus fechas corresponden al registro del trabajo y no a una publicación o etiqueta de GitHub. Las secciones históricas conservan el contexto de cada etapa.
 
+## Sin publicar — Inicio, Mi cuenta y sincronización de Gmail (15 oct 2026)
+
+- Inicio concentra el gasto y el presupuesto en una tarjeta: barra de uso, saldo disponible o exceso, estado del plan, referencia del día del mes, promedio diario, cierre estimado y movimientos por revisar. Se retiran el trazo diario y el anillo de presupuesto anteriores, junto con el componente `PulseTrace`.
+- Nueva ruta `/ajustes/cuenta` para sesiones, contraseña, passkeys/TOTP, códigos de recuperación, actividad de seguridad y cierre de sesión. El perfil lateral y el avatar de la cabecera abren **Mi cuenta**; **Ajustes** conserva apariencia, Gmail, notificaciones y privacidad.
+- Estilos del panel y listas de preferencias simplificados; pruebas de acceso, passkeys, push, PWA y accesibilidad adaptadas a la separación de Mi cuenta y Ajustes.
+- Primera sincronización de Gmail ampliada de 7 a 60 días y de 5 a 10 páginas (hasta 1.000 mensajes por sincronización), alineada con la retención de huellas de deduplicación. Actualizados el mensaje de conexión, el ejemplo de la política en inglés, el plan y la prueba de sincronización.
+- README puesto al día con la landing y `/entrar`, navegación, Mi cuenta, configuración de Google por un admin, alcance de la fase 8, respaldos externos y comprobaciones de salud. Corregido el alcance de `make check`: el fuzzing se ejecuta por separado.
+- Verificación: compilación del frontend, 41 pruebas Vitest, 52 E2E de escritorio/móvil, `go vet` y todos los paquetes Go con detector de carreras correctos.
+
 ## Sin publicar — fase 8 y Gmail desde Ajustes (15 oct 2026)
 
 - **Gmail se configura desde la app**: un admin pega en Ajustes → Gmail → *Configuración del servidor* el ID y el secreto de OAuth (y, opcionalmente, el tema/cuenta de Pub/Sub y la clave de Gemini). Se guardan cifrados con una subclave de la KEK (migración `0008_ajustes_servidor`), se aplican en caliente sin reiniciar y nunca se devuelven. La pantalla muestra la URI de redirección y el endpoint del webhook a copiar en Google Cloud. Exige rol admin y step-up; queda en la actividad de seguridad. Las variables de entorno siguen funcionando y lo guardado en Ajustes tiene prioridad; *Borrar* vuelve a ellas.

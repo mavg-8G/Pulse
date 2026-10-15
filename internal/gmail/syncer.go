@@ -18,8 +18,8 @@ import (
 )
 
 const (
-	maxPages         = 5 // 500 mensajes por sincronización: de sobra para notificaciones bancarias
-	firstSyncDays    = 7
+	maxPages         = 10 // 1000 mensajes por sincronización: cubre 60 días de notificaciones bancarias
+	firstSyncDays    = 60 // no más que la retención de huellas (60 días), o se reimportarían correos al reconectar
 	maxBackoff       = 6 * time.Hour
 	watchRenewBefore = 24 * time.Hour
 )

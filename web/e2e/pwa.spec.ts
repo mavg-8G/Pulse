@@ -36,7 +36,7 @@ test('service worker: la app abre sin conexión y la API nunca se guarda en cach
   await context.setOffline(false)
 
   // Al cerrar sesión se borran las cachés del navegador
-  await page.goto('/ajustes')
+  await page.goto('/ajustes/cuenta')
   await page.getByRole('button', { name: 'Cerrar sesión', exact: true }).last().click()
   await expect(page.getByRole('heading', { name: 'Entrar' })).toBeVisible()
   const after = await page.evaluate(async () => (await caches.keys()).length)
@@ -51,7 +51,7 @@ test('tema oscuro persiste y las pantallas son accesibles en ambos temas', async
     await page.getByRole('group', { name: 'Tema' }).getByRole('button', { name: theme }).click()
     await page.reload()
     await expect(page.locator('html')).toHaveAttribute('data-theme', theme === 'Oscuro' ? 'dark' : 'light')
-    for (const path of ['/', '/movimientos', '/plan', '/ajustes', '/ajustes/cuentas']) {
+    for (const path of ['/', '/movimientos', '/plan', '/ajustes', '/ajustes/cuenta', '/ajustes/cuentas']) {
       await page.goto(path)
       await page.waitForTimeout(1300) // termina la animación del pulso
       await expectAccessible(page, `${path} (${theme})`)

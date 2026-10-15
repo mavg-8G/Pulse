@@ -2,7 +2,7 @@
 
 Registro de gastos personales: cuentas y tarjetas, categorías, plan de gastos mensual con avisos y proyección. PWA para escritorio y móvil, modo claro/oscuro. Multiusuario **solo por invitación**, con MFA y aislamiento de datos por usuario (ver [`PLAN.md`](PLAN.md) §4).
 
-Estado: **fases 0–7 implementadas**. Incluye respaldos, CI/CD y páginas públicas de privacidad y términos; el seguimiento del endurecimiento de producción está en [`PLAN.md`](PLAN.md). Los cambios se registran en [`CHANGELOG.md`](CHANGELOG.md).
+Estado: **fases 0–7 implementadas y fase 8 en curso**. Incluye CI/CD con imágenes firmadas, respaldos cifrados externos, comprobación de salud del esquema y configuración de Google desde la app. Las aceptaciones manuales y tareas de producción pendientes están en [`PLAN.md`](PLAN.md). Los cambios se registran en [`CHANGELOG.md`](CHANGELOG.md).
 
 ## Funciones
 
@@ -11,6 +11,31 @@ Estado: **fases 0–7 implementadas**. Incluye respaldos, CI/CD y páginas públ
 - Importación de correos `.eml` de Banco Pichincha, Produbanco y Diners/Titanium. Gmail opcional mediante OAuth, sincronización periódica o Pub/Sub y modo sombra; Gemini opcional para plantillas desconocidas. Configuración en [`deploy/GMAIL.md`](deploy/GMAIL.md).
 - Acceso por invitación, TOTP o passkeys, gestión de sesiones y cifrado de campos sensibles con claves por usuario.
 - Presentación pública y páginas de privacidad y términos en español e inglés, accesibles sin sesión; exportación y supresión de cuentas mediante CLI, y retención del registro de seguridad de 365 días.
+- Inicio con gasto mensual, barra de presupuesto, saldo disponible o exceso, referencia del día del mes y cierre estimado; temas claro/oscuro y control de animaciones con respeto al movimiento reducido.
+- Respaldos en caliente, copia externa cifrada con `age` a Nextcloud y restauración verificada en CI. Configuración en [`deploy/README.md`](deploy/README.md).
+
+## Navegación
+
+| Página | Qué encontrarás |
+|---|---|
+| `/` sin sesión | Presentación pública de Pulse |
+| `/entrar` y `/registro` | Acceso y creación de cuenta por invitación |
+| `/` con sesión | Resumen del mes, presupuesto, últimos movimientos y distribución por categoría |
+| `/movimientos` | Registro, búsqueda, edición e importación de gastos |
+| `/plan` | Presupuestos y seguimiento del gasto por categoría |
+| `/ajustes` | Apariencia, Gmail, notificaciones y privacidad |
+| `/ajustes/cuenta` | Mi cuenta: sesiones, contraseña, segundo factor, actividad de seguridad y cierre de sesión |
+| `/ajustes/cuentas` y `/ajustes/categorias` | Organización de cuentas, tarjetas y categorías |
+
+El perfil de la barra lateral y el avatar de la cabecera abren **Mi cuenta**. Las preferencias generales permanecen en **Ajustes**.
+
+## Conectar Gmail
+
+Un administrador configura el **ID de cliente OAuth** y el **secreto** en **Ajustes → Correo del banco (Gmail) → Configuración del servidor (admin)**. La pantalla muestra la URI de redirección y el webhook que debes registrar en Google Cloud. También permite configurar Pub/Sub y Gemini. Guardar requiere confirmar la identidad; las credenciales se cifran y se aplican sin reiniciar. Lo guardado en la app tiene prioridad sobre las variables de entorno; al borrarlo se vuelve a ellas.
+
+Después, cada persona conecta su Gmail desde Ajustes. La primera sincronización consulta notificaciones bancarias de los **últimos 60 días**, con un límite de **1.000 mensajes por sincronización**. Las huellas para evitar duplicados se conservan 60 días y los avisos de nuevos gastos se limitan a consumos de las últimas 24 horas. El modo sombra deja los importados **Por revisar**.
+
+La guía completa de Google Cloud, OAuth, Pub/Sub, Gemini y configuración por variables de entorno está en [`deploy/GMAIL.md`](deploy/GMAIL.md).
 
 ## Estructura
 ```
@@ -41,12 +66,12 @@ El frontend usa React 19, React Router 7, TypeScript 7, Vite 8 y Vitest 5; las v
 
 En Windows puedes ejecutar `./scripts/dev.ps1`: compila el programa, prepara las claves locales y muestra una invitación. Si tienes Zig en `.tools/zig-x86_64-windows-0.15.2`, lo usa como compilador C; también puedes configurar `CC` con tu compilador. Los datos locales se guardan en `.dev/`.
 
-En Linux/macOS, instala primero las dependencias del frontend y luego inicia ambos servidores en terminales separadas:
+En Linux/macOS, instala primero las dependencias del frontend y luego inicia ambos servidores en terminales separadas. Ejecuta estos comandos desde la raíz del proyecto:
 
 ```bash
-cd web && npm ci && cd ..
+npm --prefix web ci
 make dev                      # API en :8080
-cd web && npm run dev          # frontend en :5173 con proxy a la API
+npm --prefix web run dev       # otra terminal: frontend en :5173 con proxy a la API
 # crear una invitación para el entorno local:
 PULSE_ENV=development PULSE_BASE_URL=http://localhost:5173 PULSE_DB_PATH=.dev/pulse.db \
 PULSE_KEK_FILE=.dev/pulse_kek go run ./cmd/pulse invite create
@@ -79,10 +104,11 @@ Sin `--ttl`, la vigencia es de 72 horas. En desarrollo local con Windows, `./scr
 | Contenido | Español | Inglés |
 |---|---|---|
 | Presentación de Pulse y uso opcional de Gmail | `/acerca` | `/about` |
+| Landing principal, sin sesión | `/` | — |
 | Política de privacidad | `/privacidad` | `/privacy` |
 | Términos y condiciones | `/terminos` | `/terms` |
 
-Estas páginas sirven contenido HTML legible sin ejecutar la aplicación y permiten cambiar de idioma. La pantalla de acceso enlaza a **Qué es Pulse**, **Privacidad** y **Términos**. El service worker conserva sus rutas públicas y no las sustituye por la aplicación.
+Las páginas `/acerca`, `/about` y las páginas legales sirven contenido HTML legible sin ejecutar la aplicación y permiten cambiar de idioma. La landing de `/` forma parte de la app React y, con sesión, da paso al panel de gastos. La pantalla de acceso enlaza a **Qué es Pulse**, **Privacidad** y **Términos**. El service worker conserva las rutas estáticas públicas y no las sustituye por la aplicación.
 
 ## Administración y privacidad
 
@@ -108,12 +134,14 @@ La exportación contiene datos personales descifrados: entrégala por un canal s
 | `make fuzz` | Fuzzing de cifrado, WebAuthn y cálculos del plan |
 | `make web-test` | Tipos de TypeScript + Vitest (montos, fechas) |
 | `make e2e` | Playwright en escritorio y móvil: registro, TOTP, passkey (autenticador virtual), gastos, plan, PWA sin conexión, accesibilidad (axe) en ambos temas, CSP sin violaciones |
-| `make check` | Todo lo anterior (lo mismo que la CI) |
+| `make check` | Formato y vet, detector de carreras, pruebas del frontend y E2E; el fuzzing se ejecuta aparte con `make fuzz` |
 
-La suite E2E incluye páginas legales públicas, navegación con el service worker activo y accesibilidad en ambos temas. Cada ejecución utiliza puerto y datos propios dentro de `web/.e2e/`.
+La suite E2E incluye landing pública, páginas legales, Mi cuenta, configuración de Google por un admin, navegación con el service worker activo y accesibilidad en ambos temas. Cada ejecución utiliza puerto y datos propios dentro de `web/.e2e/`.
 
 Para instalar Chromium antes de las pruebas E2E: `cd web && npx playwright install chromium` (en Linux CI: `--with-deps chromium`). Para revisar dependencias: `npm audit` en `web/` y `go mod verify` en la raíz. La CI también comprueba vulnerabilidades Go alcanzables con `govulncheck` y escanea la imagen con Trivy.
 
 ## Despliegue
 
 Ver [`deploy/README.md`](deploy/README.md). Un push a `main` ejecuta las pruebas, construye y firma la imagen en GHCR y activa el despliegue del entorno `production`, sujeto a sus controles de GitHub. El servidor escucha por defecto en el puerto 8080.
+
+`/healthz` comprueba la base y que el esquema coincida con el binario; devuelve 503 si falla esa comprobación e informa si Gmail y push están activos. La guía de despliegue incluye la copia externa con `deploy/backup-offsite.sh`, la restauración en una máquina limpia y la configuración de monitores.

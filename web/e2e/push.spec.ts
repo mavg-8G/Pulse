@@ -89,7 +89,7 @@ test('el service worker recibe push, abre el plan y rechaza otra cuenta', async 
   await deliver('another-user', 'wrong-user')
   expect((await notifications()).map((n) => n.tag)).not.toContain('wrong-user')
   // El logout impide mostrar una entrega en vuelo de la sesión anterior.
-  await page.goto('/ajustes')
+  await page.goto('/ajustes/cuenta')
   await page.getByRole('button', { name: 'Cerrar sesión', exact: true }).last().click()
   await expect(page.getByRole('heading', { name: 'Entrar' })).toBeVisible()
   await deliver(me.id, 'after-logout')

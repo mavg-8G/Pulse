@@ -28,6 +28,7 @@ function Authenticated() {
         <Route path="/movimientos" element={<Movements />} />
         <Route path="/plan" element={<Plan />} />
         <Route path="/ajustes" element={<Settings />} />
+        <Route path="/ajustes/cuenta" element={<Settings view="account" />} />
         <Route path="/ajustes/cuentas" element={<Accounts />} />
         <Route path="/ajustes/categorias" element={<Categories />} />
         <Route path="/ajustes/gmail" element={<GmailCallback />} />

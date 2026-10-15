@@ -220,8 +220,8 @@ func TestConectarYSincronizar(t *testing.T) {
 			t.Fatal("Pulse descargó un correo que no es del banco")
 		}
 	}
-	if len(e.g.Queries) < 2 || !strings.Contains(e.g.Queries[0], "newer_than:7d") {
-		t.Fatalf("la primera sincronización debe mirar 7 días y paginar: %q", e.g.Queries)
+	if len(e.g.Queries) < 2 || !strings.Contains(e.g.Queries[0], "newer_than:60d") {
+		t.Fatalf("la primera sincronización debe mirar 60 días y paginar: %q", e.g.Queries)
 	}
 	if total, pending := e.txCount(u.ID); total != 3 || pending != 3 {
 		t.Fatalf("gastos: %d (pendientes %d); modo sombra: todo por revisar", total, pending)

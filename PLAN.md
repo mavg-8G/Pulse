@@ -26,7 +26,7 @@ Principios rectores:
 | `state` y verificador PKCE guardados | `state` firmado con HMAC (usuario + sesión + caducidad 10 min); verificador = HMAC(nonce) con clave del servidor | Nada que guardar ni limpiar; el verificador nunca viaja en la URL |
 | Modo sombra (sin detalle) | Activado por defecto: todo lo importado queda "Por revisar". Apagado: solo se confirma solo lo que el parser leyó con seguridad **y** tiene una regla de comercio del usuario | Evita que un gasto mal clasificado cuente en el presupuesto sin que lo veas |
 | Gemini como fallback | Solo para remitentes bancarios con plantilla desconocida, activación por usuario con step-up, texto redactado (también el nombre en el asunto), resultado validado y siempre por revisar | Mínimo dato posible a un tercero |
-| Push "nuevo gasto" | Aviso "Nuevo gasto por revisar" (o "Gasto registrado") para consumos de las últimas 24 h, con la preferencia de alertas de presupuesto y "ocultar montos" | La primera sincronización (7 días) no inunda de avisos |
+| Push "nuevo gasto" | Aviso "Nuevo gasto por revisar" (o "Gasto registrado") para consumos de las últimas 24 h, con la preferencia de alertas de presupuesto y "ocultar montos" | La primera sincronización (60 días) no inunda de avisos |
 
 ---
 
