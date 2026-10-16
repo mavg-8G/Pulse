@@ -205,9 +205,13 @@ func TestHorizonteComparaEnLosMismosPeriodos(t *testing.T) {
 	if r.Backtests < HorizonMinEval {
 		t.Fatalf("periodos: %+v", r)
 	}
+	// Holt necesita 6 semanas: con 60 días queda fuera de la comparación en vez de dejar sin periodos a los demás.
 	for _, m := range r.Methods {
-		if m.Evaluated != r.Backtests {
-			t.Fatalf("método %s evaluado en %d de %d", m.ID, m.Evaluated, r.Backtests)
+		if m.Candidate != (m.Evaluated == r.Backtests) {
+			t.Fatalf("método %+v con %d periodos", m, r.Backtests)
+		}
+		if want := m.ID != Holt; m.Candidate != want {
+			t.Fatalf("método %s: compite=%v", m.ID, m.Candidate)
 		}
 	}
 }

@@ -1,112 +1,177 @@
 import { useState } from 'react'
 import { monthLabel } from '../lib/dates'
 import { money } from '../lib/money'
-import type { Category, ReportSummary } from '../lib/types'
-import { ReportLineChart } from './ReportLineChart'
+import { change, insights, signedMoney, signedPct } from '../lib/reports'
+import type { Category, Projection, ReportSummary } from '../lib/types'
+import { ReportLineChart, type ReportSeries } from './ReportLineChart'
 
 const shortMonth = (m: string) => new Intl.DateTimeFormat('es-EC', { month: 'short', year: '2-digit', timeZone: 'UTC' }).format(new Date(`${m}-15T12:00:00Z`)).replace('.', '')
-const shortDate = (date: string) => new Intl.DateTimeFormat('es-EC', { day: 'numeric', month: 'short', timeZone: 'UTC' }).format(new Date(`${date}T12:00:00Z`))
-const percent = (value: number) => new Intl.NumberFormat('es-EC', { maximumFractionDigits: 1 }).format(value)
+export const shortDate = (date: string) => new Intl.DateTimeFormat('es-EC', { day: 'numeric', month: 'short', timeZone: 'UTC' }).format(new Date(`${date}T12:00:00Z`)).replace('.', '')
+export const fullDate = (date: string) => new Intl.DateTimeFormat('es-EC', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${date}T12:00:00Z`)).replace('.', '')
+const longDate = (date: string) => new Intl.DateTimeFormat('es-EC', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' }).format(new Date(`${date}T12:00:00Z`))
 
-function Metric({ label, value, detail }: { label: string; value: string; detail: string }) {
-  return <div className="report-metric"><dt>{label}</dt><dd className="num">{value}</dd><dd className="report-metric-detail">{detail}</dd></div>
-}
-
-function CategorySelect({ value, onChange, categories, id }: { value: string; onChange: (value: string) => void; categories: Category[]; id: string }) {
-  return <label className="report-category-select small muted" htmlFor={id}>Comparar categoría<select id={id} className="input" value={value} onChange={(e) => onChange(e.target.value)}><option value="">Solo total</option>{categories.filter((c) => !c.parent_id).map((c) => <option key={c.id} value={c.id}>{c.name}{c.archived ? ' (archivada)' : ''}</option>)}</select></label>
-}
-
-export function ReportOverview({ report: r, categories, current }: { report: ReportSummary; categories: Category[]; current: string }) {
-  const [category, setCategory] = useState('')
-  const name = categories.find((c) => c.id === category)?.name ?? 'Categoría'
-  const closed = r.months.filter((m) => m.month < current)
-  const last = closed.at(-1), previous = closed.at(-2)
-  const change = last && previous && previous.spent_cents > 0 ? (last.spent_cents - previous.spent_cents) / previous.spent_cents * 100 : null
-  const categoryValues = r.months.map((m) => m.by_category.find((c) => c.id === category)?.spent_cents ?? 0)
+/** Diferencia contra el periodo anterior: importe siempre que haya datos y porcentaje solo si es comparable. */
+export function Delta({ cur, prev, coverage, label = 'vs. periodo anterior' }: { cur: number; prev: number; coverage?: string; label?: string }) {
+  if (!coverage || coverage === 'sin_datos') return <span className="report-delta is-none">Sin datos para comparar</span>
+  const diff = cur - prev
+  const p = change(cur, prev, coverage === 'completo')
+  const tone = diff > 0 ? 'is-up' : diff < 0 ? 'is-down' : 'is-flat'
   return (
-    <>
-      <dl className="report-metrics" aria-label="Estadísticas del periodo">
-        <Metric label="Gasto neto" value={money(r.total_cents)} detail="Compras menos devoluciones" />
-        <Metric label="Promedio diario" value={money(r.elapsed_days > 0 ? Math.round(r.total_cents / r.elapsed_days) : 0)} detail={`${r.elapsed_days} días calendario del periodo`} />
-        <Metric label="Compra promedio" value={money(r.purchase_count > 0 ? Math.round(r.purchase_cents / r.purchase_count) : 0)} detail={`${r.purchase_count} ${r.purchase_count === 1 ? 'compra registrada' : 'compras registradas'}`} />
-        <Metric label="Cambio mensual" value={change === null ? 'Sin base' : `${change > 0 ? '+' : ''}${percent(change)}%`} detail={last && previous ? `${shortMonth(last.month)} vs. ${shortMonth(previous.month)} · meses cerrados` : 'Necesitas dos meses cerrados'} />
-      </dl>
-      <section className="panel report-card" aria-labelledby="h-months">
-        <div className="section-head"><div><h2 id="h-months">Evolución del gasto</h2><p className="small muted">{monthLabel(r.from)} – {monthLabel(r.to)} · mes actual en curso</p></div><span className="num muted">Total {money(r.total_cents)}</span></div>
-        <div className="report-chart-toolbar"><p className="small muted">Compras <strong className="num">{money(r.purchase_cents)}</strong> · Devoluciones <strong className="num">{money(r.refund_cents)}</strong></p><CategorySelect id="history-category" value={category} onChange={setCategory} categories={categories} /></div>
-        <ReportLineChart label="Detalle del mes" labels={r.months.map((m) => shortMonth(m.month))} series={[{ name: 'Gasto del periodo', values: r.months.map((m) => m.spent_cents) }, ...(category ? [{ name, values: categoryValues, secondary: true }] : [])]} />
-        <details className="more"><summary>Ver evolución como tabla</summary><div className="report-table-scroll"><table className="report-table"><caption className="sr-only">Gasto neto mensual del periodo seleccionado</caption><thead><tr><th scope="col">Mes</th><th scope="col">Total</th>{category && <th scope="col">{name}</th>}</tr></thead><tbody>{r.months.map((m, i) => <tr key={m.month}><th scope="row">{monthLabel(m.month)}{m.month === current && <span className="muted"> (en curso)</span>}</th><td className="num">{money(m.spent_cents)}</td>{category && <td className="num">{money(categoryValues[i])}</td>}</tr>)}</tbody></table></div></details>
-        {r.purchase_count === 0 && <p className="report-note small muted">No hay compras registradas en este periodo.{r.refund_cents > 0 ? ' El saldo refleja las devoluciones.' : ' Agrega movimientos para empezar a ver tus tendencias.'}</p>}
-      </section>
-    </>
+    <span className={`report-delta ${tone}`}>
+      <span aria-hidden="true">{diff > 0 ? '▲' : diff < 0 ? '▼' : '='}</span> <span className="num">{signedMoney(diff)}</span>{p !== null && <span className="num"> ({signedPct(p)})</span>} {label && <span className="muted">{label}</span>}
+    </span>
   )
 }
 
-const horizonMethod: Record<string, string> = {
-  ritmo: 'Promedio diario',
-  media_movil: 'Media móvil ponderada',
-  dia_semana: 'Por día de la semana',
-}
-const horizonHint: Record<string, string> = {
-  ritmo: 'promedio de compras menos devoluciones de los últimos días completos',
-  media_movil: 'promedio con más peso a los días recientes (la mitad del peso en las últimas 3 semanas)',
-  dia_semana: 'cuánto sueles gastar cada día de la semana, combinado con tu promedio general',
+function Metric({ label, value, children }: { label: string; value: string; children?: React.ReactNode }) {
+  return <div className="report-metric"><dt>{label}</dt><dd className="num">{value}</dd><dd className="report-metric-detail">{children}</dd></div>
 }
 
-export function ForecastCard({ forecast: f, categories }: { forecast: ReportSummary['forecast']; categories: Category[] }) {
-  const [horizon, setHorizon] = useState<'week' | 'month'>('week')
-  const [category, setCategory] = useState('')
-  const isWeek = horizon === 'week'
-  const model = isWeek ? f.week_model : f.month_model
-  const days = isWeek ? 7 : f.month_days
-  const from = isWeek ? f.week_from : f.month_from, to = isWeek ? f.week_to : f.month_to
-  const categoryName = (id: string) => categories.find((c) => c.id === id)?.name ?? 'Categoría'
-  // Sin modelo (versión anterior del servidor) se usa el promedio diario.
-  const rows = model ? model.by_category.map((c) => ({ id: c.id, cents: c.projected_cents, upcoming: c.upcoming_cents })) : f.by_category.map((c) => ({ id: c.id, cents: isWeek ? c.week_cents : c.month_cents, upcoming: 0 }))
-  const total = model ? model.projected_cents : isWeek ? f.week_cents : f.month_cents
-  const ranged = model && model.low_cents !== null && model.high_cents !== null
-  const selected = rows.find((c) => c.id === category)
-  const labels = Array.from({ length: days + 1 }, (_, i) => {
-    if (i === 0) return 'Inicio'
-    const date = new Date(`${from}T12:00:00Z`)
-    date.setUTCDate(date.getUTCDate() + i - 1)
-    return shortDate(date.toISOString().slice(0, 10))
-  })
-  const curve = model && model.cumulative.length === days ? [0, ...model.cumulative] : labels.map((_, i) => Math.round(total * i / days))
-  const share = (cents: number) => curve.map((v) => (total > 0 ? Math.round(v * cents / total) : 0))
-  const band = ranged && model.cumulative_low.length === days ? { name: 'rango del 95 %', low: [0, ...model.cumulative_low], high: [0, ...model.cumulative_high] } : undefined
-  const chosen = model?.methods.find((m) => m.id === model.method)
-  const covered = model?.coverage != null ? Math.round(model.coverage * model.backtests) : null
+export function SummarySection({ report: r, categories, compareName }: { report: ReportSummary; categories: Category[]; compareName: string }) {
+  const prev = r.previous
+  const days = r.period?.days ?? r.elapsed_days
+  const daily = days > 0 ? Math.round(r.total_cents / days) : 0
+  const prevDaily = prev && prev.days > 0 ? Math.round(prev.total_cents / prev.days) : 0
+  const name = (id: string) => categories.find((c) => c.id === id)?.name ?? 'Categoría'
+  const list = insights(r, name)
   return (
-    <section className="panel report-card report-forecast" aria-labelledby="h-forecast">
-      <div className="section-head"><div><span className="report-eyebrow">Mira hacia adelante</span><h2 id="h-forecast">Proyección de gastos</h2><p className="small muted">{shortDate(from)} – {shortDate(to)} · {isWeek ? 'próxima semana, de lunes a domingo' : monthLabel(from.slice(0, 7))}</p></div><div className="seg" role="group" aria-label="Horizonte de proyección"><button aria-pressed={isWeek} onClick={() => setHorizon('week')}>Próxima semana</button><button aria-pressed={!isWeek} onClick={() => setHorizon('month')}>Próximo mes</button></div></div>
-      {!f.ready ? (
-        <div className="report-forecast-empty"><h3>Aún falta historial para proyectar</h3><p className="muted">Necesitamos al menos 7 días completos desde tu primer movimiento dentro de los últimos 90 días. Por ahora hay {f.history_days} {f.history_days === 1 ? 'día disponible' : 'días disponibles'}.</p><p className="small muted">Las proyecciones aparecerán aquí para el total y cada categoría cuando haya suficiente historial.</p></div>
-      ) : (
+    <section aria-labelledby="h-summary" id="resumen" className="report-section">
+      <h2 id="h-summary" className="report-section-title">Resumen del periodo</h2>
+      <dl className="report-metrics">
+        <Metric label="Gasto neto" value={money(r.total_cents)}><Delta cur={r.total_cents} prev={prev?.total_cents ?? 0} coverage={prev?.coverage} /></Metric>
+        <Metric label="Compras" value={money(r.purchase_cents)}>
+          {r.purchase_count} {r.purchase_count === 1 ? 'compra' : 'compras'}{r.purchase_count > 0 && ` · promedio ${money(Math.round(r.purchase_cents / r.purchase_count))}`}<br />
+          <Delta cur={r.purchase_cents} prev={prev?.purchase_cents ?? 0} coverage={prev?.coverage} label="" />
+        </Metric>
+        <Metric label="Devoluciones" value={money(r.refund_cents)}>
+          {r.purchase_cents > 0 ? `${Math.round((r.refund_cents / r.purchase_cents) * 100)} % de lo comprado` : 'Sin compras en el periodo'}<br />
+          <Delta cur={r.refund_cents} prev={prev?.refund_cents ?? 0} coverage={prev?.coverage} label="" />
+        </Metric>
+        <Metric label="Promedio diario" value={money(daily)}>{days} {days === 1 ? 'día' : 'días'} · <Delta cur={daily} prev={prevDaily} coverage={prev?.coverage} label="" /></Metric>
+      </dl>
+      {prev && <p className="small muted report-compare-line">Comparado con {compareName}: {fullDate(prev.from)} – {fullDate(prev.to)} ({prev.days} días){prev.coverage === 'parcial' ? '. Empezaste a registrar a mitad de ese periodo: se muestran importes, no porcentajes.' : prev.coverage === 'sin_datos' ? '. No hay movimientos registrados en esas fechas.' : '.'}</p>}
+      <section className="panel report-card report-insights" aria-labelledby="h-insights">
+        <h3 id="h-insights">Conclusiones</h3>
+        {list.length === 0 ? <p className="small muted">Todavía no hay suficientes movimientos para sacar conclusiones de este periodo.</p> : (
+          <ul>{list.map((x, i) => <li key={i} className={`is-${x.tone}`}><span aria-hidden="true">{x.tone === 'up' ? '▲' : x.tone === 'down' ? '▼' : '•'}</span>{x.text}</li>)}</ul>
+        )}
+      </section>
+    </section>
+  )
+}
+
+/** Evolución del periodo contra el anterior, por tramo o acumulada; con el cierre estimado del mes en curso. */
+export function EvolutionSection({ report: r, projection, current, compareName }: { report: ReportSummary; projection?: Projection; current: string; compareName: string }) {
+  const series = r.series ?? []
+  const g = r.period?.granularity ?? 'month'
+  const [mode, setMode] = useState<'tramo' | 'acumulado'>(g === 'day' ? 'acumulado' : 'tramo')
+  if (series.length === 0) return null
+  const labels = series.map((p) => (g === 'month' ? shortMonth(p.start.slice(0, 7)) : shortDate(p.start)))
+  const details = series.map((p) => (g === 'month' ? `${monthLabel(p.start.slice(0, 7))}${p.start.slice(0, 7) === current ? ' (en curso)' : ''}` : g === 'week' ? `Semana del ${shortDate(p.start)} al ${shortDate(p.end)}` : longDate(p.start)))
+  const acc = (v: number[]) => v.reduce<number[]>((out, x) => [...out, (out.at(-1) ?? 0) + x], [])
+  const net = series.map((p) => p.net_cents)
+  const prevVals = series.map((p) => p.previous_cents)
+  const cur = mode === 'acumulado' ? acc(net) : net
+  const before = mode === 'acumulado' ? acc(prevVals) : prevVals
+  const hasPrev = r.previous && r.previous.coverage !== 'sin_datos'
+  const s: ReportSeries[] = [{ name: 'Periodo actual', values: cur }]
+  if (hasPrev) s.push({ name: r.period?.compare === 'year' ? 'Año anterior' : 'Periodo anterior', values: before, secondary: true })
+  // El mes en curso por meses: un tramo punteado hasta el cierre estimado, con su rango.
+  const last = series.length - 1
+  const projected = projection && g === 'month' && mode === 'tramo' && series[last].start.slice(0, 7) === current && projection.month === current && last > 0
+  if (projected) {
+    const values: (number | null)[] = series.map(() => null)
+    values[last - 1] = cur[last - 1]
+    values[last] = projection!.projected_cents
+    const band = projection!.low_cents !== null && projection!.high_cents !== null
+      ? { name: 'rango 95 %', low: values.map((v, i) => (i === last ? projection!.low_cents : v)), high: values.map((v, i) => (i === last ? projection!.high_cents : v)) }
+      : undefined
+    s.push({ name: 'Cierre estimado del mes', values, dashed: true, band })
+  }
+  const granularity = g === 'day' ? 'por día' : g === 'week' ? 'por semana' : 'por mes'
+  return (
+    <section className="panel report-card" aria-labelledby="h-evolution" id="evolucion">
+      <div className="section-head">
+        <div><h2 id="h-evolution">Evolución del gasto</h2><p className="small muted">Gasto neto {granularity}{mode === 'acumulado' ? ', acumulado' : ''}{hasPrev ? `, junto ${compareName.replace(/^el /, 'al ')}` : ''}.</p></div>
+        <div className="seg" role="group" aria-label="Forma de ver la evolución">
+          <button aria-pressed={mode === 'tramo'} onClick={() => setMode('tramo')}>{g === 'day' ? 'Por día' : g === 'week' ? 'Por semana' : 'Por mes'}</button>
+          <button aria-pressed={mode === 'acumulado'} onClick={() => setMode('acumulado')}>Acumulado</button>
+        </div>
+      </div>
+      <ReportLineChart key={mode} label="Detalle del tramo" labels={labels} details={details} series={s} />
+      {projected && <p className="small muted">La línea punteada es una estimación del cierre de este mes, no un gasto real.</p>}
+      <details className="more"><summary>Ver como tabla</summary>
+        <div className="report-table-scroll" tabIndex={0}><table className="report-table report-forecast-table"><caption className="sr-only">Gasto neto del periodo {granularity}{hasPrev ? ` y ${compareName}` : ''}</caption>
+          <thead><tr><th scope="col">Tramo</th><th scope="col">Compras</th><th scope="col">Devoluciones</th><th scope="col">Neto</th>{hasPrev && <th scope="col">Anterior</th>}</tr></thead>
+          <tbody>{series.map((p, i) => <tr key={p.start}><th scope="row">{details[i]}</th><td className="num">{money(p.purchase_cents)}</td><td className="num">{money(p.refund_cents)}</td><td className="num">{money(p.net_cents)}</td>{hasPrev && <td className="num muted">{money(p.previous_cents)}</td>}</tr>)}</tbody>
+          <tfoot><tr><th scope="row">Total</th><td className="num">{money(r.purchase_cents)}</td><td className="num">{money(r.refund_cents)}</td><td className="num">{money(r.total_cents)}</td>{hasPrev && <td className="num">{money(r.previous!.total_cents)}</td>}</tr></tfoot>
+        </table></div>
+      </details>
+    </section>
+  )
+}
+
+/** Categorías del periodo: peso, cambio contra el anterior y acceso directo a filtrar por una. */
+export function CategoriesSection({ report: r, categories, onFilter, filtered }: { report: ReportSummary; categories: Category[]; onFilter: (id: string) => void; filtered: boolean }) {
+  const [all, setAll] = useState(false)
+  const cat = (id: string) => categories.find((c) => c.id === id)
+  const changes = new Map((r.category_changes ?? []).map((c) => [c.id, c]))
+  const positive = r.by_category.reduce((t, x) => t + Math.max(0, x.spent_cents), 0)
+  const rows = r.by_category
+  const shown = all ? rows : rows.slice(0, 6)
+  const coverage = r.previous?.coverage
+  return (
+    <section className="panel report-card" aria-labelledby="h-rcat" id="categorias">
+      <div className="section-head"><div><h2 id="h-rcat">Categorías</h2><p className="small muted">En qué se fue tu gasto y cómo cambió{filtered ? '' : '. Toca una para ver solo esa categoría'}.</p></div></div>
+      {rows.length === 0 ? <p className="muted small">Sin gastos en este periodo.</p> : (
         <>
-          <dl className="report-forecast-metrics">
-            <Metric label={isWeek ? 'Total estimado · 7 días' : `Total estimado · ${days} días`} value={money(total)} detail={ranged ? `Rango del 95 %: ${money(model.low_cents!)} – ${money(model.high_cents!)}` : 'Aún sin rango: falta historial'} />
-            <Metric label="Promedio diario estimado" value={money(Math.round(total / days))} detail={model && model.upcoming_cents > 0 ? `Incluye ${money(model.upcoming_cents)} de gastos fijos` : `Basado en ${model?.history_days ?? f.history_days} días completos`} />
-            <Metric label="Mayor gasto previsto" value={rows[0] && rows[0].cents > 0 ? categoryName(rows[0].id) : 'Sin gasto neto'} detail={rows[0] ? money(rows[0].cents) : money(0)} />
-          </dl>
-          {model && (
-            <p className="report-model small" data-testid="forecast-model">
-              Método: <strong>{horizonMethod[model.method]}</strong> ({horizonHint[model.method]}).{' '}
-              {model.backtests >= 3 && chosen?.mae_cents != null
-                ? <>Se eligió porque fue el que menos se equivocó al proyectar {model.backtests} periodos pasados iguales (error medio {money(chosen.mae_cents)}).</>
-                : <>Con poco historial se usa el promedio diario; cuando haya más periodos pasados se comparará con otros métodos.</>}
-              {covered !== null && <> El gasto real cayó dentro del rango {covered} de {model.backtests} veces.</>}
-            </p>
-          )}
-          <div className="report-chart-toolbar"><div><h3>Gasto acumulado estimado</h3><p className="small muted">La línea punteada es la estimación{band ? '; la banda, el rango del 95 %' : ''}.</p></div><CategorySelect id="forecast-category" value={category} onChange={setCategory} categories={categories} /></div>
-          <ReportLineChart key={horizon} label="Detalle de la proyección" projected labels={labels} series={[{ name: 'Total estimado', values: curve, dashed: !!band, band }, ...(selected ? [{ name: categoryName(category), values: share(selected.cents), secondary: true }] : [])]} />
-          <div className="report-table-scroll" tabIndex={0}><table className="report-table report-forecast-table"><caption>Proyección por categoría · {isWeek ? 'próxima semana' : 'próximo mes'}</caption><thead><tr><th scope="col">Categoría</th><th scope="col">Estimado</th><th scope="col">Gastos fijos</th><th scope="col">Del total</th></tr></thead><tbody>{rows.filter((c) => c.cents !== 0 || c.upcoming !== 0).map((c) => <tr key={c.id}><th scope="row">{categoryName(c.id)}</th><td className="num">{money(c.cents)}</td><td className="num muted">{c.upcoming ? money(c.upcoming) : '—'}</td><td className="num muted">{total > 0 ? percent(c.cents / total * 100) : '0'}%</td></tr>)}</tbody><tfoot><tr><th scope="row">Total estimado</th><td className="num">{money(total)}</td><td className="num">{model?.upcoming_cents ? money(model.upcoming_cents) : '—'}</td><td className="num">{total > 0 ? '100' : '0'}%</td></tr></tfoot></table></div>
-          {model && model.methods.length > 1 && (
-            <details className="more"><summary>Comparar métodos</summary><div className="report-table-scroll" tabIndex={0}><table className="report-table report-forecast-table"><caption className="sr-only">Estimación de cada método y su error medio en periodos pasados</caption><thead><tr><th scope="col">Método</th><th scope="col">Estimado</th><th scope="col">Error medio</th></tr></thead><tbody>{model.methods.map((m) => <tr key={m.id} className={m.id === model.method ? 'report-chosen' : ''}><th scope="row">{horizonMethod[m.id]}{m.id === model.method ? ' (elegido)' : ''}</th><td className="num">{m.available ? money(m.projected_cents) : 'No disponible'}</td><td className="num">{m.mae_cents === null ? '—' : money(m.mae_cents)}</td></tr>)}</tbody></table></div></details>
-          )}
-          <p className="report-note small muted">Base: hasta {model?.history_days ?? f.history_days} días completos ({shortDate(f.history_from)} – {shortDate(f.history_to)}), incluyendo días sin gasto. Los gastos fijos se suman en su fecha y no se reparten por día{model?.outliers ? `; ${model.outliers === 1 ? 'una compra atípica reciente no se repite' : `${model.outliers} compras atípicas recientes no se repiten`} en la estimación` : ''}. El rango sale de simular el periodo miles de veces con tus días reales: es una probabilidad, no una garantía.</p>
-          {f.history_days < 28 && <p className="small st-warning">Historial limitado: la estimación puede variar bastante al registrar más movimientos.</p>}
+          <ul className="report-category-list">
+            {shown.map((x) => {
+              const c = cat(x.id)
+              const ch = changes.get(x.id)
+              const share = positive > 0 ? Math.max(0, Math.round((x.spent_cents / positive) * 100)) : 0
+              return (
+                <li key={x.id}>
+                  <button type="button" className="report-category-row" onClick={() => onFilter(x.id)} disabled={filtered} aria-label={`${c?.name ?? 'Categoría'}: ${money(x.spent_cents)}, ${share} % del gasto${filtered ? '' : '. Filtrar por esta categoría'}`}>
+                    <span className="category-symbol" style={{ background: `color-mix(in srgb, ${c?.color ?? '#888'} 16%, transparent)` }} aria-hidden="true">{c?.icon || '•'}</span>
+                    <span className="grow">
+                      <span className="report-category-top"><strong>{c?.name ?? 'Categoría'}</strong><span className="num">{money(x.spent_cents)}</span></span>
+                      <span className="track" aria-hidden="true"><span className="fill" style={{ width: `${share}%`, background: c?.color ?? 'var(--accent)' }} /></span>
+                      <span className="report-category-meta small"><span className="muted">{share} % del gasto</span>{ch && <Delta cur={ch.current_cents} prev={ch.previous_cents} coverage={coverage} label="" />}</span>
+                    </span>
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
+          {rows.length > 6 && <button type="button" className="btn btn-sm btn-ghost" onClick={() => setAll((v) => !v)} aria-expanded={all}>{all ? 'Ver menos' : `Ver todas (${rows.length})`}</button>}
+          <details className="more"><summary>Ver como tabla</summary>
+            <div className="report-table-scroll" tabIndex={0}><table className="report-table report-forecast-table"><caption className="sr-only">Gasto por categoría en el periodo y en el anterior</caption>
+              <thead><tr><th scope="col">Categoría</th><th scope="col">Periodo</th><th scope="col">Anterior</th><th scope="col">Diferencia</th><th scope="col">Cambio</th></tr></thead>
+              <tbody>{(r.category_changes ?? []).map((c) => <tr key={c.id}><th scope="row">{cat(c.id)?.name ?? 'Categoría'}</th><td className="num">{money(c.current_cents)}</td><td className="num">{money(c.previous_cents)}</td><td className="num">{signedMoney(c.diff_cents)}</td><td className="num">{c.pct === null ? '—' : signedPct(c.pct)}</td></tr>)}</tbody>
+            </table></div>
+          </details>
         </>
+      )}
+    </section>
+  )
+}
+
+export function MerchantsCard({ report: r }: { report: ReportSummary }) {
+  const list = r.merchants ?? []
+  const coverage = r.previous?.coverage
+  return (
+    <section className="panel report-card" aria-labelledby="h-merchants">
+      <div className="section-head"><div><h2 id="h-merchants">Comercios con más gasto</h2><p className="small muted">Gasto neto en cada comercio durante el periodo.</p></div></div>
+      {list.length === 0 ? <p className="small muted">Sin compras con comercio registrado en este periodo.</p> : (
+        <ol className="report-merchants">
+          {list.map((m) => (
+            <li key={m.name}>
+              <span className="grow"><strong>{m.name}</strong><span className="small muted"> · {m.purchase_count} {m.purchase_count === 1 ? 'compra' : 'compras'}</span><br /><Delta cur={m.spent_cents} prev={m.previous_cents} coverage={coverage} label="" /></span>
+              <span className="num">{money(m.spent_cents)}</span>
+            </li>
+          ))}
+        </ol>
       )}
     </section>
   )

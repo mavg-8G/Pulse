@@ -11,28 +11,23 @@ import (
 // GET /api/reports/projection: proyección de fin de mes con el método que menos se equivocó (fase 13).
 func (s *Server) reportProjection(w http.ResponseWriter, r *http.Request) error {
 	id := ident(r)
-	ctx := r.Context()
 	loc := s.loc(id)
 	now := s.clock.Now().In(loc)
 	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, loc)
-	cats, err := s.store.Categories(ctx, id.user.ID)
+	cats, err := s.store.Categories(r.Context(), id.user.ID)
 	if err != nil {
 		return err
 	}
-	txs, err := s.store.ProjectionActivity(ctx, id.user.ID, forecast.WindowStart(today).UTC(), now)
-	if err != nil {
-		return err
-	}
-	first, err := s.store.FirstActivity(ctx, id.user.ID)
+	filter, err := s.parseReportFilter(r, id, cats)
 	if err != nil {
 		return err
 	}
 	monthEnd := time.Date(now.Year(), now.Month()+1, 0, 0, 0, 0, 0, loc)
-	upcoming, err := s.store.UpcomingRecurring(ctx, id.user.ID, today.Format("2006-01-02"), monthEnd.Format("2006-01-02"))
+	in, err := s.projectionData(r, id, today, cats, filter, today.Format("2006-01-02"), monthEnd.Format("2006-01-02"))
 	if err != nil {
 		return err
 	}
-	writeJSON(w, 200, forecast.Project(projectionInput(today, first, cats, txs, upcoming)))
+	writeJSON(w, 200, forecast.Project(in))
 	return nil
 }
 

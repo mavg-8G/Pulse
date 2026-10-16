@@ -31,8 +31,8 @@ const (
 	MinOutlierSample = 20 // compras necesarias para detectar atípicos
 )
 
-// Methods en orden de preferencia ante empates: primero el más simple.
-var Methods = []string{Ritmo, Regresion, MediaMovil, DiaSemana, Perfil}
+// Methods en orden de complejidad: ante empates (o mejoras menores que MinGain) gana el más simple.
+var Methods = []string{Ritmo, Reciente, Regresion, Robusto, MediaMovil, DiaSemana, Perfil, Holt, HoltWinters, Combinado}
 
 // Tx es un movimiento ya llevado a la fecha local y a su categoría raíz.
 type Tx struct {
@@ -112,6 +112,13 @@ type Result struct {
 	Outliers       []Outlier  `json:"outliers"`
 	OutlierAbove   *int64     `json:"outlier_threshold_cents"`
 	Warnings       []string   `json:"warnings"`
+	// Meses cerrados usados para elegir, error típico del elegido (% del cierre real medio), cuánto menos se
+	// equivocó que el ritmo del mes, y fracción de meses cuyo cierre cayó en el rango hecho sin ese mes.
+	Backtests       int      `json:"backtests"`
+	TypicalErrorPct *float64 `json:"typical_error_pct"`
+	ImprovementPct  *float64 `json:"improvement_pct"`
+	Coverage        *float64 `json:"coverage"`
+	Confidence      string   `json:"confidence"`
 	// Acumulado diario del mes en curso (hasta hoy) y del mes anterior completo.
 	Cumulative         []int64 `json:"cumulative"`
 	PreviousCumulative []int64 `json:"previous_cumulative"`
@@ -403,6 +410,26 @@ func (e *engine) predict(method string, m month, upcoming map[string]float64) (m
 		}
 		return out, true
 	}
+	switch method { // métodos compartidos con el horizonte: pronostican cada día que falta con datos hasta el día k
+	case Reciente, Robusto, Holt, HoltWinters, Combinado:
+		id := method
+		if id == Reciente {
+			id = Ritmo
+		}
+		days := make([]int, 0, m.days-m.k)
+		for j := end; j < m.s+m.days; j++ {
+			days = append(days, j)
+		}
+		rest, ok := e.point(id, end, days)
+		if !ok {
+			return nil, false
+		}
+		for _, c := range e.cats {
+			s := e.byCat[c]
+			out[c] = sum(s.variable, m.s, end) + rest[c] + sum(s.fixed, m.s, end) + upcoming[c]
+		}
+		return out, true
+	}
 	p := 0.0
 	if method == Perfil {
 		if p = e.profile(m); p == 0 {
@@ -428,9 +455,54 @@ func total(m map[string]float64) float64 {
 	return t
 }
 
+// rounded suma las categorías ya redondeadas a centavos: así el total coincide con la suma de sus filas.
+func rounded(m map[string]float64) int64 {
+	var t int64
+	for _, v := range m {
+		t += int64(math.Round(v))
+	}
+	return t
+}
+
 func ptr[T any](v T) *T { return &v }
 
+// monthEval: un mes cerrado evaluado al mismo día que hoy.
+type monthEval struct {
+	mo     month
+	actual float64
+	preds  map[string]float64 // por método (total); ausente = no disponible
+}
+
+// mae: error absoluto medio de un método en los meses en que estuvo disponible.
+func mae(id string, evals []monthEval) float64 {
+	var s float64
+	var n int
+	for _, ev := range evals {
+		if p, ok := ev.preds[id]; ok {
+			s += math.Abs(p - ev.actual)
+			n++
+		}
+	}
+	if n == 0 {
+		return math.Inf(1)
+	}
+	return s / float64(n)
+}
+
+func methodByID(list []Method, id string) Method {
+	for _, m := range list {
+		if m.ID == id {
+			return m
+		}
+	}
+	return Method{ID: id}
+}
+
 func Project(in Input) *Result {
+	return project(in, Methods)
+}
+
+func project(in Input, methods []string) *Result {
 	e := newEngine(in)
 	cur := monthStart(in.Today)
 	m := month{start: cur, s: e.idx(cur), k: in.Today.Day(), days: daysIn(cur)}
@@ -441,12 +513,7 @@ func Project(in Input) *Result {
 	}
 
 	// Backtest: cada mes cerrado evaluable, al mismo día (o el último si el mes es más corto).
-	type eval struct {
-		mo     month
-		actual float64
-		preds  map[string]float64 // por método (total); ausente = no disponible
-	}
-	var evals []eval
+	var evals []monthEval
 	for j := 1; j <= BacktestMonths; j++ {
 		ms := cur.AddDate(0, -j, 0)
 		if !e.evaluable(ms) {
@@ -455,13 +522,13 @@ func Project(in Input) *Result {
 		mo := month{start: ms, s: e.idx(ms), days: daysIn(ms)}
 		mo.k = min(m.k, mo.days)
 		end := mo.s + mo.days
-		ev := eval{mo: mo, actual: sum(e.total.variable, mo.s, end) + sum(e.total.fixed, mo.s, end), preds: map[string]float64{}}
+		ev := monthEval{mo: mo, actual: sum(e.total.variable, mo.s, end) + sum(e.total.fixed, mo.s, end), preds: map[string]float64{}}
 		// En un mes cerrado, los cobros fijos posteriores al día k ya estaban programados: se dan por conocidos.
 		known := map[string]float64{}
 		for _, c := range e.cats {
 			known[c] = sum(e.byCat[c].recur, mo.s+mo.k, end)
 		}
-		for _, id := range Methods {
+		for _, id := range methods {
 			if p, ok := e.predict(id, mo, known); ok {
 				ev.preds[id] = total(p)
 			}
@@ -482,12 +549,12 @@ func Project(in Input) *Result {
 	spent := sum(e.total.variable, m.s, end) + sum(e.total.fixed, m.s, end)
 	res.SpentCents = int64(math.Round(spent))
 	current := map[string]map[string]float64{}
-	for _, id := range Methods {
+	for _, id := range methods {
 		met := Method{ID: id}
 		if p, ok := e.predict(id, m, upcoming); ok && e.first < e.n {
 			current[id] = p
 			met.Available = true
-			met.ProjectedCents = int64(math.Round(total(p)))
+			met.ProjectedCents = rounded(p)
 		}
 		var errs []float64
 		var pct []float64
@@ -525,17 +592,33 @@ func Project(in Input) *Result {
 	}
 	res.BaselineCents = res.Methods[0].ProjectedCents
 
-	// Selección: menor error absoluto medio entre los métodos evaluables en todos los meses y disponibles hoy.
+	// Selección: menor error absoluto medio entre los métodos evaluables en todos los meses y disponibles hoy; uno
+	// más complejo solo gana si mejora en al menos MinGain al más simple que va ganando. Sin meses para comparar se
+	// usa la estimación prudente: lo gastado, los fijos programados y el promedio diario reciente para el resto
+	// (sin tendencias); si tampoco hay 7 días de historial, el ritmo del mes.
 	res.Method = Ritmo
+	maes := map[string]float64{}
 	if len(evals) >= 2 {
-		best := math.Inf(1)
+		errs := map[string][]float64{}
 		for _, met := range res.Methods {
-			if met.Candidate && met.Available && met.MAECents != nil && float64(*met.MAECents) < best {
-				best, res.Method = float64(*met.MAECents), met.ID
+			if met.Candidate && met.Available && met.MAECents != nil {
+				maes[met.ID] = mae(met.ID, evals)
+				for _, ev := range evals {
+					errs[met.ID] = append(errs[met.ID], ev.preds[met.ID]-ev.actual)
+				}
 			}
+		}
+		if id := pick(methods, errs, selectionGain); id != "" {
+			res.Method = id
 		}
 	} else if e.first < e.n {
 		res.Warnings = append(res.Warnings, "sin_meses_cerrados")
+		if _, ok := current[Reciente]; ok {
+			res.Method = Reciente
+		}
+	}
+	if base, ok := maes[Ritmo]; ok && base > 0 {
+		res.ImprovementPct = ptr(math.Round((1-maes[res.Method]/base)*1000) / 10)
 	}
 	var chosen Method
 	for _, met := range res.Methods {
@@ -558,7 +641,7 @@ func Project(in Input) *Result {
 		}
 	}
 	if res.LowCents == nil { // tampoco hay historial para simular: se usa el rango de la regresión si existe
-		if r := res.Methods[1]; r.Available && r.LowCents != nil {
+		if r := methodByID(res.Methods, Regresion); r.Available && r.LowCents != nil {
 			lo, hi := *r.LowCents, *r.HighCents
 			shift := res.ProjectedCents - r.ProjectedCents
 			res.LowCents, res.HighCents = ptr(max(lo+shift, res.SpentCents)), ptr(max(hi+shift, res.ProjectedCents))
@@ -590,6 +673,49 @@ func Project(in Input) *Result {
 			}
 		}
 		sort.SliceStable(res.ByCategory, func(i, j int) bool { return res.ByCategory[i].ProjectedCents > res.ByCategory[j].ProjectedCents })
+	}
+
+	// Error típico y cobertura del rango, dejando fuera cada mes al construir su propio rango (validación cruzada
+	// en el tiempo con los meses ya cerrados).
+	res.Backtests = len(evals)
+	var errs []float64
+	var actualMean float64
+	for _, ev := range evals {
+		if p, ok := ev.preds[res.Method]; ok {
+			errs = append(errs, p-ev.actual)
+			actualMean += ev.actual
+		}
+	}
+	if len(errs) > 0 && actualMean > 0 {
+		actualMean /= float64(len(errs))
+		var a float64
+		for _, x := range errs {
+			a += math.Abs(x)
+		}
+		res.TypicalErrorPct = ptr(math.Round(a/float64(len(errs))/actualMean*1000) / 10)
+	}
+	if len(errs) >= 4 {
+		in := 0
+		for i, x := range errs {
+			rest := append(append([]float64(nil), errs[:i]...), errs[i+1:]...)
+			var ss float64
+			for _, r := range rest {
+				ss += r * r
+			}
+			n := float64(len(rest))
+			if math.Abs(x) <= tValue(len(rest)-1)*math.Sqrt(ss/n)*math.Sqrt(1+1/n)+0.5 {
+				in++
+			}
+		}
+		res.Coverage = ptr(math.Round(float64(in)/float64(len(errs))*100) / 100)
+	}
+	switch {
+	case e.first >= e.n || len(evals) < 2 || m.k < MinRegressionDay:
+		res.Confidence = "baja"
+	case len(evals) < 4 || res.LowCents == nil || (res.Coverage != nil && *res.Coverage < 0.75):
+		res.Confidence = "media"
+	default:
+		res.Confidence = "alta"
 	}
 
 	// Precisión: proyección al mismo día contra el cierre real.

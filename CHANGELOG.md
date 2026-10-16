@@ -4,6 +4,17 @@ Cambios relevantes de Pulse. Las entradas «Sin publicar» describen cambios pos
 
 La guía de uso y desarrollo está en [`README.md`](README.md); el roadmap y las aceptaciones pendientes, en [`PLAN.md`](PLAN.md).
 
+## Sin publicar — rediseño de Reportes y predicción de gastos (16 oct 2026)
+
+- **Reportes** se reordena en Resumen, Conclusiones, Evolución, Categorías, Comercios, Cuentas y Proyecciones, con navegación entre secciones, esqueleto de carga, error con reintento y estado vacío.
+- Periodo de 1, 3, 6 o 12 meses o un rango de meses; comparación con el periodo anterior de igual duración o con el mismo periodo del año pasado. Filtros por categoría y cuenta (las fusionadas cuentan como su principal) que aplican a todas las secciones, a las proyecciones y al CSV, y se conservan en la URL y en la sesión.
+- Resumen con gasto neto, compras, devoluciones y promedio diario, cada uno con la diferencia en importe y, solo si el periodo comparado está completo y tiene gasto, en porcentaje. Conclusiones calculadas con las cifras del servidor: categorías y comercios que más subieron o bajaron, concentración del gasto y cambio del promedio diario.
+- Gráficas de líneas que ocupan el ancho disponible, con leyenda que oculta series, valores del punto tocado (también con flechas del teclado), línea del periodo comparado, proyección punteada y rango sombreado. En móvil, filtros plegables y detalle progresivo.
+- API: `GET /api/reports/summary` acepta `category`, `account` y `compare=year` y devuelve `period`, `previous` (con cobertura completo/parcial/sin_datos), `series`, `category_changes` y `merchants` (los 8 con más gasto). `projection` y `export.csv` aceptan los mismos filtros (las proyecciones de semana y mes van en el resumen). Todo por usuario y en centavos; una categoría o cuenta ajena devuelve 400.
+- **Predicción**: nuevos métodos (promedio robusto de Huber, Holt con tendencia amortiguada, Holt-Winters diario con estacionalidad semanal, combinación) evaluados con validación temporal. Un método más complejo solo reemplaza al más simple si su error medio es al menos 10 % menor y gana en más de la mitad de los periodos. Los gastos fijos programados se suman una vez y no se extrapolan; el total es la suma de las categorías. Nuevos campos `typical_error_pct`, `improvement_pct`, `coverage`, `confidence` y `warnings`; sin meses cerrados el cierre del mes usa lo gastado + fijos + promedio reciente con «Confianza baja».
+- Evaluación reproducible en [`docs/PREDICCIONES.md`](docs/PREDICCIONES.md): en el cierre de mes el error baja mucho frente al ritmo del mes (por ejemplo, 75 % → 7 % con gastos fijos mensuales); en semana y 30 días el promedio diario sigue siendo difícil de superar y la selección nueva queda a menos de 1,6 puntos de él.
+- Verificación: `gofmt`, `go vet` y `go test ./...` correctos, con pruebas nuevas de los modelos, la regla de selección, la coherencia total/categorías, la estimación prudente, filtros y comparación por API, aislamiento entre usuarios y zonas horarias (Guayaquil y Tokio). 69 pruebas Vitest. Suite E2E completa en escritorio y móvil: 78 de 78 (Reportes 8 de 8), y revisión visual en ambos temas y anchos.
+
 ## Sin publicar — fusión lógica de cuentas (16 oct 2026)
 
 - **Ajustes → Cuentas y tarjetas**: cada cuenta tiene **Fusionar con…** para vincularla a una cuenta principal cuando son la misma tarjeta (por ejemplo, correos con y sin los últimos dígitos). Ninguna se borra y la lectura de correos sigue asignando gastos a cualquiera de las dos. **Separar** deshace el vínculo sin mover gastos.

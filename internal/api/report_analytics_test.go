@@ -20,7 +20,7 @@ func TestReportAnalytics(t *testing.T) {
 		{AccountID: "a", CategoryID: "food", Kind: "purchase", AmountCents: 700, OccurredAt: todayAt(now, 0)},
 		{AccountID: "a", CategoryID: "food", Kind: "purchase", AmountCents: 99999, OccurredAt: todayAt(now, 1)},
 	}
-	r := buildReportSummary([]string{"2026-09", "2026-10"}, from, from.AddDate(0, 2, 0), now, cats, activity)
+	r := buildReportSummary([]string{"2026-09", "2026-10"}, from, from.AddDate(0, 2, 0), now, cats, activity, reportOptions{})
 	if r.TotalCents != 12800 || r.PurchaseCents != 14700 || r.RefundCents != 1900 || r.PurchaseCount != 2 || r.ElapsedDays != 44 {
 		t.Fatalf("statistics: %+v", r)
 	}
@@ -44,7 +44,7 @@ func TestReportAnalytics(t *testing.T) {
 		t.Fatalf("category totals: %+v", f)
 	}
 	// Period selection must not alter the history used to project.
-	r2 := buildReportSummary([]string{"2026-10"}, from.AddDate(0, 1, 0), from.AddDate(0, 2, 0), now, cats, activity)
+	r2 := buildReportSummary([]string{"2026-10"}, from.AddDate(0, 1, 0), from.AddDate(0, 2, 0), now, cats, activity, reportOptions{})
 	if r2.Forecast.WeekCents != f.WeekCents {
 		t.Fatalf("forecast changed with report range: %+v", r2.Forecast)
 	}
@@ -65,7 +65,7 @@ func TestForecastCalendarAndSparseHistory(t *testing.T) {
 			if days > 0 {
 				activity = append(activity, store.ReportActivity{CategoryID: "food", Kind: "purchase", AmountCents: 700, OccurredAt: todayAt(now, -days)})
 			}
-			r := buildReportSummary([]string{"2028-01"}, from, from.AddDate(0, 1, 0), now, cats, activity)
+			r := buildReportSummary([]string{"2028-01"}, from, from.AddDate(0, 1, 0), now, cats, activity, reportOptions{})
 			if r.Forecast.Ready != (days >= 7 && days <= 90) {
 				t.Fatalf("history=%d: %+v", days, r.Forecast)
 			}
@@ -84,7 +84,7 @@ func TestReportGroupsByUserLocalMonth(t *testing.T) {
 	from := time.Date(2026, 9, 1, 0, 0, 0, 0, loc)
 	now := time.Date(2026, 10, 14, 10, 0, 0, 0, loc)
 	activity := []store.ReportActivity{{CategoryID: "food", Kind: "purchase", AmountCents: 100, OccurredAt: time.Date(2026, 10, 1, 2, 0, 0, 0, time.UTC)}}
-	r := buildReportSummary([]string{"2026-09", "2026-10"}, from, from.AddDate(0, 2, 0), now, []store.Category{{ID: "food"}}, activity)
+	r := buildReportSummary([]string{"2026-09", "2026-10"}, from, from.AddDate(0, 2, 0), now, []store.Category{{ID: "food"}}, activity, reportOptions{})
 	if r.Months[0].SpentCents != 100 || r.Months[1].SpentCents != 0 {
 		t.Fatalf("local month: %+v", r.Months)
 	}
@@ -101,7 +101,7 @@ func TestGraficasDiaDeSemanaMapaYCuentas(t *testing.T) {
 		{AccountID: "debito", CategoryID: "food", Kind: "refund", AmountCents: 300, OccurredAt: time.Date(2026, 10, 14, 8, 0, 0, 0, loc)},   // miércoles (hoy)
 		{AccountID: "visa", CategoryID: "food", Kind: "purchase", AmountCents: 5000, OccurredAt: time.Date(2026, 7, 20, 8, 0, 0, 0, loc)},   // fuera del mapa
 	}
-	r := buildReportSummary([]string{"2026-10"}, from.UTC(), from.AddDate(0, 1, 0).UTC(), now, cats, activity)
+	r := buildReportSummary([]string{"2026-10"}, from.UTC(), from.AddDate(0, 1, 0).UTC(), now, cats, activity, reportOptions{})
 	// Del 1 (jueves) al 14 de octubre hubo 2 lunes (5 y 12) y 2 miércoles (7 y 14).
 	if w := r.Weekdays[0]; w.SpentCents != 2000 || w.Days != 2 || w.AvgCents != 1000 {
 		t.Fatalf("lunes: %+v", w)
@@ -122,7 +122,7 @@ func TestGraficasDiaDeSemanaMapaYCuentas(t *testing.T) {
 		t.Fatalf("por cuenta: %+v", acc)
 	}
 	// Periodo vacío: siete días, sin dividir entre cero.
-	empty := buildReportSummary([]string{"2026-11"}, from.AddDate(0, 1, 0).UTC(), from.AddDate(0, 2, 0).UTC(), now, cats, nil)
+	empty := buildReportSummary([]string{"2026-11"}, from.AddDate(0, 1, 0).UTC(), from.AddDate(0, 2, 0).UTC(), now, cats, nil, reportOptions{})
 	for _, w := range empty.Weekdays {
 		if w.Days != 0 || w.AvgCents != 0 {
 			t.Fatalf("mes futuro: %+v", w)

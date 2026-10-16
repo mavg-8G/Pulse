@@ -306,6 +306,7 @@ func (s *Store) DeleteRecurring(ctx context.Context, userID, id string, expect i
 // ProjectionTx es lo mínimo que necesita la proyección de fin de mes (fase 13): sin descifrar nada.
 // Recurring marca los cobros que generó un gasto fijo (manual con hash de recurrente).
 type ProjectionTx struct {
+	AccountID        string // cuenta principal si la del movimiento está fusionada
 	CategoryID, Kind string
 	AmountCents      int64
 	OccurredAt       time.Time
@@ -313,8 +314,10 @@ type ProjectionTx struct {
 }
 
 func (s *Store) ProjectionActivity(ctx context.Context, userID string, from, now time.Time) ([]ProjectionTx, error) {
-	rows, err := s.DB.QueryContext(ctx, `SELECT category_id, kind, amount_cents, occurred_at, source = 'manual' AND message_hash IS NOT NULL
-		FROM transactions WHERE user_id = ? AND occurred_at >= ? AND occurred_at <= ? ORDER BY occurred_at`, userID, TS(from), TS(now))
+	rows, err := s.DB.QueryContext(ctx, `SELECT COALESCE(a.merged_into, t.account_id), t.category_id, t.kind, t.amount_cents, t.occurred_at,
+		t.source = 'manual' AND t.message_hash IS NOT NULL
+		FROM transactions t LEFT JOIN accounts a ON a.id = t.account_id AND a.user_id = t.user_id
+		WHERE t.user_id = ? AND t.occurred_at >= ? AND t.occurred_at <= ? ORDER BY t.occurred_at`, userID, TS(from), TS(now))
 	if err != nil {
 		return nil, err
 	}
@@ -323,7 +326,7 @@ func (s *Store) ProjectionActivity(ctx context.Context, userID string, from, now
 	for rows.Next() {
 		var t ProjectionTx
 		var occurred string
-		if err := rows.Scan(&t.CategoryID, &t.Kind, &t.AmountCents, &occurred, &t.Recurring); err != nil {
+		if err := rows.Scan(&t.AccountID, &t.CategoryID, &t.Kind, &t.AmountCents, &occurred, &t.Recurring); err != nil {
 			return nil, err
 		}
 		t.OccurredAt = ParseTS(occurred)
@@ -334,6 +337,7 @@ func (s *Store) ProjectionActivity(ctx context.Context, userID string, from, now
 
 // UpcomingRecurring devuelve los gastos fijos con próximo cobro en [from, to] (AAAA-MM-DD), sin descifrar el comercio.
 type UpcomingCharge struct {
+	AccountID   string // cuenta principal si la del gasto fijo está fusionada
 	CategoryID  string
 	AmountCents int64
 	Date        string
@@ -342,8 +346,9 @@ type UpcomingCharge struct {
 // UpcomingRecurring lista los cobros de gastos fijos con fecha entre from y to (AAAA-MM-DD, ambas incluidas): el
 // próximo de cada uno y los de los meses siguientes en su mismo día (el último del mes si ese día no existe).
 func (s *Store) UpcomingRecurring(ctx context.Context, userID, from, to string) ([]UpcomingCharge, error) {
-	rows, err := s.DB.QueryContext(ctx, `SELECT category_id, amount_cents, day, next_date FROM recurring
-		WHERE user_id = ? AND next_date <= ? ORDER BY next_date`, userID, to)
+	rows, err := s.DB.QueryContext(ctx, `SELECT COALESCE(a.merged_into, r.account_id), r.category_id, r.amount_cents, r.day, r.next_date
+		FROM recurring r LEFT JOIN accounts a ON a.id = r.account_id AND a.user_id = r.user_id
+		WHERE r.user_id = ? AND r.next_date <= ? ORDER BY r.next_date`, userID, to)
 	if err != nil {
 		return nil, err
 	}
@@ -352,13 +357,13 @@ func (s *Store) UpcomingRecurring(ctx context.Context, userID, from, to string) 
 	for rows.Next() {
 		var u UpcomingCharge
 		var day int
-		if err := rows.Scan(&u.CategoryID, &u.AmountCents, &day, &u.Date); err != nil {
+		if err := rows.Scan(&u.AccountID, &u.CategoryID, &u.AmountCents, &day, &u.Date); err != nil {
 			return nil, err
 		}
 		d, err := time.Parse("2006-01-02", u.Date)
 		for i := 0; err == nil && i < 120 && d.Format("2006-01-02") <= to; i++ {
 			if k := d.Format("2006-01-02"); k >= from {
-				out = append(out, UpcomingCharge{CategoryID: u.CategoryID, AmountCents: u.AmountCents, Date: k})
+				out = append(out, UpcomingCharge{AccountID: u.AccountID, CategoryID: u.CategoryID, AmountCents: u.AmountCents, Date: k})
 			}
 			next := time.Date(d.Year(), d.Month()+1, 1, 0, 0, 0, 0, time.UTC)
 			d = time.Date(next.Year(), next.Month(), min(day, time.Date(next.Year(), next.Month()+1, 0, 0, 0, 0, 0, time.UTC).Day()), 0, 0, 0, 0, time.UTC)

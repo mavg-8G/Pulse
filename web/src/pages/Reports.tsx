@@ -1,40 +1,66 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useSearchParams } from 'react-router-dom'
 import { MonthSwitch } from '../components/AppShell'
 import { useToast } from '../components/Toast'
-import { ReportOverview, ForecastCard } from '../components/ReportAnalytics'
-import { AccountEvolution, CategoryCompare, ProjectionCard, SpendingHeatmap, WeekdayChart } from '../components/ReportCharts'
+import { CategoriesSection, Delta, EvolutionSection, fullDate, MerchantsCard, SummarySection } from '../components/ReportAnalytics'
+import { ForecastSection } from '../components/ReportForecast'
+import { AccountEvolution, SpendingHeatmap, WeekdayChart } from '../components/ReportCharts'
 import { api, errorMessage, get } from '../lib/api'
 import { monthLabel, monthOf, shiftMonth } from '../lib/dates'
 import { centsToInput, money, moneyShort, parseAmount } from '../lib/money'
 import { useAccounts, useCategories, useMe } from '../lib/queries'
-import type { Account, Category, Reconciliation, ReportSummary } from '../lib/types'
+import { apiQuery, defaultState, readState, saveState, stateParams, stateRange, type Preset, type ReportState } from '../lib/reports'
+import type { Account, Category, Projection, Reconciliation, ReportSummary } from '../lib/types'
 
-const ranges = [3, 6, 12] as const
+const presets: { id: Preset; label: string }[] = [
+  { id: '1', label: 'Este mes' },
+  { id: '3', label: '3 meses' },
+  { id: '6', label: '6 meses' },
+  { id: '12', label: '12 meses' },
+  { id: 'custom', label: 'Elegir' },
+]
 
 export function Reports() {
   const { data: me } = useMe()
   const tz = me?.timezone ?? 'America/Guayaquil'
   const current = monthOf(new Date(), tz)
-  const [span, setSpan] = useState<(typeof ranges)[number]>(6)
-  const from = shiftMonth(current, -(span - 1))
-  const { data: r, isLoading, isPlaceholderData, error } = useQuery({ queryKey: ['reports', from, current], queryFn: () => get<ReportSummary>(`/api/reports/summary?from=${from}&to=${current}`), placeholderData: keepPreviousData })
+  const [search, setSearch] = useSearchParams()
+  const state = useMemo(() => readState(search, current), [search, current])
+  // Los filtros viven en la URL (se pueden compartir y sobreviven al recargar) y en la sesión (vuelven al regresar).
+  useEffect(() => {
+    saveState(state)
+    const want = stateParams(state).toString()
+    if (search.toString() !== want) setSearch(stateParams(state), { replace: true })
+  }, [state, search, setSearch])
+  const update = (patch: Partial<ReportState>) => setSearch(stateParams({ ...state, ...patch }))
+  const range = stateRange(state, current)
+  const query = apiQuery(state, current)
+  const filterQuery = apiQuery(state, current, false)
+  const { data: r, isLoading, isFetching, error, refetch } = useQuery({ queryKey: ['reports', query], queryFn: () => get<ReportSummary>(`/api/reports/summary?${query}`), placeholderData: keepPreviousData })
+  const projection = useQuery({ queryKey: ['projection', filterQuery], queryFn: () => get<Projection>(`/api/reports/projection${filterQuery ? `?${filterQuery}` : ''}`) })
   const { data: categories = [] } = useCategories()
   const { data: accounts = [] } = useAccounts(true)
   const toast = useToast()
   const [busy, setBusy] = useState(false)
+  const [filtersOpen, setFiltersOpen] = useState(false)
   const cats = new Map(categories.map((c) => [c.id, c]))
   const accs = new Map(accounts.map((a) => [a.id, a]))
+  const roots = categories.filter((c) => !c.parent_id)
+  const mains = accounts.filter((a) => !a.merged_into)
+  const active = (state.category ? 1 : 0) + (state.account ? 1 : 0)
+  const compareName = state.compare === 'year' ? 'el mismo periodo del año pasado' : 'el periodo anterior'
+  const scope = [state.category && cats.get(state.category)?.name, state.account && accs.get(state.account)?.name].filter(Boolean).join(' · ')
 
   async function exportCsv() {
     setBusy(true)
     try {
-      const csv = await api<string>('GET', `/api/reports/export.csv?from=${from}&to=${current}`) // pide step-up si hace falta
-      const url = URL.createObjectURL(new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' })) // BOM: Excel lee bien las tildes
-      const a = Object.assign(document.createElement('a'), { href: url, download: `pulse-${from}-a-${current}.csv` })
+      const csv = await api<string>('GET', `/api/reports/export.csv?${apiQuery({ ...state, compare: 'previous' }, current)}`) // pide step-up si hace falta
+      const url = URL.createObjectURL(new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' })) // BOM: Excel lee bien las tildes
+      const a = Object.assign(document.createElement('a'), { href: url, download: `pulse-${range.from}-a-${range.to}${active ? '-filtrado' : ''}.csv` })
       a.click()
       URL.revokeObjectURL(url)
-      toast('CSV descargado')
+      toast(active ? 'CSV descargado con los filtros aplicados' : 'CSV descargado')
     } catch (e) {
       toast(errorMessage(e))
     } finally {
@@ -45,58 +71,77 @@ export function Reports() {
   return (
     <>
       <div className="page-head">
-        <div><p className="page-kicker">Una mirada más amplia</p><h1>Reportes</h1><p className="page-description">Entiende tus gastos y anticipa lo que viene.</p></div>
-        <div className="report-tools">
-          <div className="seg" role="group" aria-label="Periodo">
-            {ranges.map((n) => <button key={n} aria-pressed={span === n} onClick={() => setSpan(n)}>{n} meses</button>)}
-          </div>
-          <button className="btn btn-sm" onClick={exportCsv} disabled={busy}>Exportar CSV</button>
-        </div>
+        <div><p className="page-kicker">Una mirada más amplia</p><h1>Reportes</h1><p className="page-description">En qué gastas, cómo cambia tu consumo y cuánto podrías gastar después.</p></div>
       </div>
-      {isLoading && <p className="loading">Cargando…</p>}
-      {isPlaceholderData && <p className="small muted" role="status">Actualizando periodo…</p>}
-      {error && <p className="error" role="alert">{errorMessage(error)}</p>}
-      {r && (
-        <>
-          <ReportOverview report={r} categories={categories} current={current} />
-          <ProjectionCard categories={categories} />
-          <CategoryCompare report={r} categories={categories} current={current} />
-          <ForecastCard forecast={r.forecast} categories={categories} />
-          <div className="report-grid">
-            <Breakdown title="Por categoría" id="h-rcat" total={r.total_cents} rows={r.by_category.map((x) => ({ key: x.id, cents: x.spent_cents, name: cats.get(x.id)?.name ?? 'Categoría', icon: cats.get(x.id)?.icon, color: cats.get(x.id)?.color }))} />
-            <AccountSpending report={r} accountName={(id) => accs.get(id)?.name ?? 'Cuenta'} account={(id) => accs.get(id)} category={(id) => cats.get(id)} />
+      <section className="panel report-toolbar" aria-label="Periodo y filtros">
+        <div className="report-toolbar-main">
+          <div className="seg report-presets" role="group" aria-label="Periodo">
+            {presets.map((p) => <button key={p.id} aria-pressed={state.preset === p.id} onClick={() => update(p.id === 'custom' ? { preset: 'custom', from: range.from, to: range.to } : { preset: p.id })}>{p.label}</button>)}
           </div>
-          <AccountEvolution report={r} accounts={accounts} />
+          <div className="report-toolbar-actions">
+            <button type="button" className="btn btn-sm report-filters-toggle" aria-expanded={filtersOpen} aria-controls="report-filters" onClick={() => setFiltersOpen((v) => !v)}>Filtros{active ? ` (${active})` : ''}</button>
+            <button type="button" className="btn btn-sm" onClick={exportCsv} disabled={busy}>{busy ? 'Exportando…' : 'Exportar CSV'}</button>
+          </div>
+        </div>
+        <div id="report-filters" className={`report-filter-row ${filtersOpen ? 'is-open' : ''}`}>
+          {state.preset === 'custom' && (
+            <>
+              <label className="field-inline">Desde<input className="input" type="month" value={range.from} min={shiftMonth(range.to, -35)} max={range.to} onChange={(e) => e.target.value && update({ from: e.target.value })} /></label>
+              <label className="field-inline">Hasta<input className="input" type="month" value={range.to} min={range.from} max={current} onChange={(e) => e.target.value && update({ to: e.target.value })} /></label>
+            </>
+          )}
+          <label className="field-inline">Comparar con<select className="input" value={state.compare} onChange={(e) => update({ compare: e.target.value as ReportState['compare'] })}><option value="previous">Periodo anterior</option><option value="year">Mismo periodo del año pasado</option></select></label>
+          <label className="field-inline">Categoría<select className="input" value={state.category} onChange={(e) => update({ category: e.target.value })}><option value="">Todas</option>{roots.map((c) => <option key={c.id} value={c.id}>{c.name}{c.archived ? ' (archivada)' : ''}</option>)}</select></label>
+          <label className="field-inline">Cuenta<select className="input" value={state.account} onChange={(e) => update({ account: e.target.value })}><option value="">Todas</option>{mains.map((a) => <option key={a.id} value={a.id}>{a.name}{a.archived ? ' (archivada)' : ''}</option>)}</select></label>
+          {(active > 0 || state.preset !== defaultState.preset || state.compare !== 'previous') && <button type="button" className="btn btn-sm btn-ghost" onClick={() => setSearch(stateParams(defaultState))}>Restablecer</button>}
+        </div>
+        <p className="small muted report-period-line" aria-live="polite">
+          {r?.period ? <>{fullDate(r.period.from)} – {fullDate(r.period.to)} · {r.period.days} {r.period.days === 1 ? 'día' : 'días'}</> : <>{monthLabel(range.from)} – {monthLabel(range.to)}</>}
+          {scope && <> · solo <strong>{scope}</strong></>}
+          {isFetching && !isLoading && <span role="status"> · Actualizando…</span>}
+        </p>
+      </section>
+      <nav className="report-jump" aria-label="Secciones de Reportes">
+        {[['resumen', 'Resumen'], ['evolucion', 'Evolución'], ['categorias', 'Categorías'], ['cuentas', 'Cuentas'], ['proyecciones', 'Proyecciones'], ['habitos', 'Hábitos']].map(([id, label]) => <a key={id} href={`#${id}`} onClick={(e) => { e.preventDefault(); document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }}>{label}</a>)}
+      </nav>
+      {isLoading && <ReportSkeleton />}
+      {error && !r && (
+        <div className="panel report-card report-error" role="alert"><h2>No se pudo cargar el reporte</h2><p className="muted">{errorMessage(error)}</p><button className="btn btn-sm" onClick={() => refetch()}>Reintentar</button></div>
+      )}
+      {error && r && <p className="error small" role="alert">No se pudo actualizar: {errorMessage(error)}. Se muestra el último periodo cargado.</p>}
+      {r && (
+        <div className={`report-body ${isFetching ? 'is-refreshing' : ''}`}>
+          {r.purchase_count === 0 && r.refund_cents === 0 && (
+            <div className="panel report-card report-empty"><h2>Sin movimientos en este periodo</h2><p className="muted">{active ? 'Prueba con otros filtros o un periodo más largo.' : 'Registra gastos o elige un periodo más largo para ver tus tendencias.'}</p></div>
+          )}
+          <SummarySection report={r} categories={categories} compareName={compareName} />
+          <EvolutionSection report={r} projection={projection.data} current={current} compareName={compareName} />
           <div className="report-grid">
+            <CategoriesSection report={r} categories={categories} filtered={!!state.category} onFilter={(id) => update({ category: id })} />
+            <MerchantsCard report={r} />
+          </div>
+          <div className="report-grid" id="cuentas">
+            <AccountSpending report={r} accountName={(id) => accs.get(id)?.name ?? 'Cuenta'} account={(id) => accs.get(id)} category={(id) => cats.get(id)} />
+            {r.months.length > 1 && <AccountEvolution report={r} accounts={accounts} />}
+          </div>
+          <ForecastSection projection={projection.data} projectionError={projection.error ? errorMessage(projection.error) : undefined} projectionLoading={projection.isLoading} forecast={r.forecast} categories={categories} scope={scope} />
+          <div className="report-grid" id="habitos">
             <WeekdayChart report={r} />
             <SpendingHeatmap report={r} />
           </div>
-        </>
+        </div>
       )}
       <ReconciliationCard current={current} accountName={(id) => accs.get(id)?.name ?? 'Cuenta'} />
     </>
   )
 }
 
-function Breakdown({ title, id, total, rows }: { title: string; id: string; total: number; rows: { key: string; cents: number; name: string; icon?: string; color?: string }[] }) {
+function ReportSkeleton() {
   return (
-    <section className="panel report-card" aria-labelledby={id}>
-      <div className="section-head"><h2 id={id}>{title}</h2></div>
-      {rows.length === 0 ? <p className="muted small">Sin gastos en este periodo.</p> : (
-        <div className="category-breakdown">
-          {rows.map((x) => {
-            const pct = total > 0 ? Math.min(100, Math.max(0, Math.round((x.cents / total) * 100))) : 0
-            return (
-              <div className="category-summary" key={x.key}>
-                <span className="category-symbol" style={{ background: `color-mix(in srgb, ${x.color ?? '#888'} 14%, transparent)` }} aria-hidden="true">{x.icon || '•'}</span>
-                <div><div className="category-summary-top"><strong>{x.name}</strong><span className="num">{money(x.cents)}</span></div><div className="track" aria-hidden="true"><div className="fill" style={{ width: `${pct}%`, background: x.color ?? 'var(--accent)' }} /></div></div>
-                <span className="category-percent num">{pct}%</span>
-              </div>
-            )
-          })}
-        </div>
-      )}
-    </section>
+    <div className="report-skeleton" role="status" aria-label="Cargando reporte">
+      <div className="report-metrics">{[0, 1, 2, 3].map((i) => <div key={i} className="report-metric skeleton-block" />)}</div>
+      <div className="panel skeleton-block report-skeleton-chart" />
+    </div>
   )
 }
 
@@ -120,7 +165,7 @@ function AccountSpending({ report: r, accountName, account, category }: { report
                   <span className="category-symbol" style={{ background: `color-mix(in srgb, ${acc?.color ?? '#888'} 14%, transparent)` }} aria-hidden="true">{acc?.icon || '•'}</span>
                   <span className="grow"><strong>{accountName(x.id)}</strong><span className="small muted"> · {count} {count === 1 ? 'compra' : 'compras'}</span>
                     <span className="account-spend-split" aria-hidden="true">{rows.filter((c) => c.spent_cents > 0).map((c) => <span key={c.category_id} style={{ width: `${plus > 0 ? c.spent_cents / plus * 100 : 0}%`, background: category(c.category_id)?.color ?? 'var(--accent)' }} />)}</span></span>
-                  <span className="num breakdown-amount"><strong>{money(x.spent_cents)}</strong><span className="small muted">{pct}% del periodo</span></span>
+                  <span className="num breakdown-amount"><strong>{money(x.spent_cents)}</strong><span className="small muted">{pct}% del periodo</span><Delta cur={x.spent_cents} prev={r.previous?.by_account.find((p) => p.id === x.id)?.spent_cents ?? 0} coverage={r.previous?.coverage} label="" /></span>
                 </summary>
                 <div className="breakdown-body">
                   <div className="report-table-scroll" tabIndex={0}><table className="report-table report-forecast-table"><caption className="sr-only">Gasto de {accountName(x.id)} por categoría en el periodo</caption>

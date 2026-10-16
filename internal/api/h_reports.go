@@ -57,16 +57,38 @@ func (s *Server) reportSummary(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	now := s.clock.Now().In(s.loc(id))
+	opt := reportOptions{}
+	if opt.Filter, err = s.parseReportFilter(r, id, cats); err != nil {
+		return err
+	}
+	if opt.Compare, err = compareParam(r); err != nil {
+		return err
+	}
+	if opt.First, err = s.store.FirstActivity(ctx, id.user.ID); err != nil {
+		return err
+	}
+	loc := s.loc(id)
+	now := s.clock.Now().In(loc)
 	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	end := to.In(loc)
+	if end.After(today) {
+		end = today.AddDate(0, 0, 1)
+	}
+	prevFrom, prevEnd := prevSpan(from.In(loc), end, len(months), opt.Compare)
 	historyFrom := today.AddDate(0, 0, -90)
-	activity, err := s.store.ReportActivity(ctx, id.user.ID, from, to, historyFrom, now)
+	activity, err := s.store.ReportActivity(ctx, id.user.ID, prevFrom.UTC(), to, historyFrom, now)
 	if err != nil {
 		return err
 	}
-	out := buildReportSummary(months, from, to, now, cats, activity)
+	out := buildReportSummary(months, from, to, now, cats, activity, opt)
+	// Comercios: el nombre está cifrado, así que se descifra solo el periodo y el anterior, en el servidor.
+	txs, err := s.store.Transactions(ctx, id.user.ID, id.seal(), store.TxFilter{From: prevFrom.UTC(), To: end.UTC(), AccountID: opt.Filter.Account})
+	if err != nil {
+		return err
+	}
+	out.Merchants = merchantRanking(txs, loc, rootOf(cats), opt.Filter, from.In(loc), end, prevFrom, prevEnd, 8)
 	if out.Forecast.Ready {
-		if err := s.horizonModels(r, id, today, cats, &out.Forecast); err != nil {
+		if err := s.horizonModels(r, id, today, cats, opt.Filter, &out.Forecast); err != nil {
 			return err
 		}
 	}
@@ -74,24 +96,78 @@ func (s *Server) reportSummary(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
-// horizonModels añade la proyección por validación (próxima semana y próximo mes) con su rango del 95 %.
-func (s *Server) horizonModels(r *http.Request, id *identity, today time.Time, cats []store.Category, f *reportForecast) error {
+// rootOf devuelve la categoría principal de cada categoría (las subcategorías suman al padre).
+func rootOf(cats []store.Category) func(string) string {
+	parents := map[string]string{}
+	for _, c := range cats {
+		parents[c.ID] = c.ParentID
+	}
+	return func(id string) string {
+		for i := 0; parents[id] != "" && i < len(cats); i++ {
+			id = parents[id]
+		}
+		return id
+	}
+}
+
+// projectionData reúne lo que necesita el motor de proyección, con los filtros de Reportes aplicados.
+func (s *Server) projectionData(r *http.Request, id *identity, today time.Time, cats []store.Category, f reportFilter, upFrom, upTo string) (forecast.Input, error) {
 	ctx := r.Context()
-	loc := today.Location()
 	txs, err := s.store.ProjectionActivity(ctx, id.user.ID, forecast.WindowStart(today).UTC(), s.clock.Now())
 	if err != nil {
-		return err
+		return forecast.Input{}, err
 	}
 	first, err := s.store.FirstActivity(ctx, id.user.ID)
 	if err != nil {
-		return err
+		return forecast.Input{}, err
 	}
-	last := max(f.WeekTo, f.MonthTo)
-	upcoming, err := s.store.UpcomingRecurring(ctx, id.user.ID, today.AddDate(0, 0, 1).Format("2006-01-02"), last)
+	upcoming, err := s.store.UpcomingRecurring(ctx, id.user.ID, upFrom, upTo)
+	if err != nil {
+		return forecast.Input{}, err
+	}
+	if f != (reportFilter{}) {
+		txs, upcoming, first = filterProjection(txs, upcoming, first, rootOf(cats), f, forecast.WindowStart(today))
+	}
+	in := projectionInput(today, first, cats, txs, upcoming)
+	if f.Category != "" {
+		in.Categories = []string{f.Category}
+	}
+	return in, nil
+}
+
+// filterProjection deja solo los movimientos y gastos fijos del filtro. El primer día con datos pasa a ser el primer
+// movimiento filtrado, salvo que el usuario ya tuviera datos antes y ese movimiento caiga al inicio de la ventana.
+func filterProjection(txs []store.ProjectionTx, up []store.UpcomingCharge, first time.Time, root func(string) string, f reportFilter, window time.Time) ([]store.ProjectionTx, []store.UpcomingCharge, time.Time) {
+	var outTx []store.ProjectionTx
+	for _, t := range txs {
+		if f.match(root(t.CategoryID), t.AccountID) {
+			outTx = append(outTx, t)
+		}
+	}
+	var outUp []store.UpcomingCharge
+	for _, u := range up {
+		if f.match(root(u.CategoryID), u.AccountID) {
+			outUp = append(outUp, u)
+		}
+	}
+	switch {
+	case len(outTx) == 0:
+		first = time.Time{}
+	case first.Before(window) && outTx[0].OccurredAt.Before(window.AddDate(0, 1, 0)):
+		// ya había datos antes de la ventana: se conserva el primer día del usuario
+	default:
+		first = outTx[0].OccurredAt
+	}
+	return outTx, outUp, first
+}
+
+// horizonModels añade la proyección por validación (próxima semana y próximo mes) con su rango del 95 %.
+func (s *Server) horizonModels(r *http.Request, id *identity, today time.Time, cats []store.Category, filter reportFilter, f *reportForecast) error {
+	loc := today.Location()
+	in, err := s.projectionData(r, id, today, cats, filter, today.AddDate(0, 0, 1).Format("2006-01-02"), max(f.WeekTo, f.MonthTo))
 	if err != nil {
 		return err
 	}
-	in := projectionInput(today, first, cats, txs, upcoming)
 	parse := func(d string) time.Time {
 		t, _ := time.ParseInLocation("2006-01-02", d, loc)
 		return t
@@ -117,11 +193,24 @@ func (s *Server) reportExport(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	txs, err := s.store.Transactions(ctx, id.user.ID, id.seal(), store.TxFilter{From: from, To: to})
+	cats, err := s.store.Categories(ctx, id.user.ID)
 	if err != nil {
 		return err
 	}
-	cats, err := s.store.Categories(ctx, id.user.ID)
+	filter, err := s.parseReportFilter(r, id, cats)
+	if err != nil {
+		return err
+	}
+	tf := store.TxFilter{From: from, To: to, AccountID: filter.Account}
+	if filter.Category != "" { // la categoría principal y sus subcategorías
+		root := rootOf(cats)
+		for _, c := range cats {
+			if root(c.ID) == filter.Category {
+				tf.CategoryIDs = append(tf.CategoryIDs, c.ID)
+			}
+		}
+	}
+	txs, err := s.store.Transactions(ctx, id.user.ID, id.seal(), tf)
 	if err != nil {
 		return err
 	}
@@ -156,7 +245,7 @@ func (s *Server) reportExport(w http.ResponseWriter, r *http.Request) error {
 			kind, fmt.Sprintf("%d.%02d", t.AmountCents/100, t.AmountCents%100), t.Currency, t.Status, t.Source, csvSafe(t.Description), csvSafe(t.Notes)})
 	}
 	cw.Flush()
-	s.audit(r, id.user.ID, "csv_exported", map[string]string{"from": months[0], "to": months[len(months)-1]})
+	s.audit(r, id.user.ID, "csv_exported", map[string]string{"from": months[0], "to": months[len(months)-1], "filtered": fmt.Sprint(filter != reportFilter{})})
 	return cw.Error()
 }
 

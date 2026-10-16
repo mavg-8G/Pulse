@@ -30,7 +30,7 @@ const (
 )
 
 // HorizonMethods en orden de preferencia ante empates: primero el más simple.
-var HorizonMethods = []string{Ritmo, HorizonEWMA, HorizonWeekday}
+var HorizonMethods = []string{Ritmo, Robusto, HorizonEWMA, HorizonWeekday, Holt, HoltWinters, Combinado}
 
 type HorizonMethod struct {
 	ID             string `json:"id"`
@@ -38,6 +38,7 @@ type HorizonMethod struct {
 	ProjectedCents int64  `json:"projected_cents"`
 	MAECents       *int64 `json:"mae_cents"`
 	Evaluated      int    `json:"evaluated"`
+	Candidate      bool   `json:"candidate"` // evaluado en todos los periodos pasados: compite en la selección
 }
 
 type HorizonCategory struct {
@@ -62,6 +63,12 @@ type HorizonResult struct {
 	Backtests      int               `json:"backtests"`
 	Coverage       *float64          `json:"coverage"` // fracción de periodos pasados dentro del rango del 95 %
 	Outliers       int               `json:"outliers"` // compras atípicas recientes que no se extrapolan
+	// Error medio del elegido en los periodos pasados, como % del gasto real medio, y cuánto menos se equivocó que
+	// el promedio diario (negativo: más).
+	TypicalErrorPct *float64 `json:"typical_error_pct"`
+	ImprovementPct  *float64 `json:"improvement_pct"`
+	Confidence      string   `json:"confidence"` // alta, media o baja
+	Warnings        []string `json:"warnings"`
 	// Acumulado esperado y rango del 95 % al final de cada día del periodo.
 	Cumulative []int64 `json:"cumulative"`
 	CumLow     []int64 `json:"cumulative_low"`
@@ -80,6 +87,9 @@ func (e *engine) daily(method string, v []float64, o int, days []int) ([]float64
 	n := to - from
 	if n < HorizonMinDays {
 		return nil, false
+	}
+	if method == Combinado {
+		return e.combineDaily(v, o, days)
 	}
 	out := make([]float64, len(days))
 	switch method {
@@ -119,6 +129,34 @@ func (e *engine) daily(method string, v []float64, o int, days []int) ([]float64
 			wd := e.start.AddDate(0, 0, d).Weekday()
 			out[i] = (sums[wd] + weekdayShrink*mean) / (counts[wd] + weekdayShrink)
 		}
+	case Robusto:
+		w := weeks(v, from, to, 12)
+		if len(w) < robustMinWeeks {
+			return nil, false
+		}
+		r := huber(w) / 7
+		for i := range out {
+			out[i] = r
+		}
+	case Holt:
+		w := weeks(v, from, to, 13)
+		if len(w) < holtMinWeeks {
+			return nil, false
+		}
+		last := 0
+		for _, d := range days {
+			last = max(last, (d-to)/7)
+		}
+		f := holtDamped(w, last+1)
+		for i, d := range days {
+			out[i] = f[(d-to)/7] / 7
+		}
+	case HoltWinters:
+		wf, _ := e.window(o, hwWindow)
+		if to-wf < hwMinDays {
+			return nil, false
+		}
+		out = e.holtWinters(v, wf, to, days)
 	default:
 		return nil, false
 	}
@@ -127,7 +165,21 @@ func (e *engine) daily(method string, v []float64, o int, days []int) ([]float64
 
 // point: proyección variable por categoría (cada una en cero como mínimo: las devoluciones no generan gasto negativo).
 func (e *engine) point(method string, o int, days []int) (map[string]float64, bool) {
+	if method == Combinado {
+		return e.combine(o, days)
+	}
 	out := map[string]float64{}
+	if method == Robusto { // se estima el total y se reparte según el peso de cada categoría
+		rate, ok := e.robustRate(o)
+		if !ok {
+			return nil, false
+		}
+		sh := e.shares(e.window(o, HorizonWindow))
+		for _, c := range e.cats {
+			out[c] = rate * float64(len(days)) * sh[c]
+		}
+		return out, true
+	}
 	for _, c := range e.cats {
 		d, ok := e.daily(method, e.byCat[c].variable, o, days)
 		if !ok {
@@ -177,7 +229,7 @@ func (e *engine) simulate(method string, o int, days []int, expected float64, si
 		acc := 0.0
 		for j, d := range days {
 			src := all
-			if p := pool[e.start.AddDate(0, 0, d).Weekday()]; method == HorizonWeekday && len(p) >= 4 {
+			if p := pool[e.start.AddDate(0, 0, d).Weekday()]; (method == HorizonWeekday || method == HoltWinters) && len(p) >= 4 {
 				src = p
 			}
 			acc += src[rng.IntN(len(src))]
@@ -200,12 +252,18 @@ func percentiles(sims [][]float64, j int) (lo, mid, hi float64) {
 // Horizon proyecta el gasto entre from y to (fechas locales, ambas incluidas, posteriores a hoy).
 // in.Upcoming debe traer los cobros de gastos fijos programados en ese periodo.
 func Horizon(in Input, from, to time.Time) *HorizonResult {
+	return horizon(in, from, to, HorizonMethods)
+}
+
+func horizon(in Input, from, to time.Time, methods []string) *HorizonResult {
 	e := newEngine(in)
 	o := e.n - 1 // hoy no está completo: se entrena hasta ayer
 	lead := dayNumber(from) - dayNumber(in.Today)
 	h := dayNumber(to) - dayNumber(from) + 1
 	res := &HorizonResult{From: from.Format("2006-01-02"), To: to.Format("2006-01-02"), Days: h, Method: Ritmo,
-		Methods: []HorizonMethod{}, ByCategory: []HorizonCategory{}, Cumulative: []int64{}, CumLow: []int64{}, CumHigh: []int64{}}
+		Methods: []HorizonMethod{}, ByCategory: []HorizonCategory{}, Cumulative: []int64{}, CumLow: []int64{}, CumHigh: []int64{},
+		Confidence: "baja", Warnings: []string{}}
+	defer res.assess()
 	if e.first < o {
 		res.HistoryDays = o - max(e.first, o-HorizonWindow)
 	}
@@ -243,23 +301,43 @@ func Horizon(in Input, from, to time.Time) *HorizonResult {
 		}
 		days := at(ob)
 		ev := eval{o: ob, actual: sum(e.total.variable, days[0], days[0]+h), preds: map[string]float64{}}
-		for _, id := range HorizonMethods {
+		for _, id := range methods {
 			if p, ok := e.point(id, ob, days); ok {
 				ev.preds[id] = total(p)
 			}
 		}
 		evals = append(evals, ev)
 	}
-	// Se comparan los métodos en los mismos periodos: aquellos en los que todos se podían calcular (los más simples
-	// necesitan menos historial). Si no hay suficientes, solo el promedio diario tiene con qué evaluarse.
-	var common []eval
-	for _, ev := range evals {
-		if len(ev.preds) == len(HorizonMethods) {
-			common = append(common, ev)
+	// Se comparan los métodos en los mismos periodos: aquellos en los que todos se podían calcular. Si no alcanzan,
+	// se deja fuera, uno a uno, el método que más historial exige; al final solo queda el promedio diario.
+	active := append([]string(nil), methods...)
+	for {
+		var common []eval
+		for _, ev := range evals {
+			all := true
+			for _, id := range active {
+				if _, ok := ev.preds[id]; !ok {
+					all = false
+				}
+			}
+			if all {
+				common = append(common, ev)
+			}
 		}
-	}
-	if len(common) >= HorizonMinEval {
-		evals = common
+		if len(common) >= HorizonMinEval {
+			evals = common
+			break
+		}
+		if len(active) == 1 {
+			break
+		}
+		drop := 1
+		for i := 2; i < len(active); i++ {
+			if minDays[active[i]] >= minDays[active[drop]] {
+				drop = i
+			}
+		}
+		active = append(active[:drop], active[drop+1:]...)
 	}
 	res.Backtests = len(evals)
 
@@ -275,13 +353,21 @@ func Horizon(in Input, from, to time.Time) *HorizonResult {
 	}
 	days := at(o)
 	points := map[string]map[string]float64{}
-	best := math.Inf(1)
-	for _, id := range HorizonMethods {
+	maes := map[string]float64{}
+	errs := map[string][]float64{}
+	var actualMean float64
+	for _, ev := range evals {
+		actualMean += ev.actual / float64(len(evals))
+	}
+	for _, id := range methods {
 		m := HorizonMethod{ID: id}
 		if p, ok := e.point(id, o, days); ok {
 			points[id] = p
 			m.Available = true
-			m.ProjectedCents = int64(math.Round(total(p))) + res.UpcomingCents
+			m.ProjectedCents = res.UpcomingCents
+			for _, c := range e.cats {
+				m.ProjectedCents += int64(math.Round(p[c]))
+			}
 		}
 		var mae float64
 		for _, ev := range evals {
@@ -294,10 +380,23 @@ func Horizon(in Input, from, to time.Time) *HorizonResult {
 			m.MAECents = ptr(int64(math.Round(mae / float64(m.Evaluated))))
 		}
 		// Compite solo si se pudo evaluar en todos los periodos pasados.
-		if m.Available && len(evals) >= HorizonMinEval && m.Evaluated == len(evals) && mae/float64(m.Evaluated) < best {
-			best, res.Method = mae/float64(m.Evaluated), id
+		if m.Available && len(evals) >= HorizonMinEval && m.Evaluated == len(evals) {
+			m.Candidate = true
+			maes[id] = mae / float64(m.Evaluated)
+			for _, ev := range evals {
+				errs[id] = append(errs[id], ev.preds[id]-ev.actual)
+			}
 		}
 		res.Methods = append(res.Methods, m)
+	}
+	if id := pick(methods, errs, selectionGain); id != "" {
+		res.Method = id
+	}
+	if base, ok := maes[Ritmo]; ok && base > 0 {
+		res.ImprovementPct = ptr(math.Round((1-maes[res.Method]/base)*1000) / 10)
+	}
+	if v, ok := maes[res.Method]; ok && actualMean > 0 {
+		res.TypicalErrorPct = ptr(math.Round(v/actualMean*1000) / 10)
 	}
 	res.BaselineCents = res.Methods[0].ProjectedCents
 
@@ -360,4 +459,29 @@ func Horizon(in Input, from, to time.Time) *HorizonResult {
 		res.Coverage = ptr(math.Round(float64(in)/float64(len(evals))*100) / 100)
 	}
 	return res
+}
+
+// assess resume, para explicarlo en pantalla, qué tan confiable es la proyección.
+func (r *HorizonResult) assess() {
+	switch {
+	case r.HistoryDays < HorizonMinDays:
+		r.Warnings = append(r.Warnings, "sin_historial")
+		return
+	case r.HistoryDays < MinHistoryDays:
+		r.Warnings = append(r.Warnings, "historial_corto")
+	}
+	if r.Backtests < HorizonMinEval {
+		r.Warnings = append(r.Warnings, "sin_validacion")
+	}
+	if r.LowCents == nil {
+		r.Warnings = append(r.Warnings, "sin_rango")
+	}
+	switch {
+	case len(r.Warnings) > 0:
+		r.Confidence = "baja"
+	case r.Backtests < 6 || r.Coverage == nil || *r.Coverage < 0.8:
+		r.Confidence = "media"
+	default:
+		r.Confidence = "alta"
+	}
 }

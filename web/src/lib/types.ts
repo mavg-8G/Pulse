@@ -237,7 +237,30 @@ export interface ReportSummary {
   account_purchases: Record<string, number>
   weekdays: { weekday: number; spent_cents: number; days: number; avg_cents: number }[] // 0 = lunes
   days: { date: string; spent_cents: number }[] // últimos 91 días
+  // Filtros aplicados, periodo transcurrido y periodo anterior equivalente (fechas locales, ambas incluidas).
+  filters?: { category: string; account: string }
+  period?: { from: string; to: string; days: number; compare: ReportCompare; granularity: 'day' | 'week' | 'month' }
+  previous?: {
+    from: string
+    to: string
+    days: number
+    coverage: 'completo' | 'parcial' | 'sin_datos'
+    total_cents: number
+    purchase_cents: number
+    refund_cents: number
+    purchase_count: number
+    by_category: { id: string; spent_cents: number }[]
+    by_account: { id: string; spent_cents: number }[]
+  }
+  series?: { start: string; end: string; net_cents: number; purchase_cents: number; refund_cents: number; previous_cents: number }[]
+  category_changes?: { id: string; current_cents: number; previous_cents: number; diff_cents: number; pct: number | null }[]
+  merchants?: { name: string; spent_cents: number; purchase_count: number; previous_cents: number }[]
 }
+
+export type ReportCompare = 'previous' | 'year'
+export type Confidence = 'alta' | 'media' | 'baja'
+export type HorizonMethodId = 'ritmo' | 'robusto' | 'media_movil' | 'dia_semana' | 'holt' | 'holt_winters' | 'combinado'
+
 
 /** Proyección de la próxima semana o el próximo mes con el método que menos se equivocó y su rango del 95 %. */
 export interface HorizonModel {
@@ -245,17 +268,21 @@ export interface HorizonModel {
   to: string
   days: number
   history_days: number
-  method: 'ritmo' | 'media_movil' | 'dia_semana'
+  method: HorizonMethodId
   projected_cents: number
   low_cents: number | null
   high_cents: number | null
   upcoming_cents: number
   baseline_cents: number
-  methods: { id: 'ritmo' | 'media_movil' | 'dia_semana'; available: boolean; projected_cents: number; mae_cents: number | null; evaluated: number }[]
+  methods: { id: HorizonMethodId; available: boolean; projected_cents: number; mae_cents: number | null; evaluated: number; candidate?: boolean }[]
   by_category: { id: string; projected_cents: number; upcoming_cents: number }[]
   backtests: number
   coverage: number | null
   outliers: number
+  typical_error_pct?: number | null
+  improvement_pct?: number | null
+  confidence?: Confidence
+  warnings?: string[]
   cumulative: number[]
   cumulative_low: number[]
   cumulative_high: number[]
@@ -276,7 +303,7 @@ export interface BudgetBreakdown {
   }[]
 }
 
-export type ProjectionMethodId = 'ritmo' | 'regresion' | 'media_movil' | 'dia_semana' | 'perfil'
+export type ProjectionMethodId = 'ritmo' | 'promedio_reciente' | 'regresion' | 'robusto' | 'media_movil' | 'dia_semana' | 'perfil' | 'holt' | 'holt_winters' | 'combinado'
 
 export interface Projection {
   month: string
@@ -295,6 +322,11 @@ export interface Projection {
   outliers: { date: string; category_id: string; amount_cents: number }[]
   outlier_threshold_cents: number | null
   warnings: string[]
+  backtests?: number
+  typical_error_pct?: number | null
+  improvement_pct?: number | null
+  coverage?: number | null
+  confidence?: Confidence
   cumulative: number[]
   previous_cumulative: number[]
   previous_month: string

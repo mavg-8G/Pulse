@@ -25,8 +25,9 @@ func TestProyeccionDeFinDeMes(t *testing.T) {
 	if r.str("month") != "2026-10" || fnum(r.Body["day"]) != 14 || fnum(r.Body["days_in_month"]) != 31 || fnum(r.Body["spent_cents"]) != 4000 {
 		t.Fatalf("mes: %s", r.Raw)
 	}
-	// Con un solo mes cerrado se usa el método actual y se avisa.
-	if r.str("method") != "ritmo" || fnum(r.Body["projected_cents"]) != 8857 || fnum(r.Body["baseline_cents"]) != 8857 {
+	// Con un solo mes cerrado no se elige por error: estimación prudente (lo gastado + el arriendo programado + el
+	// promedio diario desde el 1 de septiembre, 13 000 / 44 días, por los 17 días que faltan) y se avisa.
+	if r.str("method") != "promedio_reciente" || fnum(r.Body["projected_cents"]) != 4000+50000+5023 || fnum(r.Body["baseline_cents"]) != 8857 || r.str("confidence") != "baja" {
 		t.Fatalf("método: %s", r.Raw)
 	}
 	if fnum(r.Body["upcoming_cents"]) != 50000 {

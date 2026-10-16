@@ -86,6 +86,14 @@ type reportSummaryData struct {
 	// Por cuenta y categoría principal, y número de compras de cada cuenta en el periodo.
 	AccountCategories []reportAccountCategory `json:"account_categories"`
 	AccountPurchases  map[string]int          `json:"account_purchases"`
+	// Filtros aplicados, periodo transcurrido, periodo anterior equivalente, serie de evolución, cambio por
+	// categoría y comercios con más gasto.
+	Filters         reportFilter     `json:"filters"`
+	Period          reportPeriod     `json:"period"`
+	Previous        reportPrevious   `json:"previous"`
+	Series          []reportPoint    `json:"series"`
+	CategoryChanges []reportChange   `json:"category_changes"`
+	Merchants       []reportMerchant `json:"merchants"`
 }
 
 // calendarDays counts local dates, including across daylight-saving transitions.
@@ -95,7 +103,17 @@ func calendarDays(from, to time.Time) int {
 	return int(t.Sub(f).Hours() / 24)
 }
 
-func buildReportSummary(months []string, from, to, now time.Time, cats []store.Category, activity []store.ReportActivity) reportSummaryData {
+// prevSpan: periodo equivalente anterior a [from, end) (fechas locales): los mismos meses justo antes o un año antes,
+// hasta el mismo día del mes, para comparar periodos del mismo largo.
+func prevSpan(from, end time.Time, months int, compare string) (time.Time, time.Time) {
+	n := months
+	if compare == "year" {
+		n = 12
+	}
+	return shiftMonths(from, -n), shiftMonths(end, -n)
+}
+
+func buildReportSummary(months []string, from, to, now time.Time, cats []store.Category, activity []store.ReportActivity, opt reportOptions) reportSummaryData {
 	loc := now.Location()
 	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, loc)
 	historyFrom := today.AddDate(0, 0, -90)
@@ -109,6 +127,39 @@ func buildReportSummary(months []string, from, to, now time.Time, cats []store.C
 		end = today.AddDate(0, 0, 1)
 	}
 	out.ElapsedDays = max(0, calendarDays(from.In(loc), end))
+	if opt.Compare == "" {
+		opt.Compare = "previous"
+	}
+	shift := len(months)
+	if opt.Compare == "year" {
+		shift = 12
+	}
+	localFrom := from.In(loc)
+	prevFrom, prevEnd := prevSpan(localFrom, end, len(months), opt.Compare)
+	granularity, starts := buckets(localFrom, end, len(months))
+	out.Filters = opt.Filter
+	out.Period = reportPeriod{From: localFrom.Format("2006-01-02"), To: end.AddDate(0, 0, -1).Format("2006-01-02"), Days: out.ElapsedDays, Compare: opt.Compare, Granularity: granularity}
+	if out.ElapsedDays == 0 { // periodo futuro: no hay días transcurridos
+		out.Period.To = out.Period.From
+	}
+	out.Previous = reportPrevious{From: prevFrom.Format("2006-01-02"), To: prevEnd.AddDate(0, 0, -1).Format("2006-01-02"), Days: max(0, calendarDays(prevFrom, prevEnd)), ByCategory: []reportIDTotal{}, ByAccount: []reportIDTotal{}}
+	switch first := localDate(opt.First.In(loc)); {
+	case opt.First.IsZero() || !first.Before(prevEnd):
+		out.Previous.Coverage = "sin_datos"
+	case first.After(prevFrom.AddDate(0, 0, 3)): // empezó a registrar ya avanzado el periodo anterior
+		out.Previous.Coverage = "parcial"
+	default:
+		out.Previous.Coverage = "completo"
+	}
+	out.Series = make([]reportPoint, len(starts))
+	for i, st := range starts {
+		last := end
+		if i+1 < len(starts) {
+			last = starts[i+1]
+		}
+		out.Series[i] = reportPoint{Start: st.Format("2006-01-02"), End: last.AddDate(0, 0, -1).Format("2006-01-02")}
+	}
+	prevCat, prevAcc := map[string]int64{}, map[string]int64{}
 	parents := map[string]string{}
 	for _, c := range cats {
 		parents[c.ID] = c.ParentID
@@ -145,7 +196,34 @@ func buildReportSummary(months []string, from, to, now time.Time, cats []store.C
 			amount = -amount
 		}
 		category := root(a.CategoryID)
+		if !opt.Filter.match(category, a.AccountID) {
+			continue
+		}
 		local := a.OccurredAt.In(loc)
+		day := localDate(local)
+		if !day.Before(prevFrom) && day.Before(prevEnd) {
+			p := &out.Previous
+			p.TotalCents += amount
+			prevCat[category] += amount
+			prevAcc[a.AccountID] += amount
+			if a.Kind == "refund" {
+				p.RefundCents += a.AmountCents
+			} else {
+				p.PurchaseCount++
+				p.PurchaseCents += amount
+			}
+			if i := bucketOf(starts, end, shiftMonths(day, shift)); i >= 0 {
+				out.Series[i].PreviousCents += amount
+			}
+		}
+		if i := bucketOf(starts, end, day); i >= 0 && !a.OccurredAt.Before(from) {
+			out.Series[i].NetCents += amount
+			if a.Kind == "refund" {
+				out.Series[i].RefundCents += a.AmountCents
+			} else {
+				out.Series[i].PurchaseCents += amount
+			}
+		}
 		if !a.OccurredAt.Before(from) && a.OccurredAt.Before(to) {
 			if i, ok := monthIndex[local.Format("2006-01")]; ok {
 				out.Months[i].SpentCents += amount
@@ -236,7 +314,31 @@ func buildReportSummary(months []string, from, to, now time.Time, cats []store.C
 		k := d.Format("2006-01-02")
 		out.Days = append(out.Days, reportDay{Date: k, SpentCents: daily[k]})
 	}
-	for _, list := range [][]reportIDTotal{out.ByCategory, out.ByAccount} {
+	for id, amount := range prevCat {
+		if amount != 0 {
+			out.Previous.ByCategory = append(out.Previous.ByCategory, reportIDTotal{id, amount})
+		}
+	}
+	for id, amount := range prevAcc {
+		if amount != 0 {
+			out.Previous.ByAccount = append(out.Previous.ByAccount, reportIDTotal{id, amount})
+		}
+	}
+	out.CategoryChanges = []reportChange{}
+	for _, c := range cats {
+		cur, prev := byCat[c.ID], prevCat[c.ID]
+		if c.ParentID != "" || (cur == 0 && prev == 0) {
+			continue
+		}
+		ch := reportChange{ID: c.ID, CurrentCents: cur, PreviousCents: prev, DiffCents: cur - prev}
+		if out.Previous.Coverage == "completo" {
+			ch.Pct = pctChange(cur, prev)
+		}
+		out.CategoryChanges = append(out.CategoryChanges, ch)
+	}
+	sort.SliceStable(out.CategoryChanges, func(i, j int) bool { return out.CategoryChanges[i].DiffCents > out.CategoryChanges[j].DiffCents })
+	out.Merchants = []reportMerchant{}
+	for _, list := range [][]reportIDTotal{out.ByCategory, out.ByAccount, out.Previous.ByCategory, out.Previous.ByAccount} {
 		sort.Slice(list, func(i, j int) bool {
 			if list[i].SpentCents == list[j].SpentCents {
 				return list[i].ID < list[j].ID
