@@ -202,6 +202,8 @@ La exportación contiene datos personales descifrados: entrégala por un canal s
 
 La suite E2E incluye landing pública, páginas legales, Mi cuenta, configuración de Google por un admin, estadísticas y proyecciones de Reportes, exportación con confirmación de identidad, conciliación, gastos fijos y envío tras recuperar la conexión. La revisión del diseño recorre las vistas públicas y privadas en escritorio/móvil y claro/oscuro, comprueba accesibilidad con axe y ausencia de desbordamiento horizontal, y genera capturas para inspección. Cada ejecución utiliza puerto y datos propios dentro de `web/.e2e/`; las capturas no constituyen todavía una comparación automática contra imágenes de referencia.
 
+El escenario de proyecciones de Reportes toma las fechas del calendario del usuario informado por la API, para mantener 14 días completos de historial aunque el equipo de pruebas esté en UTC. Comprueba los importes semanales por categoría y total, el importe mensual de la API y la presentación de las proyecciones en pantalla.
+
 Para ejecutar solo las pruebas del rediseño y Reportes desde la raíz:
 
 ```bash

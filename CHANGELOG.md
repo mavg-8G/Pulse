@@ -4,6 +4,12 @@ Cambios relevantes de Pulse. Las entradas «Sin publicar» describen cambios pos
 
 La guía de uso y desarrollo está en [`README.md`](README.md); el roadmap y las aceptaciones pendientes, en [`PLAN.md`](PLAN.md).
 
+## Sin publicar — fechas de las pruebas de Reportes en CI (15 oct 2026)
+
+- Reproducido el fallo que esperaba USD 77,00 en la proyección semanal: cuando el equipo en UTC ya estaba en el día siguiente respecto a Guayaquil, los movimientos de prueba generaban 13 días de historial en lugar de 14.
+- Las fechas del escenario E2E se calculan desde el último día completo informado por la API y se envían como horas locales del usuario. Se conserva la expectativa de USD 77,00 y se comprueban también los 14 días de historial, las proyecciones por categoría y el total mensual.
+- Verificación: TypeScript correcto; los 6 E2E de Reportes pasan con el equipo en UTC y el escenario de proyecciones también pasa en escritorio y móvil con `TZ=America/Guayaquil`.
+
 ## Sin publicar — lectura de Produbanco y recuperación de correos pendientes (15 oct 2026)
 
 - Corregidas las fechas mes/día/año con un día mayor que 12: `10/15/2026` ahora se interpreta como 15 de octubre. La resolución por cercanía al envío se limita a las fechas numéricas ambiguas de Produbanco, sin intercambiar fechas ISO ni meses escritos.

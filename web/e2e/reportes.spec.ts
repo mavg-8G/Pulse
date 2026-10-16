@@ -8,18 +8,26 @@ test('estadísticas, líneas y proyecciones por categoría para semana y mes', a
   const accounts = await apiGet(page, '/api/accounts')
   const comida = cats.find((c: any) => c.name === 'Comida').id
   const servicios = cats.find((c: any) => c.name === 'Servicios').id
+  const initial = await apiGet(page, '/api/reports/summary')
   const ago = (days: number) => {
-    const date = new Date()
-    date.setDate(date.getDate() - days)
-    date.setHours(12, 0, 0, 0)
-    return date.toISOString()
+    // history_to is yesterday in the user's calendar. UTC arithmetic keeps the
+    // date stable on CI; the offset-free timestamp is parsed in that user's zone.
+    const date = new Date(`${initial.forecast.history_to}T12:00:00Z`)
+    date.setUTCDate(date.getUTCDate() - (days - 1))
+    return date.toISOString().slice(0, 16)
   }
   await apiPost(page, '/api/transactions', { account_id: accounts[0].id, category_id: comida, amount_cents: 14000, occurred_at: ago(14) })
   await apiPost(page, '/api/transactions', { account_id: accounts[0].id, category_id: servicios, amount_cents: 2800, occurred_at: ago(7) })
   await apiPost(page, '/api/transactions', { account_id: accounts[0].id, category_id: comida, kind: 'refund', amount_cents: 1400, occurred_at: ago(2) })
   const reportLoaded = page.waitForResponse((response) => response.url().includes('/api/reports/summary') && response.status() === 200)
   await page.reload()
-  await reportLoaded
+  const report = await (await reportLoaded).json()
+  expect(report.forecast).toMatchObject({ ready: true, history_days: 14, week_cents: 7700 })
+  expect(report.forecast.by_category).toEqual(expect.arrayContaining([
+    expect.objectContaining({ id: comida, week_cents: 6300 }),
+    expect.objectContaining({ id: servicios, week_cents: 1400 }),
+  ]))
+  expect(report.forecast.month_cents).toBe(1100 * report.forecast.month_days)
   await expect(page.getByRole('heading', { name: 'Evolución del gasto' })).toBeVisible()
   const forecast = page.getByRole('region', { name: 'Proyección de gastos' })
   await expect(forecast.getByText('Total estimado · 7 días', { exact: true })).toBeVisible()
