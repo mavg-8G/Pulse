@@ -210,6 +210,24 @@ Para ejecutar solo las pruebas del rediseño y Reportes desde la raíz:
 npm --prefix web run e2e -- design.spec.ts reportes.spec.ts
 ```
 
+Para reproducir la comprobación de Reportes en las dos zonas horarias verificadas, en Linux/macOS:
+
+```bash
+TZ=UTC npm --prefix web run e2e -- reportes.spec.ts
+TZ=America/Guayaquil npm --prefix web run e2e -- reportes.spec.ts --grep 'estadísticas'
+```
+
+En PowerShell, establece la zona horaria del proceso antes de cada ejecución:
+
+```powershell
+$env:TZ = 'UTC'
+npm.cmd --prefix web run e2e -- reportes.spec.ts
+$env:TZ = 'America/Guayaquil'
+npm.cmd --prefix web run e2e -- reportes.spec.ts --grep 'estadísticas'
+```
+
+La primera ejecución cubre los seis casos de Reportes; la segunda comprueba las proyecciones en escritorio y móvil. El ejemplo usa USD 154,00 netos durante 14 días completos y espera USD 77,00 para la próxima semana: USD 63,00 en Comida y USD 14,00 en Servicios. Así se comprueban los resultados esperados además del texto y las gráficas.
+
 Para instalar Chromium antes de las pruebas E2E: `cd web && npx playwright install chromium` (en Linux CI: `--with-deps chromium`). Para revisar dependencias: `npm audit` en `web/` y `go mod verify` en la raíz. La CI también comprueba vulnerabilidades Go alcanzables con `govulncheck`, escanea la imagen con Trivy y ejecuta OWASP ZAP baseline contra las páginas públicas del contenedor, bloqueando alertas de riesgo medio o alto.
 
 ## Despliegue

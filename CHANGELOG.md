@@ -4,6 +4,11 @@ Cambios relevantes de Pulse. Las entradas «Sin publicar» describen cambios pos
 
 La guía de uso y desarrollo está en [`README.md`](README.md); el roadmap y las aceptaciones pendientes, en [`PLAN.md`](PLAN.md).
 
+## Sin publicar — guía de comprobación de Reportes (16 oct 2026)
+
+- README ampliado con los comandos para reproducir las pruebas de Reportes en UTC y en Guayaquil, tanto en Linux/macOS como en PowerShell.
+- Documentados los datos y resultados esperados del escenario de proyecciones: 14 días de historial, USD 154,00 netos y USD 77,00 semanales, desglosados por categoría.
+
 ## Sin publicar — fechas de las pruebas de Reportes en CI (15 oct 2026)
 
 - Reproducido el fallo que esperaba USD 77,00 en la proyección semanal: cuando el equipo en UTC ya estaba en el día siguiente respecto a Guayaquil, los movimientos de prueba generaban 13 días de historial en lugar de 14.
