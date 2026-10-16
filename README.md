@@ -8,7 +8,7 @@ Estado: **fases 0–8 implementadas y fase 9 en curso**. Incluye el rediseño de
 
 - Cuentas, tarjetas, categorías y movimientos manuales o importados, con revisión de gastos y reglas por comercio.
 - Plan mensual con proyección y umbrales de gasto; notificaciones Web Push, resúmenes y horario silencioso. Configuración en [`deploy/PUSH.md`](deploy/PUSH.md).
-- Importación de correos `.eml` de Banco Pichincha, Produbanco y Diners/Titanium. Gmail opcional mediante OAuth, sincronización periódica o Pub/Sub y modo sombra; Gemini opcional para plantillas desconocidas. Configuración en [`deploy/GMAIL.md`](deploy/GMAIL.md).
+- Importación de correos `.eml` de Banco Pichincha, Produbanco y Diners/Titanium. Gmail opcional mediante OAuth, sincronización periódica o Pub/Sub y modo sombra; Gemini opcional para plantillas desconocidas. Reintento de correos pendientes tras actualizar un formato, sin duplicar los ya importados. Configuración en [`deploy/GMAIL.md`](deploy/GMAIL.md).
 - Acceso por invitación, TOTP o passkeys, gestión de sesiones y cifrado de campos sensibles con claves por usuario.
 - Presentación pública y páginas de privacidad y términos en español e inglés, accesibles sin sesión; exportación y supresión de cuentas mediante CLI, y retención del registro de seguridad de 365 días.
 - Inicio con gasto mensual, barra de presupuesto, saldo disponible o exceso, referencia del día del mes y cierre estimado; temas claro/oscuro y control de animaciones con respeto al movimiento reducido.
@@ -53,9 +53,25 @@ Si un correo bancario no se reconoce, Pulse registra su asunto cifrado y una hue
 
 Las promociones reconocidas y los acuses de pago de tarjeta (por ejemplo, **Agradecemos su pago**) se ignoran: no crean gastos, alertas de formato ni consultas a Gemini. Las falsas alarmas antiguas de esos asuntos también se excluyen del listado. Se muestra el total real de pendientes y una vista previa de los 20 más recientes; la fecha indica cuándo se detectó el fallo.
 
-Después de actualizar un formato, usa **Ajustes → Gmail → Reintentar correos pendientes**. Busca en los últimos 90 días, con el mismo límite de 1.000 mensajes, y vuelve a analizar los pendientes aunque antes se hubieran marcado como leídos. Conserva las huellas de los correos ya procesados y no duplica gastos importados por Gmail o por archivo `.eml`. Retira la alerta si el correo se importa, ya estaba importado o se identifica como un mensaje que no es gasto; los formatos que siguen sin entenderse permanecen pendientes.
-
 La guía completa de Google Cloud, OAuth, Pub/Sub, Gemini y configuración por variables de entorno está en [`deploy/GMAIL.md`](deploy/GMAIL.md).
+
+### Recuperar correos pendientes después de actualizar Pulse
+
+1. Abre **Ajustes → Correo del banco (Gmail)** y comprueba que la conexión figure como **Conectado**. Si aparece **Sin acceso**, usa **Reconectar**.
+2. En el aviso de correos pendientes, pulsa **Reintentar correos pendientes**. **Sincronizar ahora** mantiene la lectura habitual; el botón de reintento también vuelve a analizar fallos anteriores que se habían marcado como leídos.
+3. Revisa los gastos recuperados en **Movimientos**. La alerta desaparece si el correo se importa, ya estaba importado o se identifica como un mensaje que no es gasto. Los formatos que siguen sin entenderse permanecen en el listado.
+
+El reintento busca en los últimos **90 días**, con un máximo de **1.000 mensajes** por ejecución. Conserva las huellas de los correos ya procesados y no duplica gastos importados por Gmail o por archivo `.eml`.
+
+Si aparece un aviso de demasiados intentos, espera un minuto antes de repetir: la conexión y las lecturas manuales comparten un límite por usuario. Si la lectura agota el tiempo de espera, puedes reintentar; los gastos ya registrados se conservan.
+
+Para comprobar un correo que sigue fallando, puedes importar su archivo `.eml` desde Movimientos. También puedes analizarlo desde la terminal con el binario de Pulse, sin guardar movimientos:
+
+```bash
+pulse parse "correo-del-banco.eml"
+```
+
+El resultado indica si es un gasto reconocido (`expense`), un mensaje ignorado (`ignored`), un formato no reconocido (`unrecognized`) o un remitente no soportado (`unknown`). Los acuses de pago de tarjeta y las promociones reconocidas se ignoran; los consumos pendientes conservan su aviso.
 
 ## Importación bancaria y cuentas repetidas
 
