@@ -176,6 +176,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/accounts", s.full(s.createAccount))
 	mux.HandleFunc("PATCH /api/accounts/{id}", s.full(s.updateAccount))
 	mux.HandleFunc("DELETE /api/accounts/{id}", s.full(s.deleteAccount))
+	mux.HandleFunc("POST /api/accounts/{id}/merge", s.full(s.mergeAccount))
+	mux.HandleFunc("DELETE /api/accounts/{id}/merge", s.full(s.unmergeAccount))
 	mux.HandleFunc("GET /api/categories", s.full(s.listCategories))
 	mux.HandleFunc("POST /api/categories", s.full(s.createCategory))
 	mux.HandleFunc("PATCH /api/categories/{id}", s.full(s.updateCategory))

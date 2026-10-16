@@ -120,9 +120,11 @@ type ReportActivity struct {
 }
 
 func (s *Store) ReportActivity(ctx context.Context, userID string, from, to, historyFrom, now time.Time) ([]ReportActivity, error) {
-	rows, err := s.DB.QueryContext(ctx, `SELECT account_id, category_id, kind, amount_cents, occurred_at
-		FROM transactions WHERE user_id = ? AND occurred_at <= ?
-		AND ((occurred_at >= ? AND occurred_at < ?) OR occurred_at >= ?) ORDER BY occurred_at`, userID, TS(now), TS(from), TS(to), TS(historyFrom))
+	// Las cuentas fusionadas se reportan bajo su cuenta principal.
+	rows, err := s.DB.QueryContext(ctx, `SELECT COALESCE(a.merged_into, t.account_id), t.category_id, t.kind, t.amount_cents, t.occurred_at
+		FROM transactions t LEFT JOIN accounts a ON a.id = t.account_id AND a.user_id = t.user_id
+		WHERE t.user_id = ? AND t.occurred_at <= ?
+		AND ((t.occurred_at >= ? AND t.occurred_at < ?) OR t.occurred_at >= ?) ORDER BY t.occurred_at`, userID, TS(now), TS(from), TS(to), TS(historyFrom))
 	if err != nil {
 		return nil, err
 	}
@@ -140,10 +142,16 @@ func (s *Store) ReportActivity(ctx context.Context, userID string, from, to, his
 	return out, rows.Err()
 }
 
-// SpentByAccount suma compras menos reversos por cuenta en [from, to).
+// SpentByAccount suma compras menos reversos por cuenta en [from, to). Una cuenta fusionada y su
+// principal comparten el total del grupo: cada id del grupo devuelve la misma suma.
 func (s *Store) SpentByAccount(ctx context.Context, userID string, from, to time.Time) (map[string]int64, error) {
-	rows, err := s.DB.QueryContext(ctx, `SELECT account_id, SUM(CASE kind WHEN 'refund' THEN -amount_cents ELSE amount_cents END)
-		FROM transactions WHERE user_id = ? AND occurred_at >= ? AND occurred_at < ? GROUP BY account_id`, userID, TS(from), TS(to))
+	rows, err := s.DB.QueryContext(ctx, `WITH g AS (
+			SELECT COALESCE(a.merged_into, t.account_id) AS main, SUM(CASE t.kind WHEN 'refund' THEN -t.amount_cents ELSE t.amount_cents END) AS total
+			FROM transactions t LEFT JOIN accounts a ON a.id = t.account_id AND a.user_id = t.user_id
+			WHERE t.user_id = ? AND t.occurred_at >= ? AND t.occurred_at < ? GROUP BY main)
+		SELECT main, total FROM g
+		UNION ALL
+		SELECT a.id, g.total FROM accounts a JOIN g ON g.main = a.merged_into WHERE a.user_id = ?`, userID, TS(from), TS(to), userID)
 	if err != nil {
 		return nil, err
 	}

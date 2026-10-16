@@ -171,7 +171,13 @@ func (s *Store) Transactions(ctx context.Context, userID string, sl *crypto.Seal
 		q.WriteString(` AND occurred_at < ?`)
 		args = append(args, TS(f.To))
 	}
-	for col, v := range map[string]string{"account_id": f.AccountID, "status": f.Status, "source": f.Source, "kind": f.Kind} {
+	if f.AccountID != "" {
+		// Una cuenta fusionada se lee junto con su principal y las demás vinculadas.
+		q.WriteString(` AND account_id IN (SELECT a.id FROM accounts a JOIN accounts k ON k.user_id = a.user_id AND k.id = ?
+			WHERE a.user_id = ? AND a.id = COALESCE(k.merged_into, k.id) OR a.user_id = ? AND a.merged_into = COALESCE(k.merged_into, k.id))`)
+		args = append(args, f.AccountID, userID, userID)
+	}
+	for col, v := range map[string]string{"status": f.Status, "source": f.Source, "kind": f.Kind} {
 		if v != "" {
 			q.WriteString(` AND ` + col + ` = ?`)
 			args = append(args, v)

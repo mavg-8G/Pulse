@@ -1,5 +1,6 @@
 import { dayKey, dayLabel, timeLabel } from '../lib/dates'
 import { money } from '../lib/money'
+import { accountResolver } from '../lib/accounts'
 import type { Account, Category, Transaction } from '../lib/types'
 import { useTxSheet } from './AppShell'
 
@@ -31,7 +32,7 @@ export function TxRow({ tx, cat, acc, tz }: { tx: Transaction; cat?: Category; a
 
 export function TxGroups({ items, categories, accounts, tz }: { items: Transaction[]; categories: Category[]; accounts: Account[]; tz: string }) {
   const cats = new Map(categories.map((c) => [c.id, c]))
-  const accs = new Map(accounts.map((a) => [a.id, a]))
+  const account = accountResolver(accounts)
   const today = dayKey(new Date().toISOString(), tz)
   const yesterday = dayKey(new Date(Date.now() - 864e5).toISOString(), tz)
   const groups: { key: string; items: Transaction[] }[] = []
@@ -53,7 +54,7 @@ export function TxGroups({ items, categories, accounts, tz }: { items: Transacti
             <ul className="list">
               {g.items.map((t) => (
                 <li key={t.id}>
-                  <TxRow tx={t} cat={cats.get(t.category_id)} acc={accs.get(t.account_id)} tz={tz} />
+                  <TxRow tx={t} cat={cats.get(t.category_id)} acc={account(t.account_id)} tz={tz} />
                 </li>
               ))}
             </ul>

@@ -87,6 +87,12 @@ La migración `0010_unir_cuentas_repetidas` reúne las cuentas del mismo usuario
 
 Esta unión se aplica al arrancar. Bajar la migración no vuelve a separar las cuentas: para recuperar el estado anterior hace falta restaurar un respaldo previo. El despliegue crea ese respaldo cuando la instancia actual está sana; para una actualización manual, crea también un respaldo antes de arrancar la nueva versión.
 
+### Fusionar cuentas que son la misma tarjeta
+
+Cuando el banco a veces envía los dígitos y a veces no, la misma tarjeta puede quedar como dos cuentas (por ejemplo «Titanium (Diners Club)» y «Titanium (Diners Club) …666»). En **Ajustes → Cuentas y tarjetas**, al abrir una cuenta, **Fusionar con…** la vincula a una cuenta principal sin borrar ninguna: los correos siguen asignando gastos a cualquiera de las dos, y el filtro de Movimientos, los reportes, los presupuestos por cuenta, la conciliación y la exportación CSV las tratan como una sola, con el nombre de la principal. **Separar** deshace el vínculo; ningún gasto se mueve ni se borra.
+
+Solo se pueden fusionar cuentas de la misma persona y con un único nivel (la principal no puede estar fusionada con otra; si se fusiona una principal que ya tenía vinculadas, todas pasan a la nueva). La migración `0014_cuentas_vinculadas` agrega la columna `accounts.merged_into` y triggers que rechazan en la propia base vínculos entre personas distintas, ciclos o cadenas. API: `POST /api/accounts/{id}/merge` con `{"into": "<principal>"}` y `DELETE /api/accounts/{id}/merge`; ambas quedan en la auditoría.
+
 ## Reportes, conciliación y gastos fijos
 
 En **Reportes**, elige 3, 6 o 12 meses para ver el gasto neto, el promedio diario, la compra promedio, el número de compras y las devoluciones. El cambio mensual compara los dos últimos meses cerrados para evitar comparar un mes parcial con uno completo. La gráfica de líneas muestra la evolución del total y permite compararlo con una categoría, consultar valores exactos por mes mediante un selector y abrir una tabla. El gráfico admite desplazamiento con teclado y conserva las selecciones al cambiar de periodo. Se conserva la distribución por categoría y cuenta. Los indicadores incluyen los movimientos hasta el momento de la consulta, sin adelantar gastos con fecha futura.
@@ -270,4 +276,4 @@ El pie muestra los primeros siete caracteres de esa revisión y convierte `built
 
 La migración `0009_reportes_recurrentes` añade las revisiones de importación, avisos de plantillas, totales de conciliación y gastos recurrentes; se aplica al arrancar como las migraciones anteriores. El despliegue debe conservar la base y la KEK para mantener acceso a los campos cifrados.
 
-El rediseño y las estadísticas/proyecciones ampliadas no requieren una migración adicional. La migración `0010_unir_cuentas_repetidas` se describe en la sección de importación bancaria. Las migraciones `0011_sin_conexion` (versiones y claves de cambio), `0012_presupuestos_flexibles` (conserva los presupuestos y avisos existentes) y `0013_respaldos` (historial de respaldos) se aplican al arrancar.
+El rediseño y las estadísticas/proyecciones ampliadas no requieren una migración adicional. La migración `0010_unir_cuentas_repetidas` se describe en la sección de importación bancaria. Las migraciones `0011_sin_conexion` (versiones y claves de cambio), `0012_presupuestos_flexibles` (conserva los presupuestos y avisos existentes) `0013_respaldos` (historial de respaldos) y `0014_cuentas_vinculadas` (fusión lógica de cuentas, reversible al bajar) se aplican al arrancar.

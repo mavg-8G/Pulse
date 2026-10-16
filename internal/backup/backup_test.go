@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -144,7 +145,8 @@ func TestIdaYVueltaCifrada(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if run.Status != "ok" || run.Attempts != 1 || run.Name != "pulse-20261016T120000Z-v13.db.age" || run.SizeBytes == 0 || len(run.SHA256) != 64 {
+	latest, _ := db.Latest() // el nombre lleva la versión de esquema, que sube con cada migración
+	if run.Status != "ok" || run.Attempts != 1 || run.Name != "pulse-20261016T120000Z-v"+strconv.Itoa(latest)+".db.age" || run.SizeBytes == 0 || len(run.SHA256) != 64 {
 		t.Fatalf("registro: %+v", run)
 	}
 	obj := f.s3.objects["/b/pulse/"+run.Name]

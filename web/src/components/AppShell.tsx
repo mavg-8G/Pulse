@@ -50,7 +50,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     }
   }, [params, setParams])
   const manage = [
-    { to: '/ajustes/cuentas', label: 'Cuentas y tarjetas', icon: <IconWallet />, count: accounts.filter((a) => !a.archived).length },
+    { to: '/ajustes/cuentas', label: 'Cuentas y tarjetas', icon: <IconWallet />, count: accounts.filter((a) => !a.archived && !a.merged_into).length },
     { to: '/ajustes/categorias', label: 'Categorías', icon: <IconTag />, count: categories.filter((c) => !c.archived && !c.is_system).length },
   ]
   const pageName = location.pathname === '/ajustes/cuenta' ? 'Mi cuenta' : location.pathname === '/reportes' ? 'Reportes' : manage.find((n) => n.to === location.pathname)?.label ?? nav.find((n) => n.to === location.pathname)?.label ?? 'Mi espacio'

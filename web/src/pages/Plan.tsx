@@ -8,6 +8,7 @@ import { api, del, errorMessage, patch, post } from '../lib/api'
 import { monthLabel, monthOf, shiftMonth } from '../lib/dates'
 import { centsToInput, money, parseAmount } from '../lib/money'
 import { sendOrQueue } from '../lib/outbox'
+import { accountResolver, pickable } from '../lib/accounts'
 import { financeKeys, useAccounts, useBreakdown, useBudgets, useCategories, useMe, useRecurring, useSummary } from '../lib/queries'
 import type { Budget, BudgetLine, Recurring } from '../lib/types'
 
@@ -219,7 +220,7 @@ function BudgetForm({ line, month, current, usedCategories, usedAccounts, onDone
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const availableCats = categories.filter((c) => !c.archived && (!usedCategories.includes(c.id) || c.id === line?.category_id))
-  const availableAccs = accounts.filter((a) => !a.archived && (!usedAccounts.includes(a.id) || a.id === line?.account_id))
+  const availableAccs = pickable(accounts, line?.account_id).filter((a) => !a.archived && (!usedAccounts.includes(a.id) || a.id === line?.account_id))
   const fromOptions = Array.from({ length: 13 }, (_, i) => shiftMonth(current, -i))
 
   const refresh = () => ['summary', 'dashboard', 'budgets'].forEach((k) => qc.invalidateQueries({ queryKey: [k] }))
@@ -365,7 +366,7 @@ function RecurringList({ tz }: { tz: string }) {
               <span aria-hidden="true">{cat(r.category_id)?.icon} </span>{name(r)} · <strong className="num">{money(r.amount_cents)}</strong>
               {r.pending && <span className="badge pending">Pendiente de enviar</span>}
               <br />
-              <span className="small faint">Cada día {r.day} en {accounts.find((a) => a.id === r.account_id)?.name ?? 'tu cuenta'}{r.next_date && ` · próximo ${new Intl.DateTimeFormat('es-EC', { day: 'numeric', month: 'long', timeZone: 'UTC' }).format(new Date(`${r.next_date}T12:00:00Z`))}`}</span>
+              <span className="small faint">Cada día {r.day} en {accountResolver(accounts)(r.account_id)?.name ?? 'tu cuenta'}{r.next_date && ` · próximo ${new Intl.DateTimeFormat('es-EC', { day: 'numeric', month: 'long', timeZone: 'UTC' }).format(new Date(`${r.next_date}T12:00:00Z`))}`}</span>
             </span>
             <button className="btn btn-sm" onClick={() => setEditing(r)} aria-label={`Editar ${name(r)}`}>Editar</button>
             <button className="btn btn-sm btn-danger" onClick={() => remove(r)} aria-label={`Quitar ${name(r)}`}>Quitar</button>
@@ -428,7 +429,7 @@ function RecurringForm({ r, onDone }: { r: Recurring; tz: string; onDone: () => 
         </label>
         <label className="field"><span>Cuenta</span>
           <select className="select" value={account} onChange={(e) => setAccount(e.target.value)}>
-            {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+            {pickable(accounts, r.account_id).map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
           </select>
         </label>
       </div>

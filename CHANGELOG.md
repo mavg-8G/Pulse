@@ -4,6 +4,14 @@ Cambios relevantes de Pulse. Las entradas «Sin publicar» describen cambios pos
 
 La guía de uso y desarrollo está en [`README.md`](README.md); el roadmap y las aceptaciones pendientes, en [`PLAN.md`](PLAN.md).
 
+## Sin publicar — fusión lógica de cuentas (16 oct 2026)
+
+- **Ajustes → Cuentas y tarjetas**: cada cuenta tiene **Fusionar con…** para vincularla a una cuenta principal cuando son la misma tarjeta (por ejemplo, correos con y sin los últimos dígitos). Ninguna se borra y la lectura de correos sigue asignando gastos a cualquiera de las dos. **Separar** deshace el vínculo sin mover gastos.
+- Una cuenta fusionada se lee como su principal: el filtro de Movimientos trae los gastos de ambas, Reportes y «Por cuenta» muestran una sola fila, el presupuesto por cuenta suma las dos, la conciliación suma los estados ingresados y el CSV usa el nombre de la principal. Las listas para elegir cuenta solo muestran las principales; no se crean presupuestos ni estados en una cuenta fusionada.
+- Migración `0014_cuentas_vinculadas`: columna `accounts.merged_into` y triggers que rechazan vínculos entre personas distintas, consigo misma, ciclos o más de un nivel. Nuevos `POST`/`DELETE /api/accounts/{id}/merge`, registrados en la auditoría.
+- La prueba de respaldo cifrado ya no fija la versión de esquema en el nombre esperado del archivo.
+- Verificación: `gofmt`, `go vet` y `go test ./...` correctos, con pruebas de fusión por API (aislamiento entre usuarios, filtro, reportes, presupuesto, conciliación, separar, fusionar un grupo) y de los triggers de la base. 64 pruebas Vitest. Suite E2E completa en escritorio y móvil: 78 de 78, con la fusión y la separación revisadas con axe-core.
+
 ## Sin publicar — documentación de respaldos y limpieza del repositorio (16 oct 2026)
 
 - README actualizado con la copia cifrada local, su retención por defecto, los destinos externos combinables y Google Drive en `Backups/pulse`. Incluye el comando `pulse gdrive-auth` y el enlace a su configuración.

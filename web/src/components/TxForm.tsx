@@ -5,6 +5,7 @@ import { errorMessage } from '../lib/api'
 import { sendOrQueue } from '../lib/outbox'
 import { nowLocalInput, toLocalInput } from '../lib/dates'
 import { centsToInput, money, parseAmount } from '../lib/money'
+import { pickable } from '../lib/accounts'
 import { financeKeys, useAccounts, useCategories, useMe } from '../lib/queries'
 import type { Transaction } from '../lib/types'
 import { useToast } from './Toast'
@@ -31,7 +32,8 @@ export function TxForm({ tx, onDone }: { tx?: Transaction; onDone: () => void })
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
 
-  const effectiveAccount = accountId || accounts[0]?.id || ''
+  const choices = pickable(accounts, tx?.account_id)
+  const effectiveAccount = accountId || choices[0]?.id || ''
   const tops = useMemo(() => categories.filter((c) => !c.parent_id && !c.archived), [categories])
   const children = (id: string) => categories.filter((c) => c.parent_id === id && !c.archived)
   const selectedParent = categories.find((c) => c.id === categoryId)?.parent_id || categoryId
@@ -132,7 +134,7 @@ export function TxForm({ tx, onDone }: { tx?: Transaction; onDone: () => void })
         <label className="field">
           <span>Cuenta</span>
           <select className="select" value={effectiveAccount} onChange={(e) => setAccountId(e.target.value)}>
-            {accounts.map((a) => (
+            {choices.map((a) => (
               <option key={a.id} value={a.id}>
                 {a.name}
                 {a.card_suffix ? ` (…${a.card_suffix})` : ''}

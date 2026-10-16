@@ -25,6 +25,8 @@ export interface Account {
   color: string
   icon: string
   archived: boolean
+  /** Cuenta principal con la que se fusionó; vacío si no está fusionada. */
+  merged_into?: string
 }
 
 export interface Category {

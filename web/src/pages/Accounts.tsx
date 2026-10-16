@@ -5,7 +5,8 @@ import { useQueryClient } from '@tanstack/react-query'
 import { Sheet } from '../components/Sheet'
 import { useToast } from '../components/Toast'
 import { del, errorMessage, patch, post } from '../lib/api'
-import { useAccounts } from '../lib/queries'
+import { accountResolver, groupedOrder, linkedTo } from '../lib/accounts'
+import { financeKeys, useAccounts } from '../lib/queries'
 import type { Account, AccountType } from '../lib/types'
 
 const typeText: Record<AccountType, string> = {
@@ -19,6 +20,7 @@ const typeText: Record<AccountType, string> = {
 export function Accounts() {
   const { data: accounts = [] } = useAccounts(true)
   const [edit, setEdit] = useState<{ open: boolean; acc?: Account }>({ open: false })
+  const main = accountResolver(accounts)
   return (
     <>
       <p className="small"><Link to="/ajustes">Ajustes</Link></p>
@@ -30,18 +32,21 @@ export function Accounts() {
         Los últimos dígitos de cada tarjeta permitirán asignar automáticamente los gastos que lleguen por correo.
       </p>
       <ul className="list account-collection">
-        {accounts.map((a) => (
+        {groupedOrder(accounts).map((a) => (
           <li key={a.id} className={a.archived ? 'is-archived' : ''}>
             <button className="tx" onClick={() => setEdit({ open: true, acc: a })}>
               <span className="tx-icon" style={{ background: `color-mix(in srgb, ${a.color} 20%, transparent)` }} aria-hidden="true">{a.icon || '💳'}</span>
               <span className="tx-main">
                 <span className="tx-title">
                   {a.name} {a.archived && <span className="badge warn">Archivada</span>}
+                  {a.merged_into && <span className="badge">Fusionada</span>}
                 </span>
                 <span className="tx-meta">
                   {typeText[a.type]}
                   {a.institution ? ` de ${a.institution}` : ''}
                   {a.card_suffix ? `, termina en ${a.card_suffix}` : ''}
+                  {a.merged_into ? `. Sus gastos se ven en ${main(a.id)?.name ?? 'otra cuenta'}` : ''}
+                  {linkedTo(accounts, a.id).length > 0 ? `. Incluye ${linkedTo(accounts, a.id).map((x) => x.name).join(', ')}` : ''}
                 </span>
               </span>
               <span className="faint">›</span>
@@ -50,13 +55,13 @@ export function Accounts() {
         ))}
       </ul>
       <Sheet open={edit.open} title={edit.acc ? 'Editar cuenta' : 'Nueva cuenta'} onClose={() => setEdit({ open: false })}>
-        <AccountForm key={edit.acc?.id ?? 'new'} acc={edit.acc} onDone={() => setEdit({ open: false })} />
+        <AccountForm key={edit.acc?.id ?? 'new'} acc={edit.acc} accounts={accounts} onDone={() => setEdit({ open: false })} />
       </Sheet>
     </>
   )
 }
 
-function AccountForm({ acc, onDone }: { acc?: Account; onDone: () => void }) {
+function AccountForm({ acc, accounts, onDone }: { acc?: Account; accounts: Account[]; onDone: () => void }) {
   const ask = useConfirm()
   const qc = useQueryClient()
   const toast = useToast()
@@ -74,6 +79,40 @@ function AccountForm({ acc, onDone }: { acc?: Account; onDone: () => void }) {
     qc.invalidateQueries({ queryKey: ['accounts'] })
     toast(msg)
     onDone()
+  }
+  // Fusión lógica: ninguna cuenta se borra; los correos siguen asignando gastos a cualquiera de las dos.
+  const targets = acc ? accounts.filter((a) => a.id !== acc.id && !a.merged_into && !a.archived) : []
+  const [into, setInto] = useState('')
+  const mainName = accounts.find((a) => a.id === acc?.merged_into)?.name ?? 'otra cuenta'
+  const refreshAll = (msg: string) => {
+    financeKeys.forEach((k) => qc.invalidateQueries({ queryKey: k }))
+    ;['reports', 'reconciliation', 'budgets'].forEach((k) => qc.invalidateQueries({ queryKey: [k] }))
+    done(msg)
+  }
+  async function merge() {
+    const target = targets.find((a) => a.id === into)
+    if (!acc || !target) return setError('Elige la cuenta con la que se fusiona.')
+    const ok = await ask({
+      title: `¿Fusionar ${acc.name} con ${target.name}?`,
+      body: `Sus gastos, reportes y presupuestos se verán como una sola cuenta: ${target.name}. Ninguna se borra, los correos siguen llegando a las dos y puedes separarlas cuando quieras.`,
+      confirm: 'Fusionar',
+    })
+    if (!ok) return
+    try {
+      await post(`/api/accounts/${acc.id}/merge`, { into: target.id })
+      refreshAll(`${acc.name} ahora se ve junto con ${target.name}`)
+    } catch (err) {
+      setError(errorMessage(err))
+    }
+  }
+  async function unmerge() {
+    if (!acc) return
+    try {
+      await del(`/api/accounts/${acc.id}/merge`)
+      refreshAll('Cuentas separadas')
+    } catch (err) {
+      setError(errorMessage(err))
+    }
   }
   async function submit(e: FormEvent) {
     e.preventDefault()
@@ -139,6 +178,25 @@ function AccountForm({ acc, onDone }: { acc?: Account; onDone: () => void }) {
       </div>
       {error && <p className="error" role="alert">{error}</p>}
       <button className="btn btn-primary btn-block">Guardar cuenta</button>
+      {acc?.merged_into && (
+        <div className="stack" role="group" aria-label="Cuenta fusionada">
+          <p className="small muted">Fusionada con <strong>{mainName}</strong>: sus gastos se ven allí. Separarla no mueve ni borra ningún gasto.</p>
+          <button type="button" className="btn btn-sm" onClick={unmerge}>Separar de {mainName}</button>
+        </div>
+      )}
+      {acc && !acc.merged_into && targets.length > 0 && (
+        <div className="stack" role="group" aria-label="Fusionar cuentas">
+          <label className="field">
+            <span>Fusionar con…</span>
+            <select className="select" value={into} onChange={(e) => setInto(e.target.value)}>
+              <option value="">Elige la cuenta principal</option>
+              {targets.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+            </select>
+            <small className="hint">Úsalo cuando dos cuentas son la misma tarjeta. Ninguna se borra.</small>
+          </label>
+          <button type="button" className="btn btn-sm" disabled={!into} onClick={merge}>Fusionar</button>
+        </div>
+      )}
       {acc && (
         <div className="row-actions">
           <button type="button" className="btn btn-sm" onClick={toggleArchive}>{acc.archived ? 'Reactivar' : 'Archivar'}</button>

@@ -7,6 +7,7 @@ import { MonthSwitch, useTxSheet } from '../components/AppShell'
 import { TxGroups } from '../components/TxList'
 import { monthLabel, monthOf } from '../lib/dates'
 import { money } from '../lib/money'
+import { pickable } from '../lib/accounts'
 import { useAccounts, useCategories, useMe, useTransactions } from '../lib/queries'
 
 const PAGE = 50
@@ -70,7 +71,7 @@ export function Movements() {
         </select>
         <select className="select" aria-label="Cuenta" value={account} onChange={(e) => setAccount(e.target.value)}>
           <option value="">Todas las cuentas</option>
-          {accounts.map((a) => (
+          {pickable(accounts).map((a) => (
             <option key={a.id} value={a.id}>{a.name}</option>
           ))}
         </select>

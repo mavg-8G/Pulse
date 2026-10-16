@@ -136,6 +136,11 @@ func (s *Server) reportExport(w http.ResponseWriter, r *http.Request) error {
 	for _, a := range accs {
 		accName[a.ID] = a.Name
 	}
+	for _, a := range accs { // una cuenta fusionada se exporta con el nombre de su principal
+		if n, ok := accName[a.MergedInto]; ok {
+			accName[a.ID] = n
+		}
+	}
 	loc := s.loc(id)
 	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
 	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="pulse-%s-a-%s.csv"`, months[0], months[len(months)-1]))
@@ -185,8 +190,17 @@ func (s *Server) reconciliation(w http.ResponseWriter, r *http.Request) error {
 		StatementCents  *int64 `json:"statement_cents"`
 		DifferenceCents *int64 `json:"difference_cents"` // estado − registrado: positivo = faltan gastos en Pulse
 	}
+	// Una cuenta fusionada no tiene fila propia: su total de estado se suma al de la principal.
+	for _, a := range accs {
+		if v, ok := stmts[a.ID]; ok && a.MergedInto != "" {
+			stmts[a.MergedInto] += v
+		}
+	}
 	out := []row{}
 	for _, a := range accs {
+		if a.MergedInto != "" {
+			continue
+		}
 		st, has := stmts[a.ID]
 		if a.Archived && !has && recorded[a.ID] == 0 {
 			continue
@@ -215,11 +229,13 @@ func (s *Server) putStatement(w http.ResponseWriter, r *http.Request) error {
 	if _, _, err := budget.MonthRange(in.Month, s.loc(id)); err != nil {
 		return badRequest("Mes inválido.")
 	}
-	if _, err := s.store.Account(r.Context(), id.user.ID, in.AccountID); err != nil {
+	if a, err := s.store.Account(r.Context(), id.user.ID, in.AccountID); err != nil {
 		if errors.Is(err, store.ErrNotFound) {
 			return badRequest("La cuenta no existe.")
 		}
 		return err
+	} else if a.MergedInto != "" {
+		return badRequest("La cuenta está fusionada: ingresa el estado en su cuenta principal.")
 	}
 	if in.TotalCents == nil {
 		if err := s.store.DeleteStatement(r.Context(), id.user.ID, in.AccountID, in.Month); err != nil {

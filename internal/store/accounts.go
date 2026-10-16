@@ -17,17 +17,18 @@ type Account struct {
 	Color       string    `json:"color"`
 	Icon        string    `json:"icon"`
 	Archived    bool      `json:"archived"`
+	MergedInto  string    `json:"merged_into"` // cuenta principal a la que está vinculada; vacío si no lo está
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
 }
 
-const accCols = `id, name, type, institution, card_suffix, currency, color, icon, archived, created_at, updated_at`
+const accCols = `id, name, type, institution, card_suffix, currency, color, icon, archived, COALESCE(merged_into, ''), created_at, updated_at`
 
 func scanAccount(row interface{ Scan(...any) error }) (*Account, error) {
 	var a Account
 	var arch int
 	var c, u string
-	err := row.Scan(&a.ID, &a.Name, &a.Type, &a.Institution, &a.CardSuffix, &a.Currency, &a.Color, &a.Icon, &arch, &c, &u)
+	err := row.Scan(&a.ID, &a.Name, &a.Type, &a.Institution, &a.CardSuffix, &a.Currency, &a.Color, &a.Icon, &arch, &a.MergedInto, &c, &u)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -94,4 +95,50 @@ func (s *Store) DeleteAccount(ctx context.Context, userID, id string) error {
 		return Conflict("la cuenta tiene movimientos: archívala en lugar de borrarla")
 	}
 	return affected(s.DB.ExecContext(ctx, `DELETE FROM accounts WHERE id = ? AND user_id = ?`, id, userID))
+}
+
+// MergeAccount vincula la cuenta id a la principal into, sin borrar ninguna: los gastos siguen en su
+// cuenta original y las lecturas las suman como una sola. Si id ya tenía vinculadas, pasan a into.
+func (s *Store) MergeAccount(ctx context.Context, userID, id, into string) error {
+	if id == into {
+		return Conflict("una cuenta no se puede fusionar consigo misma")
+	}
+	return s.Tx(ctx, func(tx *sql.Tx) error {
+		var aliasOf, mainOf string
+		err := tx.QueryRowContext(ctx, `SELECT COALESCE(merged_into, '') FROM accounts WHERE id = ? AND user_id = ?`, id, userID).Scan(&aliasOf)
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrNotFound
+		} else if err != nil {
+			return err
+		}
+		err = tx.QueryRowContext(ctx, `SELECT COALESCE(merged_into, '') FROM accounts WHERE id = ? AND user_id = ?`, into, userID).Scan(&mainOf)
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrNotFound
+		} else if err != nil {
+			return err
+		}
+		if mainOf != "" {
+			return Conflict("esa cuenta ya está fusionada con otra: elige la cuenta principal")
+		}
+		if aliasOf == into {
+			return nil
+		}
+		now := TS(s.Clock.Now())
+		if _, err := tx.ExecContext(ctx, `UPDATE accounts SET merged_into = ?, updated_at = ? WHERE merged_into = ? AND user_id = ?`, into, now, id, userID); err != nil {
+			return err
+		}
+		return affected(tx.ExecContext(ctx, `UPDATE accounts SET merged_into = ?, updated_at = ? WHERE id = ? AND user_id = ?`, into, now, id, userID))
+	})
+}
+
+// UnmergeAccount separa una cuenta vinculada; sus gastos vuelven a verse por separado.
+func (s *Store) UnmergeAccount(ctx context.Context, userID, id string) error {
+	a, err := s.Account(ctx, userID, id)
+	if err != nil {
+		return err
+	}
+	if a.MergedInto == "" {
+		return Conflict("la cuenta no está fusionada con otra")
+	}
+	return affected(s.DB.ExecContext(ctx, `UPDATE accounts SET merged_into = NULL, updated_at = ? WHERE id = ? AND user_id = ?`, s.now(), id, userID))
 }

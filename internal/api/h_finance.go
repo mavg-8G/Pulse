@@ -140,6 +140,45 @@ func (s *Server) updateAccount(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
+// mergeAccount vincula la cuenta a una principal de la misma persona (fusión lógica, sin borrar nada).
+func (s *Server) mergeAccount(w http.ResponseWriter, r *http.Request) error {
+	id := ident(r)
+	var in struct {
+		Into string `json:"into"`
+	}
+	if err := decode(w, r, &in); err != nil {
+		return err
+	}
+	if in.Into == "" {
+		return badRequest("Elige la cuenta con la que se fusiona.")
+	}
+	if err := s.store.MergeAccount(r.Context(), id.user.ID, r.PathValue("id"), in.Into); err != nil {
+		return err
+	}
+	s.audit(r, id.user.ID, "account_merged", map[string]string{"account": r.PathValue("id"), "into": in.Into})
+	a, err := s.store.Account(r.Context(), id.user.ID, r.PathValue("id"))
+	if err != nil {
+		return err
+	}
+	writeJSON(w, 200, a)
+	return nil
+}
+
+// unmergeAccount separa una cuenta fusionada; sus gastos vuelven a verse aparte.
+func (s *Server) unmergeAccount(w http.ResponseWriter, r *http.Request) error {
+	id := ident(r)
+	if err := s.store.UnmergeAccount(r.Context(), id.user.ID, r.PathValue("id")); err != nil {
+		return err
+	}
+	s.audit(r, id.user.ID, "account_unmerged", map[string]string{"account": r.PathValue("id")})
+	a, err := s.store.Account(r.Context(), id.user.ID, r.PathValue("id"))
+	if err != nil {
+		return err
+	}
+	writeJSON(w, 200, a)
+	return nil
+}
+
 func (s *Server) deleteAccount(w http.ResponseWriter, r *http.Request) error {
 	if err := s.store.DeleteAccount(r.Context(), ident(r).user.ID, r.PathValue("id")); err != nil {
 		return err
@@ -720,6 +759,8 @@ func (s *Server) createBudget(w http.ResponseWriter, r *http.Request) error {
 			return err
 		} else if a.Archived {
 			return badRequest("La cuenta está archivada.")
+		} else if a.MergedInto != "" {
+			return badRequest("La cuenta está fusionada: crea el presupuesto en su cuenta principal.")
 		}
 		b.AccountID = *in.AccountID
 	default:
