@@ -39,6 +39,8 @@ Todas las vistas comparten una paleta de azul petróleo con acentos suaves en sa
 
 Los colores personalizados de cuentas y categorías se conservan y se presentan con menor saturación. Las ilustraciones de portada y acceso muestran datos de ejemplo identificados como tales. Las animaciones respetan la preferencia de movimiento reducido y se pueden pausar desde Ajustes.
 
+El pie de las vistas con sesión muestra **Un gasto a la vez. V2026-10-16 01:18:00 · abc1234** (ejemplo). La fecha identifica la construcción del servidor y se convierte de UTC a tu zona horaria; el código final es su commit abreviado. Se consulta al servidor cada minuto mientras la app está visible, al volver a ella y al recuperar la conexión. Si no puede confirmar la versión, conserva la última consultada con la indicación **sin verificar**. Una compilación sin marca de construcción se identifica como **Versión de desarrollo**.
+
 ## Conectar Gmail
 
 Un administrador configura el **ID de cliente OAuth** y el **secreto** en **Ajustes → Correo del banco (Gmail) → Configuración del servidor (admin)**. La pantalla muestra la URI de redirección y el webhook que debes registrar en Google Cloud. También permite configurar Pub/Sub y Gemini. Guardar requiere confirmar la identidad; las credenciales se cifran y se aplican sin reiniciar. Lo guardado en la app tiene prioridad sobre las variables de entorno; al borrarlo se vuelve a ellas.
@@ -182,6 +184,7 @@ Ejecuta la CLI con las mismas variables de configuración y claves que el servid
 |---|---|
 | `pulse invite create --email persona@example.com` | Crear una invitación |
 | `pulse user list` | Listar usuarios |
+| `pulse version` | Consultar la fecha UTC de construcción y el commit del binario |
 | `pulse user export persona@example.com export.json` | Exportar los datos de una persona a un archivo nuevo |
 | `pulse user delete persona@example.com --confirmar persona@example.com` | Eliminar la cuenta y sus datos asociados |
 | `pulse backup --keep 15 respaldo.db` | Crear un respaldo en caliente y rotar los anteriores |
@@ -233,6 +236,16 @@ Para instalar Chromium antes de las pruebas E2E: `cd web && npx playwright insta
 ## Despliegue
 
 Ver [`deploy/README.md`](deploy/README.md). Un push a `main` ejecuta las pruebas, construye y firma la imagen en GHCR y activa el despliegue del entorno `production`, sujeto a sus controles de GitHub. El servidor escucha por defecto en el puerto 8080.
+
+Para comprobar qué versión responde desde el VPS, consulta el pie de la app o el endpoint público de metadatos (sin datos de usuarios):
+
+```bash
+curl -fsS https://pulse.espectro.uk/api/version
+# Desde la consola del VPS:
+sudo docker exec pulse /pulse version
+```
+
+Ambos devuelven `built_at` en UTC y `revision` con el commit completo. La fecha queda grabada en el binario al construirlo y se conserva al reiniciar el contenedor. CI pasa la misma marca y revisión a la imagen probada y a la publicada; las construcciones con `make build`, `make docker` y `scripts/dev.ps1` también incorporan estos datos. El endpoint responde con `Cache-Control: no-store` y la PWA lo consulta por red. Si aparece el aviso **Hay una versión nueva de Pulse**, pulsa **Actualizar** para cargar también el nuevo frontend.
 
 `/healthz` comprueba la base y que el esquema coincida con el binario; devuelve 503 si falla esa comprobación e informa si Gmail y push están activos. La guía de despliegue incluye la copia externa con `deploy/backup-offsite.sh`, la restauración en una máquina limpia y la configuración de monitores.
 

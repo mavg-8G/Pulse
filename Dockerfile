@@ -25,8 +25,12 @@ COPY --from=web /src/internal/webui/dist ./internal/webui/dist
 ENV CGO_ENABLED=1
 # Los tests corren dentro del build: si algo falla, no se genera la imagen.
 RUN go vet ./... && go test ./...
-RUN go build -trimpath -tags "sqlite_omit_load_extension netgo osusergo" \
-      -ldflags "-s -w -linkmode external -extldflags '-static'" -o /out/pulse ./cmd/pulse
+ARG BUILD_TIMESTAMP
+ARG GIT_REVISION
+RUN build_timestamp="${BUILD_TIMESTAMP:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}" && \
+    go build -trimpath -tags "sqlite_omit_load_extension netgo osusergo" \
+      -ldflags "-s -w -linkmode external -extldflags '-static' -X pulse/internal/buildinfo.BuiltAt=${build_timestamp} -X pulse/internal/buildinfo.Revision=${GIT_REVISION}" \
+      -o /out/pulse ./cmd/pulse
 
 # 3) Ejecución: sin shell, sin gestor de paquetes, usuario sin privilegios (uid 65532).
 FROM gcr.io/distroless/static-debian13:nonroot

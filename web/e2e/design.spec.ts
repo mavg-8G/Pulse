@@ -54,7 +54,9 @@ test('todas las vistas privadas conservan legibilidad, navegación y formularios
     await page.emulateMedia({ colorScheme: theme, reducedMotion: 'reduce' })
     for (const [path, heading, name, ready] of views) {
       if (path.includes('?')) {
+        const authReady = page.waitForResponse((response) => response.url().endsWith('/api/auth/state') && response.ok())
         await page.goto(path)
+        await authReady
       } else if (new URL(page.url()).pathname !== path) {
         // Exercise the app's own navigation, including organization links in
         // Settings on mobile, without restarting the PWA for every screenshot.
@@ -66,8 +68,10 @@ test('todas las vistas privadas conservan legibilidad, navegación y formularios
         await link.click()
       }
       await expect(page.getByRole('heading', { level: 1, name: heading, exact: true })).toBeVisible()
+      // Wait for the actual panel before judging layout or taking screenshots;
+      // a successful API read can take longer than the default assertion window.
+      await expect(page.locator(ready).first()).toBeVisible({ timeout: 30_000 })
       await expect(page.getByText('Cargando…', { exact: true })).toHaveCount(0)
-      await expect(page.locator(ready).first()).toBeVisible()
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), `${name}, ${theme}: ancho`).toBeTruthy()
       await expectAccessible(page, `${name}, ${theme}`)
       await page.screenshot({ path: info.outputPath(`${name}-${theme}.png`), fullPage: true, animations: 'disabled' })

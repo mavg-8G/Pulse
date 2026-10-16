@@ -97,7 +97,10 @@ h1, h2, h3 { letter-spacing: -0.025em; font-weight: 600; }
 .tab[aria-current='page'] { background: var(--accent-soft); border-radius: 12px; }
 .tab[aria-current='page'] svg { transform: none; }
 .tab[aria-current='page']::after { display: none; }
-.workspace-footer { font-size: 0.67rem; margin-top: 34px; }
+.workspace-footer { font-size: 0.67rem; margin-top: 34px; flex-wrap: wrap; }
+.workspace-signoff { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px 8px; }
+.build-version { color: var(--ink-2); font-size: 0.75rem; font-variant-numeric: tabular-nums; }
+.build-version time { white-space: nowrap; }
 
 /* Home: one clear balance, followed by distinct activity and category panels. */
 .dashboard { gap: 24px; }

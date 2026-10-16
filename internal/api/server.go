@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"pulse/internal/auth"
+	"pulse/internal/buildinfo"
 	"pulse/internal/clock"
 	"pulse/internal/config"
 	"pulse/internal/crypto"
@@ -104,6 +105,11 @@ func (s *Server) Handler() http.Handler {
 	any := []string{"enroll", "mfa", "full"}
 
 	mux.HandleFunc("GET /healthz", s.healthz)
+	// Public artifact metadata only; clients must always consult the running server.
+	mux.HandleFunc("GET /api/version", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-store")
+		writeJSON(w, http.StatusOK, buildinfo.Current())
+	})
 
 	// Autenticación
 	mux.HandleFunc("GET /api/auth/state", s.h(s.authState))

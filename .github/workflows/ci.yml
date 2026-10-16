@@ -115,6 +115,7 @@ jobs:
         run: |
           echo "node=$(cat .node-version)" >> "$GITHUB_OUTPUT"
           echo "go=$(awk '$1 == "go" {print $2}' go.mod)" >> "$GITHUB_OUTPUT"
+          echo "built_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
       - id: meta
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
         with:
@@ -133,6 +134,8 @@ jobs:
           build-args: |
             NODE_VERSION=${{ steps.versions.outputs.node }}
             GO_VERSION=${{ steps.versions.outputs.go }}
+            BUILD_TIMESTAMP=${{ steps.versions.outputs.built_at }}
+            GIT_REVISION=${{ github.sha }}
           tags: pulse:ci
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
@@ -154,6 +157,9 @@ jobs:
           docker run -d --name pulse-ci-smoke --read-only --cap-drop ALL --security-opt no-new-privileges -v $PWD/s:/run/secrets:ro -v $PWD/d:/data \
             -e PULSE_BASE_URL=https://pulse.test -e PULSE_KEK_FILE=/run/secrets/kek pulse:ci
           sleep 3 && docker exec pulse-ci-smoke /pulse healthcheck
+          docker exec pulse-ci-smoke /pulse version | jq -e \
+            --arg revision '${{ github.sha }}' --arg built_at '${{ steps.versions.outputs.built_at }}' \
+            '.revision == $revision and .built_at == $built_at'
           docker exec pulse-ci-smoke /pulse invite create --email restore@ci.test >/dev/null
           docker exec pulse-ci-smoke /pulse backup /data/backups/ci.db
       - name: Restaura el respaldo en una máquina limpia
@@ -199,6 +205,8 @@ jobs:
           build-args: |
             NODE_VERSION=${{ steps.versions.outputs.node }}
             GO_VERSION=${{ steps.versions.outputs.go }}
+            BUILD_TIMESTAMP=${{ steps.versions.outputs.built_at }}
+            GIT_REVISION=${{ github.sha }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha

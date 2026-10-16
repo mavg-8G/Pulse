@@ -11,6 +11,7 @@ import { financeKeys } from '../lib/queries'
 import { useToast } from './Toast'
 import { Sheet } from './Sheet'
 import { TxForm } from './TxForm'
+import { BuildVersion } from './BuildVersion'
 
 const TxSheetCtx = createContext<(tx?: Transaction) => void>(() => {})
 export const useTxSheet = () => useContext(TxSheetCtx)
@@ -97,7 +98,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <div className="workspace-tools"><span className="workspace-date">{date}</span><button className="btn btn-primary mobile-add" onClick={() => open()} aria-label="Nuevo gasto"><IconPlus /><span>Nuevo</span></button><Link className="topbar-profile avatar" to="/ajustes/cuenta" aria-label="Mi cuenta">{initial}</Link></div>
           </header>
           <div className={`page-content ${['/ajustes', '/ajustes/cuenta'].includes(location.pathname) ? 'settings-layout' : ''}`} data-view={location.pathname.split('/').filter(Boolean).at(-1) ?? 'inicio'} key={location.pathname}>{children}</div>
-          <footer className="workspace-footer"><span><IconPulse /> Pulse</span><span>Un gasto a la vez.</span></footer>
+          <footer className="workspace-footer"><span><IconPulse /> Pulse</span><span className="workspace-signoff">Un gasto a la vez. <BuildVersion tz={tz} /></span></footer>
         </main>
         <nav className="tabbar" aria-label="Principal">{nav.map((n) => <NavLink key={n.to} to={n.to} end={n.end} className="tab">{n.icon}{n.label}</NavLink>)}</nav>
       </div>

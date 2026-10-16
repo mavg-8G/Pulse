@@ -21,7 +21,13 @@ try {
 } finally { Pop-Location }
 New-Item -ItemType Directory -Force .dev, bin | Out-Null
 $binary = Join-Path $projectRoot 'bin\pulse.exe'
-& $pulseGo build -o $binary ./cmd/pulse
+$buildTimestamp = [DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ssZ')
+$gitRevision = ''
+if ((Get-Command git -ErrorAction SilentlyContinue) -and (Test-Path -LiteralPath '.git')) {
+    $gitRevision = (& git rev-parse HEAD).Trim()
+    if ($LASTEXITCODE -ne 0) { throw 'No se pudo leer la revisión de Git.' }
+}
+& $pulseGo build -ldflags "-X pulse/internal/buildinfo.BuiltAt=$buildTimestamp -X pulse/internal/buildinfo.Revision=$gitRevision" -o $binary ./cmd/pulse
 if ($LASTEXITCODE -ne 0) { throw 'Falló la compilación de Go.' }
 if (!(Test-Path -LiteralPath '.dev\pulse_kek')) { & $binary genkeys --out .dev; if ($LASTEXITCODE -ne 0) { throw 'Falló la creación de la clave maestra.' } }
 if (!(Test-Path -LiteralPath '.dev\vapid_private')) {

@@ -31,6 +31,7 @@ import (
 	"pulse/internal/admin"
 	"pulse/internal/api"
 	"pulse/internal/auth"
+	"pulse/internal/buildinfo"
 	"pulse/internal/clock"
 	"pulse/internal/config"
 	"pulse/internal/crypto"
@@ -68,6 +69,8 @@ func main() {
 		err = vapidKeys(os.Args[2:])
 	case "healthcheck":
 		err = healthcheck()
+	case "version":
+		err = json.NewEncoder(os.Stdout).Encode(buildinfo.Current())
 	default:
 		usage()
 	}
@@ -78,7 +81,7 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, `uso: pulse <serve|migrate|invite|user|genkeys|vapid|healthcheck>
+	fmt.Fprintln(os.Stderr, `uso: pulse <serve|migrate|invite|user|genkeys|vapid|healthcheck|version>
   invite create [--email correo] [--role user|admin] [--ttl 72h]
   invite list
   invite revoke <id>
@@ -89,6 +92,7 @@ func usage() {
   vapid --out <directorio>
   backup [--keep N] <archivo.db>  respaldo en caliente (VACUUM INTO)
   restore <archivo.db>     reemplaza la base por un respaldo (con el servidor detenido)
+  version                 fecha UTC de construcción y commit del binario
   parse [--texto] [--titular "NOMBRE"] correo.eml…`)
 	os.Exit(2)
 }

@@ -318,10 +318,11 @@ POST   /api/gmail/webhook            (JWT OIDC Google)
 POST   /api/ingest/email             (token + HMAC, desactivable)
 GET    /api/push/vapid-key           POST|DELETE /api/push/subscribe
 GET    /healthz
+GET    /api/version                  → fecha UTC de construcción y commit, público y sin caché
 GET    /*                            → frontend embebido
 ```
 
-Todo bajo `/api` (excepto auth pública, webhook y healthz) exige sesión con MFA completado.
+Todo bajo `/api` (excepto auth pública, webhook y los metadatos públicos de `/api/version`) exige sesión con MFA completado. `/healthz` también es público.
 
 `/api/reports/summary` incluye las estadísticas, series mensuales y proyecciones; la ampliación no añade un endpoint ni una migración. Las proyecciones usan hasta 90 días completos de historial, independientemente del rango mensual solicitado.
 
@@ -612,6 +613,7 @@ Se construyen y prueban solo con archivos `.eml`, antes de tocar la API de Gmail
 - [x] Avisos de éxito de Gmail después de actualizar el estado y el contador de importados; pruebas OAuth esperan explícitamente la respuesta del servidor
 - [x] Corregida la lectura de fechas mes/día/año de Produbanco con correos reales; promociones y acuses de pago excluidos de las alertas y de Gemini
 - [x] Reintento de correos pendientes desde Ajustes → Gmail, conservando la deduplicación; total de alertas independiente de la vista previa de 20 y retirada de alertas resueltas
+- [x] Fecha de construcción y commit del servidor en el pie, convertidos a la zona del usuario; metadatos grabados en el binario y consultables por API y CLI para verificar la versión del VPS
 - [ ] Contrastar las proyecciones con los resultados reales de las próximas semanas y meses antes de ajustar el método de estimación
 - [ ] **Tú**: revisar en unas semanas los aciertos reales por banco antes de apagar el modo sombra
 - [ ] Más bancos (débito, transferencias) siguiendo el mismo proceso: `.eml` → golden → fuzz → sombra

@@ -2,6 +2,9 @@
 .PHONY: dev web build test race cover fuzz web-test e2e lint check docker clean
 
 GO_TAGS := sqlite_omit_load_extension
+BUILD_TIMESTAMP := $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
+GIT_REVISION := $(shell git rev-parse HEAD 2>/dev/null)
+BUILD_LDFLAGS := -X pulse/internal/buildinfo.BuiltAt=$(BUILD_TIMESTAMP) -X pulse/internal/buildinfo.Revision=$(GIT_REVISION)
 
 dev: ## API en :8080 (modo desarrollo). En otra terminal: cd web && npm run dev
 	@mkdir -p .dev
@@ -13,7 +16,7 @@ web: ## Compila el frontend dentro de internal/webui/dist
 	cd web && npm ci && npm run build
 
 build: web ## Binario completo en ./bin/pulse
-	CGO_ENABLED=1 go build -trimpath -tags $(GO_TAGS) -o bin/pulse ./cmd/pulse
+	CGO_ENABLED=1 go build -trimpath -tags $(GO_TAGS) -ldflags "$(BUILD_LDFLAGS)" -o bin/pulse ./cmd/pulse
 
 test: ## Tests de Go
 	go test -tags $(GO_TAGS) ./...
@@ -46,7 +49,7 @@ lint:
 check: lint race web-test e2e ## Todo lo que corre la CI
 
 docker:
-	docker build -t pulse:latest .
+	docker build --build-arg BUILD_TIMESTAMP="$(BUILD_TIMESTAMP)" --build-arg GIT_REVISION="$(GIT_REVISION)" -t pulse:latest .
 
 clean:
 	rm -rf bin .dev cover.out web/.e2e web/test-results

@@ -14,7 +14,12 @@ mkdirSync(dir, { recursive: true })
 const binary = join(dir, process.platform === 'win32' ? 'pulse.exe' : 'pulse')
 if (process.platform === 'win32') execFileSync('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', join(root, 'scripts/stop-e2e.ps1'), '-Directory', dir])
 const go = process.env.PULSE_GO || 'go'
-execFileSync(go, ['build', '-o', binary, './cmd/pulse'], { cwd: root, stdio: 'inherit' })
+const buildInfo = {
+  built_at: new Date().toISOString().replace(/\.\d{3}Z$/, 'Z'),
+  revision: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root }).toString().trim(),
+}
+execFileSync(go, ['build', '-ldflags', `-X pulse/internal/buildinfo.BuiltAt=${buildInfo.built_at} -X pulse/internal/buildinfo.Revision=${buildInfo.revision}`, '-o', binary, './cmd/pulse'], { cwd: root, stdio: 'inherit' })
+writeFileSync(join(dir, 'build-info.json'), JSON.stringify(buildInfo))
 const secrets = join(dir, 'secrets')
 if (!existsSync(join(secrets, 'pulse_kek'))) execFileSync(binary, ['genkeys', '--out', secrets])
 let publicKey
