@@ -10,6 +10,7 @@ La guía de uso y desarrollo está en [`README.md`](README.md); el roadmap y las
 - Consulta por red cada minuto con la app visible, al volver a la pestaña y al recuperar la conexión; si falla, muestra la última versión consultada como **sin verificar**. Las compilaciones sin marca se identifican como desarrollo.
 - Nuevo `GET /api/version` público con solo `built_at` y `revision`, sin caché, y comando `pulse version` para inspeccionar el mismo dato directamente en el contenedor.
 - CI genera una marca UTC por construcción y la pasa junto al SHA a la imagen probada y a la publicada. La prueba de humo de la imagen comprueba ambos valores. Docker, Makefile y el script de desarrollo de Windows incorporan la marca al binario; reiniciar el servicio no cambia su fecha.
+- README ampliado con la comprobación del despliegue en GitHub Actions y la comparación del commit esperado con `/api/version`, el contenedor y el pie. Aclara qué representa la fecha de construcción y cómo interpretar **sin verificar**.
 - Verificación: compilación y TypeScript, 45 pruebas Vitest, pruebas Go de buildinfo/API/CLI y `go vet` correctos; workflow validado con `actionlint`. Los 14 escenarios E2E de versión, diseño y PWA quedaron verificados entre la ejecución completa y las repeticiones selectivas, incluido el footer a 320 px y ambos temas. La revisión visual espera el panel y la autenticación antes de capturar cada vista. La construcción de la imagen y su prueba de humo se ejecutan en CI.
 
 ## Sin publicar — guía de comprobación de Reportes (16 oct 2026)

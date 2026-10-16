@@ -237,7 +237,11 @@ Para instalar Chromium antes de las pruebas E2E: `cd web && npx playwright insta
 
 Ver [`deploy/README.md`](deploy/README.md). Un push a `main` ejecuta las pruebas, construye y firma la imagen en GHCR y activa el despliegue del entorno `production`, sujeto a sus controles de GitHub. El servidor escucha por defecto en el puerto 8080.
 
-Para comprobar qué versión responde desde el VPS, consulta el pie de la app o el endpoint público de metadatos (sin datos de usuarios):
+### Comprobar la actualización del VPS
+
+Después de subir cambios, revisa la ejecución correspondiente en [GitHub Actions](https://github.com/mavg-8G/Pulse/actions/workflows/ci.yml): el push inicia el proceso y el despliegue debe terminar correctamente antes de comprobar la nueva versión.
+
+Consulta el endpoint público de metadatos (sin datos de usuarios) o el binario del contenedor:
 
 ```bash
 curl -fsS https://pulse.espectro.uk/api/version
@@ -246,6 +250,14 @@ sudo docker exec pulse /pulse version
 ```
 
 Ambos devuelven `built_at` en UTC y `revision` con el commit completo. La fecha queda grabada en el binario al construirlo y se conserva al reiniciar el contenedor. CI pasa la misma marca y revisión a la imagen probada y a la publicada; las construcciones con `make build`, `make docker` y `scripts/dev.ps1` también incorporan estos datos. El endpoint responde con `Cache-Control: no-store` y la PWA lo consulta por red. Si aparece el aviso **Hay una versión nueva de Pulse**, pulsa **Actualizar** para cargar también el nuevo frontend.
+
+Compara `revision` con el commit que esperas desplegar. Si acabas de subir el commit actual de tu copia local, puedes obtener su identificador completo con:
+
+```bash
+git rev-parse HEAD
+```
+
+El pie muestra los primeros siete caracteres de esa revisión y convierte `built_at` a tu zona horaria. La fecha indica cuándo se construyó el servidor; la coincidencia del commit permite confirmar qué cambios está sirviendo el VPS. Si el pie indica **sin verificar**, muestra el último dato consultado y todavía no confirma la versión actual: recupera la conexión y espera la siguiente consulta o vuelve a la pestaña.
 
 `/healthz` comprueba la base y que el esquema coincida con el binario; devuelve 503 si falla esa comprobación e informa si Gmail y push están activos. La guía de despliegue incluye la copia externa con `deploy/backup-offsite.sh`, la restauración en una máquina limpia y la configuración de monitores.
 
