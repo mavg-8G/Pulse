@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"mime"
 	"net/http"
+	"strconv"
 	"strings"
 	"unicode"
 
@@ -18,11 +19,43 @@ type apiError struct {
 	Status  int    `json:"-"`
 	Code    string `json:"code"`
 	Message string `json:"message"`
+	// Current acompaña a un conflicto de versión: lo que hay ahora en el servidor, para que el cliente elija.
+	Current any `json:"-"`
 }
 
 func (e *apiError) Error() string { return e.Code + ": " + e.Message }
 
-func errf(status int, code, msg string) *apiError { return &apiError{status, code, msg} }
+func errf(status int, code, msg string) *apiError {
+	return &apiError{Status: status, Code: code, Message: msg}
+}
+
+// versionConflict: el registro cambió en otro dispositivo desde la versión que conocía el cliente.
+func versionConflict(current any) *apiError {
+	return &apiError{Status: 409, Code: "version_conflict", Message: "Este registro cambió en otro dispositivo.", Current: current}
+}
+
+// ifMatch lee la versión esperada de If-Match ("3" o 3). 0 significa "sin condición".
+func ifMatch(r *http.Request) (int64, error) {
+	v := strings.TrimPrefix(strings.TrimSpace(r.Header.Get("If-Match")), "W/")
+	v = strings.Trim(v, `"`)
+	if v == "" {
+		return 0, nil
+	}
+	n, err := strconv.ParseInt(v, 10, 64)
+	if err != nil || n < 1 {
+		return 0, badRequest("If-Match inválido.")
+	}
+	return n, nil
+}
+
+// opID lee Idempotency-Key: el identificador que el cliente da a una operación en cola.
+func opID(r *http.Request) (string, error) {
+	v := strings.TrimSpace(r.Header.Get("Idempotency-Key"))
+	if v != "" && !uuidRe.MatchString(v) {
+		return "", badRequest("Idempotency-Key inválido.")
+	}
+	return v, nil
+}
 
 func badRequest(msg string) *apiError { return errf(400, "invalid", msg) }
 
@@ -55,8 +88,11 @@ func (s *Server) h(fn handler) http.HandlerFunc {
 func (s *Server) fail(w http.ResponseWriter, r *http.Request, err error) {
 	var ae *apiError
 	var ce *store.ConflictError
+	var vc *store.VersionConflict
 	switch {
 	case errors.As(err, &ae):
+	case errors.As(err, &vc):
+		ae = versionConflict(nil)
 	case errors.Is(err, store.ErrNotFound):
 		ae = errNotFound
 	case errors.As(err, &ce):
@@ -65,7 +101,11 @@ func (s *Server) fail(w http.ResponseWriter, r *http.Request, err error) {
 		s.log.Error("error interno", slog.String("path", r.URL.Path), slog.String("err", err.Error()))
 		ae = errf(500, "internal", "Ocurrió un error inesperado.")
 	}
-	writeJSON(w, ae.Status, map[string]any{"error": ae})
+	out := map[string]any{"error": ae}
+	if ae.Current != nil {
+		out["current"] = ae.Current
+	}
+	writeJSON(w, ae.Status, out)
 }
 
 const maxBody = 64 << 10

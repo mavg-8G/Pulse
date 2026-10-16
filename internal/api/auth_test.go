@@ -115,7 +115,9 @@ func TestLoginCompletoYRotacionDeToken(t *testing.T) {
 	if c.cookie == partial || c.cookie == "" {
 		t.Fatal("el token debe rotar al completar el 2.º factor")
 	}
-	c.must(200, "GET", "/api/me", nil)
+	if b, _ := c.must(200, "GET", "/api/me", nil).Body["build"].(map[string]any); b["built_at"] == "" || b["built_at"] == nil {
+		t.Fatalf("/api/me debe decir qué compilación corre: %v", b)
+	}
 
 	// El token parcial anterior ya no sirve
 	old := e.client()

@@ -11,6 +11,7 @@ import (
 
 	"pulse/internal/auth"
 	"pulse/internal/budget"
+	"pulse/internal/forecast"
 	"pulse/internal/mailparse"
 	"pulse/internal/push"
 	"pulse/internal/store"
@@ -63,7 +64,40 @@ func (s *Server) reportSummary(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	writeJSON(w, 200, buildReportSummary(months, from, to, now, cats, activity))
+	out := buildReportSummary(months, from, to, now, cats, activity)
+	if out.Forecast.Ready {
+		if err := s.horizonModels(r, id, today, cats, &out.Forecast); err != nil {
+			return err
+		}
+	}
+	writeJSON(w, 200, out)
+	return nil
+}
+
+// horizonModels añade la proyección por validación (próxima semana y próximo mes) con su rango del 95 %.
+func (s *Server) horizonModels(r *http.Request, id *identity, today time.Time, cats []store.Category, f *reportForecast) error {
+	ctx := r.Context()
+	loc := today.Location()
+	txs, err := s.store.ProjectionActivity(ctx, id.user.ID, forecast.WindowStart(today).UTC(), s.clock.Now())
+	if err != nil {
+		return err
+	}
+	first, err := s.store.FirstActivity(ctx, id.user.ID)
+	if err != nil {
+		return err
+	}
+	last := max(f.WeekTo, f.MonthTo)
+	upcoming, err := s.store.UpcomingRecurring(ctx, id.user.ID, today.AddDate(0, 0, 1).Format("2006-01-02"), last)
+	if err != nil {
+		return err
+	}
+	in := projectionInput(today, first, cats, txs, upcoming)
+	parse := func(d string) time.Time {
+		t, _ := time.ParseInLocation("2006-01-02", d, loc)
+		return t
+	}
+	f.Week = forecast.Horizon(in, parse(f.WeekFrom), parse(f.WeekTo))
+	f.Month = forecast.Horizon(in, parse(f.MonthFrom), parse(f.MonthTo))
 	return nil
 }
 
@@ -215,66 +249,184 @@ func (s *Server) listRecurring(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
+type recurringInput struct {
+	ID          *string `json:"id"` // opcional al crear: lo genera el cliente para que la cola sin conexión no lo duplique
+	AccountID   *string `json:"account_id"`
+	CategoryID  *string `json:"category_id"`
+	AmountCents *int64  `json:"amount_cents"`
+	Merchant    *string `json:"merchant"`
+	StartDate   *string `json:"start_date"` // solo al crear, AAAA-MM-DD: primer cobro; se repite cada mes ese día
+	Day         *int    `json:"day"`        // solo al editar: nuevo día del mes (1–31)
+}
+
+func (s *Server) applyRecurring(r *http.Request, id *identity, in *recurringInput, rec *store.Recurring) error {
+	ctx := r.Context()
+	if in.AmountCents != nil {
+		rec.AmountCents = *in.AmountCents
+	}
+	if rec.AmountCents <= 0 || rec.AmountCents > maxAmount {
+		return badRequest("El monto debe ser mayor a cero.")
+	}
+	if in.Merchant != nil {
+		m, err := cleanText(*in.Merchant, 120, "El comercio")
+		if err != nil {
+			return err
+		}
+		rec.Merchant = m
+	}
+	if in.AccountID != nil && *in.AccountID != rec.AccountID {
+		if a, err := s.store.Account(ctx, id.user.ID, *in.AccountID); errors.Is(err, store.ErrNotFound) {
+			return badRequest("La cuenta no existe.")
+		} else if err != nil {
+			return err
+		} else if a.Archived {
+			return badRequest("La cuenta está archivada.")
+		}
+		rec.AccountID = *in.AccountID
+	}
+	if in.CategoryID != nil && *in.CategoryID != rec.CategoryID {
+		if _, err := s.store.Category(ctx, id.user.ID, *in.CategoryID); errors.Is(err, store.ErrNotFound) {
+			return badRequest("La categoría no existe.")
+		} else if err != nil {
+			return err
+		}
+		rec.CategoryID = *in.CategoryID
+	}
+	if rec.AccountID == "" {
+		return badRequest("La cuenta no existe.")
+	}
+	if rec.CategoryID == "" {
+		return badRequest("La categoría no existe.")
+	}
+	return nil
+}
+
 func (s *Server) createRecurring(w http.ResponseWriter, r *http.Request) error {
 	id := ident(r)
 	ctx := r.Context()
-	var in struct {
-		AccountID   string `json:"account_id"`
-		CategoryID  string `json:"category_id"`
-		AmountCents int64  `json:"amount_cents"`
-		Merchant    string `json:"merchant"`
-		StartDate   string `json:"start_date"` // AAAA-MM-DD: primer cobro; se repite cada mes ese día
-	}
+	var in recurringInput
 	if err := decode(w, r, &in); err != nil {
 		return err
 	}
+	if in.Day != nil {
+		return badRequest("El día sale de la fecha de inicio.")
+	}
+	rec := &store.Recurring{ID: auth.NewID()}
+	if in.ID != nil {
+		if !uuidRe.MatchString(*in.ID) {
+			return badRequest("Identificador inválido.")
+		}
+		if prev, err := s.store.RecurringByID(ctx, id.user.ID, id.seal(), *in.ID); err == nil {
+			writeJSON(w, 200, prev) // reenvío desde la cola: ya estaba creado
+			return nil
+		} else if !errors.Is(err, store.ErrNotFound) {
+			return err
+		}
+		rec.ID = *in.ID
+	}
 	loc := s.loc(id)
-	start, err := time.ParseInLocation("2006-01-02", in.StartDate, loc)
+	var startDate string
+	if in.StartDate != nil {
+		startDate = *in.StartDate
+	}
+	start, err := time.ParseInLocation("2006-01-02", startDate, loc)
 	if err != nil || start.Year() < 2000 || start.After(s.clock.Now().AddDate(1, 0, 0)) {
 		return badRequest("Fecha de inicio inválida.")
 	}
-	if in.AmountCents <= 0 || in.AmountCents > maxAmount {
-		return badRequest("El monto debe ser mayor a cero.")
-	}
-	merchant, err := cleanText(in.Merchant, 120, "El comercio")
-	if err != nil {
+	if err := s.applyRecurring(r, id, &in, rec); err != nil {
 		return err
 	}
-	if a, err := s.store.Account(ctx, id.user.ID, in.AccountID); errors.Is(err, store.ErrNotFound) {
-		return badRequest("La cuenta no existe.")
-	} else if err != nil {
-		return err
-	} else if a.Archived {
-		return badRequest("La cuenta está archivada.")
-	}
-	if _, err := s.store.Category(ctx, id.user.ID, in.CategoryID); errors.Is(err, store.ErrNotFound) {
-		return badRequest("La categoría no existe.")
-	} else if err != nil {
-		return err
-	}
-	rec := &store.Recurring{ID: auth.NewID(), AccountID: in.AccountID, CategoryID: in.CategoryID, AmountCents: in.AmountCents,
-		Merchant: merchant, Day: start.Day(), NextDate: in.StartDate}
+	rec.Day, rec.NextDate = start.Day(), startDate
 	if err := s.store.CreateRecurring(ctx, id.user.ID, id.seal(), rec); err != nil {
 		return err
 	}
 	if err := s.runRecurring(ctx, id.user); err != nil { // si empieza hoy o antes, el primer gasto aparece ya
 		return err
 	}
-	list, err := s.store.Recurrings(ctx, id.user.ID, id.seal(), "")
+	cur, err := s.store.RecurringByID(ctx, id.user.ID, id.seal(), rec.ID)
 	if err != nil {
 		return err
 	}
-	for _, x := range list {
-		if x.ID == rec.ID {
-			rec = &x
-		}
+	writeJSON(w, 201, cur)
+	return nil
+}
+
+// updateRecurring cambia monto, comercio, cuenta, categoría o día de un gasto fijo. Los gastos ya registrados no cambian.
+// Con un día nuevo, el próximo cobro queda en el mismo mes que el pendiente; si ese día ya pasó, se registra al guardar.
+func (s *Server) updateRecurring(w http.ResponseWriter, r *http.Request) error {
+	id := ident(r)
+	ctx := r.Context()
+	rec, err := s.store.RecurringByID(ctx, id.user.ID, id.seal(), r.PathValue("id"))
+	if err != nil {
+		return err
 	}
-	writeJSON(w, 201, rec)
+	expect, op, err := conditional(r)
+	if err != nil {
+		return err
+	}
+	var in recurringInput
+	if err := decode(w, r, &in); err != nil {
+		return err
+	}
+	if in.ID != nil || in.StartDate != nil {
+		return badRequest("Solo se pueden cambiar monto, comercio, cuenta, categoría y día.")
+	}
+	if op != "" && rec.LastOp == op {
+		writeJSON(w, 200, rec)
+		return nil
+	}
+	if expect != 0 && rec.Version != expect {
+		return versionConflict(rec)
+	}
+	if err := s.applyRecurring(r, id, &in, rec); err != nil {
+		return err
+	}
+	if in.Day != nil && *in.Day != rec.Day {
+		if *in.Day < 1 || *in.Day > 31 {
+			return badRequest("El día debe estar entre 1 y 31.")
+		}
+		next, _ := time.Parse("2006-01-02", rec.NextDate)
+		last := time.Date(next.Year(), next.Month()+1, 0, 0, 0, 0, 0, time.UTC).Day()
+		rec.Day = *in.Day
+		rec.NextDate = time.Date(next.Year(), next.Month(), min(rec.Day, last), 0, 0, 0, 0, time.UTC).Format("2006-01-02")
+	}
+	if err := s.store.UpdateRecurring(ctx, id.user.ID, id.seal(), rec, expect, op); err != nil {
+		var vc *store.VersionConflict
+		if errors.As(err, &vc) {
+			cur, cerr := s.store.RecurringByID(ctx, id.user.ID, id.seal(), rec.ID)
+			if cerr != nil {
+				return cerr
+			}
+			return versionConflict(cur)
+		}
+		return err
+	}
+	if err := s.runRecurring(ctx, id.user); err != nil {
+		return err
+	}
+	cur, err := s.store.RecurringByID(ctx, id.user.ID, id.seal(), rec.ID)
+	if err != nil {
+		return err
+	}
+	writeJSON(w, 200, cur)
 	return nil
 }
 
 func (s *Server) deleteRecurring(w http.ResponseWriter, r *http.Request) error {
-	if err := s.store.DeleteRecurring(r.Context(), ident(r).user.ID, r.PathValue("id")); err != nil {
+	id := ident(r)
+	expect, _, err := conditional(r)
+	if err != nil {
+		return err
+	}
+	if err := s.store.DeleteRecurring(r.Context(), id.user.ID, r.PathValue("id"), expect); err != nil {
+		var vc *store.VersionConflict
+		if errors.As(err, &vc) {
+			cur, cerr := s.store.RecurringByID(r.Context(), id.user.ID, id.seal(), r.PathValue("id"))
+			if cerr != nil {
+				return cerr
+			}
+			return versionConflict(cur)
+		}
 		return err
 	}
 	w.WriteHeader(204)
@@ -318,7 +470,7 @@ func (s *Server) runRecurring(ctx context.Context, u *store.User) error {
 			cats, whens = append(cats, rec.CategoryID), append(whens, t.OccurredAt)
 			next = nextMonthly(next, rec.Day)
 		}
-		if err := s.store.AdvanceRecurring(ctx, u.ID, rec.ID, next); err != nil {
+		if err := s.store.AdvanceRecurring(ctx, u.ID, rec.ID, rec.NextDate, next); err != nil {
 			return err
 		}
 	}

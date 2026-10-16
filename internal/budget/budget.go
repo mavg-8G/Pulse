@@ -51,8 +51,12 @@ type Progress struct {
 func Compute(budgetCents, spentCents int64, month string, now time.Time, loc *time.Location) Progress {
 	p := Progress{BudgetCents: budgetCents, SpentCents: spentCents, DaysInMonth: DaysIn(month, loc)}
 	p.RemainingCents = budgetCents - spentCents
-	if budgetCents > 0 {
+	switch {
+	case budgetCents > 0:
 		p.Percent = int(spentCents * 100 / budgetCents)
+	case spentCents > budgetCents:
+		// El exceso arrastrado del mes anterior dejó el tope en cero o menos: el mes empieza agotado.
+		p.Percent = 100
 	}
 	start, end, err := MonthRange(month, loc)
 	switch {
@@ -120,13 +124,71 @@ func FormatThresholds(t []int) string {
 	return strings.Join(parts, ",")
 }
 
-// Crossed devuelve los umbrales alcanzados (gasto ≥ umbral% del presupuesto).
+// Crossed devuelve los umbrales alcanzados (gasto ≥ umbral% del presupuesto). Con un tope de cero o
+// negativo (exceso arrastrado) y algo gastado o por cubrir, todos los umbrales están alcanzados.
 func Crossed(thresholds []int, budgetCents, spentCents int64) []int {
 	var out []int
 	for _, t := range thresholds {
-		if budgetCents > 0 && spentCents*100 >= int64(t)*budgetCents {
+		if budgetCents > 0 && spentCents*100 >= int64(t)*budgetCents || budgetCents <= 0 && spentCents > budgetCents {
 			out = append(out, t)
 		}
 	}
 	return out
+}
+
+// ShiftMonth suma n meses a "AAAA-MM".
+func ShiftMonth(month string, n int) (string, error) {
+	t, err := time.Parse("2006-01", month)
+	if err != nil || t.Year() < 2000 || t.Year() > 2200 {
+		return "", ErrMonth
+	}
+	return t.AddDate(0, n, 0).Format("2006-01"), nil
+}
+
+// MaxCarryMonths limita cuántos meses hacia atrás se encadena el arrastre.
+const MaxCarryMonths = 36
+
+// Plan describe un presupuesto a lo largo de los meses: un tope general, topes de meses concretos
+// y, si Rollover, el sobrante (o exceso) de cada mes desde RolloverFrom pasa al siguiente.
+type Plan struct {
+	BaseCents    int64
+	Months       map[string]int64
+	Rollover     bool
+	RolloverFrom string // AAAA-MM
+}
+
+// CapFor es el tope del mes antes de sumar el arrastre.
+func (p Plan) CapFor(month string) int64 {
+	if v, ok := p.Months[month]; ok {
+		return v
+	}
+	return p.BaseCents
+}
+
+// Carry devuelve lo que llega a month desde los meses anteriores: positivo si sobró, negativo si se excedió.
+// spent(m) es lo gastado en m (compras menos reversos, con subcategorías). Los meses anteriores a
+// RolloverFrom no cuentan, y como mucho se encadenan MaxCarryMonths.
+func (p Plan) Carry(month string, spent func(string) (int64, error)) (int64, error) {
+	if !p.Rollover || p.RolloverFrom == "" || month <= p.RolloverFrom {
+		return 0, nil
+	}
+	start, err := ShiftMonth(month, -MaxCarryMonths)
+	if err != nil {
+		return 0, err
+	}
+	if p.RolloverFrom > start {
+		start = p.RolloverFrom
+	}
+	var carry int64
+	for m := start; m < month; {
+		v, err := spent(m)
+		if err != nil {
+			return 0, err
+		}
+		carry += p.CapFor(m) - v
+		if m, err = ShiftMonth(m, 1); err != nil {
+			return 0, err
+		}
+	}
+	return carry, nil
 }

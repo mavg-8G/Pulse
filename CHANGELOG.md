@@ -4,6 +4,57 @@ Cambios relevantes de Pulse. Las entradas «Sin publicar» describen cambios pos
 
 La guía de uso y desarrollo está en [`README.md`](README.md); el roadmap y las aceptaciones pendientes, en [`PLAN.md`](PLAN.md).
 
+## Sin publicar — respaldo local en el servidor y en Google Drive (16 oct 2026)
+
+- Con solo `PULSE_BACKUP_AGE_RECIPIENTS`, cada respaldo deja una copia **cifrada** en la carpeta local `/backups` del contenedor (montada desde `/opt/backup/pulse` en el host) y conserva las 30 más recientes (`PULSE_BACKUP_LOCAL_KEEP`). `PULSE_BACKUP_LOCAL_DIR=off` la apaga.
+- Nuevo destino externo `gdrive`: sube a `Backups/pulse` en Mi unidad (crea las carpetas que falten) con permiso OAuth `drive.file`, que solo da acceso a los archivos creados por Pulse. Subida reanudable, verificación del SHA-256 que calcula Drive, sin duplicados al reintentar y los respaldos que pasan de `PULSE_BACKUP_GDRIVE_KEEP` van a la papelera.
+- `PULSE_BACKUP_TARGET` acepta varios destinos separados por comas (`gdrive,s3`). Si un destino falla, los reintentos solo repiten los que faltan.
+- Nuevo comando `pulse gdrive-auth`: autorización única con PKCE y redirección a `127.0.0.1` (funciona por túnel SSH desde el VPS); guarda el refresh token en un archivo 0600 para usarlo como Docker secret.
+- `docker-compose.yml` monta `/opt/backup/pulse:/backups` y trae comentados los secretos de Drive; guía en `deploy/README.md`.
+- Verificación: `gofmt`, `go vet` y `go test ./...` correctos, con pruebas nuevas de la carpeta local (rotación, permisos, huella), de varios destinos, de Drive contra un servidor falso (carpetas, rotación, token revocado, archivo alterado, 503 reintentable, sin duplicados) y del flujo OAuth (state falso rechazado, PKCE).
+
+## Sin publicar — versión visible en la app (16 oct 2026)
+
+- El pie de página muestra junto a «Un gasto a la vez.» la versión del servidor, `V2026-10-16 01:18:00`: la hora en que se compiló, guardada en UTC y mostrada en la zona horaria del usuario. También en **Ajustes › Versión**, con el commit corto si se conoce. Sirve para confirmar que cada despliegue llegó al VPS.
+- Nuevo paquete `internal/buildinfo`; el Dockerfile fija la hora con `-ldflags -X` y acepta `--build-arg PULSE_COMMIT`. Sin esos valores usa los datos de Git que guarda Go o la fecha del binario. Se entrega en `GET /api/me` (`build`), solo con sesión iniciada.
+
+## Sin publicar — rango del 95 % en Proyección de gastos, desglose por categoría y por cuenta (16 oct 2026)
+
+- **Proyección de gastos** (próxima semana y próximo mes) deja de ser solo «promedio diario × días». Compara tres métodos: promedio diario, media móvil ponderada (vida media de 21 días) y día de la semana encogido hacia la media. Los evalúa proyectando hasta 12 periodos pasados iguales, con origen móvil cada 7 días y solo con lo que se sabía entonces, y elige el de menor error medio en los mismos periodos. Los gastos fijos programados se suman en su fecha y las compras atípicas no se repiten.
+- Rango del 95 % por simulación (2 000 periodos armados con días reales del historial, remuestreando también el nivel de gasto para incluir la incertidumbre del promedio). Se muestra en las cifras, como banda en la gráfica acumulada y con su cobertura: cuántas veces el gasto real de los periodos pasados cayó dentro del rango. Es determinista para una misma entrada.
+- La proyección de fin de mes usa la misma simulación cuando el método elegido no tiene rango propio, antes de recurrir al de la regresión.
+- Los gastos fijos por venir se calculan para varios meses (`UpcomingRecurring` repite cada uno en su día, o en el último del mes si ese día no existe).
+- **Plan → En qué se gastó**: cada categoría del mes con subcategorías, los 6 comercios que más suman (el resto agrupado), devoluciones y pendientes de revisar, más la lista de categorías sin gasto. Nuevo `GET /api/budgets/breakdown?month=`, que descifra los comercios solo para la respuesta y está disponible sin conexión cifrado como el resto del Plan.
+- **Reportes → Por cuenta**: cada cuenta con su total, número de compras, reparto por categoría en una barra y una tabla al abrirla (`account_categories` y `account_purchases` en el resumen).
+- Verificación: `gofmt`, `go vet` y `go test ./...` correctos, con pruebas nuevas de horizonte (gasto constante con rango exacto, poco historial, gastos fijos y atípicos, día de la semana, calibración del rango con gasto irregular ≥ 75 % en 12 periodos, comparación en los mismos periodos y cambio de horario), del desglose del Plan con aislamiento entre usuarios y del resumen por cuenta. 57 pruebas Vitest. Suite E2E completa en escritorio y móvil: 74 de 74, con el rango, la elección del método, el desglose del Plan y la vista por cuenta revisados con axe-core.
+
+## Sin publicar — fases 10 a 13: sin conexión, presupuestos flexibles, respaldo externo y proyecciones (16 oct 2026)
+
+**Fase 10, uso sin conexión**
+- Cola cifrada en IndexedDB para crear, editar y borrar gastos, confirmar los de **Por revisar** y crear, cambiar o quitar gastos fijos sin red. Cada cambio lleva su `Idempotency-Key` y los cambios del mismo registro se combinan; reenviar tras perder la respuesta no duplica.
+- Concurrencia optimista: gastos y gastos fijos tienen `version`; ediciones y borrados envían `If-Match` y un 409 `version_conflict` devuelve el registro actual. La app pide elegir entre **Usar la mía** y **Conservar la del servidor**; si se borró en otro dispositivo, permite volver a crearlo o descartar. Migración `0011_sin_conexion`.
+- Lectura sin conexión de Inicio, Movimientos recientes, Plan, cuentas, categorías y gastos fijos. Se guardan cifrados con AES-256-GCM, con una clave no exportable y datos asociados `pulse|usuario|almacén|clave`, en una base por persona. Solo se abre la de la última persona y durante un máximo de 7 días. Todo se borra al cerrar sesión, que avisa si quedan cambios sin enviar y no se permite sin red.
+- Indicador en la cabecera con lo pendiente, los conflictos o «Sin conexión». El envío es único en curso, se reintenta al volver la red y cada 30 s, y avisa de lo enviado. Recargar la cola durante un envío ya no puede reenviar un cambio entregado.
+
+**Fase 11, presupuestos flexibles**
+- Presupuestos por categoría o por cuenta (los de cuenta no suman al total del plan), tope propio para un mes concreto y umbrales de aviso por presupuesto, que se disparan una sola vez por mes aunque cambie el tope.
+- Arrastre opcional del sobrante o exceso al mes siguiente desde un mes elegido, y **Copiar plan de <mes>** al mes siguiente. Migración `0012_presupuestos_flexibles`, que conserva presupuestos y avisos existentes.
+
+**Fase 12, respaldo externo cifrado**
+- Servicio dentro del binario elegido frente a Litestream o una base PostgreSQL: no añade procesos y nunca envía datos sin cifrar. Hace una instantánea con `VACUUM INTO`, la cifra con `age` usando solo claves públicas (la privada no está en el servidor) y la sube a S3 compatible (firma SigV4 propia, sin SDK) o WebDAV. Reintenta con espera creciente y conserva solo metadatos en `backup_runs` (migración `0013_respaldos`).
+- **Respaldar ahora** y **Descargar copia cifrada** en Ajustes, solo para admins y con confirmación de identidad; muestran fecha, tamaño, huella y resultado, y quedan en la actividad de seguridad. `/healthz` informa `backup` (`ok`, `stale`, `failing`…) sin revelar destino ni fechas, y se envía un aviso push a los admins si falla o se queda antiguo.
+- `pulse restore --identity clave.txt [--sha256 huella] respaldo.db.age` descifra en un directorio temporal junto a la base y restaura. Configuración con variables `PULSE_BACKUP_*` y secretos en archivos, política IAM de solo escritura y guía de restauración en `deploy/README.md`.
+
+**Fase 13, proyecciones y gráficas**
+- Nuevo `GET /api/reports/projection` con proyección de fin de mes por varios métodos: ritmo actual (referencia), regresión lineal sobre el acumulado con intervalo de predicción del 95 %, media móvil ponderada, ajuste por día de la semana y perfil del mes. Se elige automáticamente el de menor error medio en hasta 6 meses cerrados evaluados el mismo día del mes, y la precisión por mes queda visible.
+- Proyección por categoría principal y total. Suma los gastos fijos por venir, trata los cobros fijos como conocidos y excluye de forma visible los atípicos (escala logarítmica, Q3 + 3·IQR y al menos 10 veces la mediana). Avisos de historial insuficiente y sin divisiones entre cero.
+- Gráficas nuevas: acumulado del mes contra el anterior con banda de rango, barras por categoría frente al mes anterior, distribución por día de la semana, mapa de calor de 91 días y evolución por cuenta. Todas tienen tabla alternativa y navegación con teclado.
+- Corregida la prueba E2E de Reportes, que fallaba entre las 19:00 y las 24:00 de Guayaquil al calcular fechas con el reloj UTC del runner.
+
+**Privacidad**: la política (v1.1, 16 oct 2026) describe el almacén cifrado del navegador y el respaldo externo cifrado.
+
+- Verificación: `gofmt`, `go vet` y `go test -race ./...` correctos, incluidos los paquetes nuevos `forecast` (regresión calculada a mano, pocos días, devoluciones, bisiestos, cambio de horario, atípicos) y `backup` (ida y vuelta cifrada, identidad ajena o archivo alterado rechazados, destino caído con reintento y aviso, firma S3 contra los vectores de botocore). Compilación del frontend y 57 pruebas Vitest con IndexedDB simulado. Suite E2E completa en escritorio y móvil: 72 de 74 a la primera; las 2 restantes (el selector «Tope mensual» de `plan.spec.ts`, ambiguo con el nuevo campo de tope del mes) pasan tras corregirlo. Incluye sin conexión con la red cortada, conflictos, aislamiento entre personas, presupuestos flexibles, respaldo con S3 simulado y proyección con axe-core en ambos temas. Las pruebas E2E de Reportes calculan las fechas en la zona de la cuenta.
+
 ## Sin publicar — lectura de Produbanco y recuperación de correos pendientes (15 oct 2026)
 
 - Corregidas las fechas mes/día/año con un día mayor que 12: `10/15/2026` ahora se interpreta como 15 de octubre. La resolución por cercanía al envío se limita a las fechas numéricas ambiguas de Produbanco, sin intercambiar fechas ISO ni meses escritos.

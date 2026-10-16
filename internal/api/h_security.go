@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"pulse/internal/auth"
+	"pulse/internal/buildinfo"
 	"pulse/internal/store"
 )
 
@@ -17,6 +18,7 @@ func (s *Server) me(w http.ResponseWriter, r *http.Request) error {
 	writeJSON(w, 200, map[string]any{
 		"id": id.user.ID, "email": id.user.Email, "role": id.user.Role, "timezone": id.user.Timezone,
 		"theme": id.user.Theme, "created_at": id.user.CreatedAt, "mfa": m, "step_up_valid": s.stepUpValid(id),
+		"build": buildinfo.Get(), // para comprobar tras desplegar qué versión corre en el servidor
 	})
 	return nil
 }

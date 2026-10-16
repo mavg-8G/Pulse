@@ -5,6 +5,7 @@ import (
 	"sort"
 	"time"
 
+	"pulse/internal/forecast"
 	"pulse/internal/store"
 )
 
@@ -13,10 +14,34 @@ type reportIDTotal struct {
 	SpentCents int64  `json:"spent_cents"`
 }
 
+// reportAccountCategory: gasto del periodo de una cuenta en una categoría principal.
+type reportAccountCategory struct {
+	AccountID  string `json:"account_id"`
+	CategoryID string `json:"category_id"`
+	SpentCents int64  `json:"spent_cents"`
+	Count      int    `json:"purchase_count"`
+}
+
 type reportMonth struct {
 	Month      string          `json:"month"`
 	SpentCents int64           `json:"spent_cents"`
 	ByCategory []reportIDTotal `json:"by_category"`
+	ByAccount  []reportIDTotal `json:"by_account"`
+}
+
+// reportWeekday: gasto del periodo por día de la semana (0 = lunes). Days cuenta cuántos de esos días hubo,
+// para promediar sin dividir entre cero.
+type reportWeekday struct {
+	Weekday    int   `json:"weekday"`
+	SpentCents int64 `json:"spent_cents"`
+	Days       int   `json:"days"`
+	AvgCents   int64 `json:"avg_cents"`
+}
+
+// reportDay alimenta el mapa de calor de los últimos 91 días (13 semanas), hoy incluido.
+type reportDay struct {
+	Date       string `json:"date"`
+	SpentCents int64  `json:"spent_cents"`
 }
 
 type reportForecastCategory struct {
@@ -38,6 +63,10 @@ type reportForecast struct {
 	WeekCents   int64                    `json:"week_cents"`
 	MonthCents  int64                    `json:"month_cents"`
 	ByCategory  []reportForecastCategory `json:"by_category"`
+	// Modelo con selección por validación y rango del 95 % (nil sin historial suficiente). Las cifras de arriba son
+	// el método anterior (promedio diario), que se conserva como referencia.
+	Week  *forecast.HorizonResult `json:"week_model"`
+	Month *forecast.HorizonResult `json:"month_model"`
 }
 
 type reportSummaryData struct {
@@ -52,6 +81,11 @@ type reportSummaryData struct {
 	ByCategory    []reportIDTotal `json:"by_category"`
 	ByAccount     []reportIDTotal `json:"by_account"`
 	Forecast      reportForecast  `json:"forecast"`
+	Weekdays      []reportWeekday `json:"weekdays"`
+	Days          []reportDay     `json:"days"`
+	// Por cuenta y categoría principal, y número de compras de cada cuenta en el periodo.
+	AccountCategories []reportAccountCategory `json:"account_categories"`
+	AccountPurchases  map[string]int          `json:"account_purchases"`
 }
 
 // calendarDays counts local dates, including across daylight-saving transitions.
@@ -87,12 +121,20 @@ func buildReportSummary(months []string, from, to, now time.Time, cats []store.C
 	}
 	monthIndex := map[string]int{}
 	monthly := make([]map[string]int64, len(months))
+	monthlyAccount := make([]map[string]int64, len(months))
+	heatFrom := today.AddDate(0, 0, -90)
+	daily := map[string]int64{}
+	var weekday [7]int64
 	for i, m := range months {
 		monthIndex[m] = i
 		monthly[i] = map[string]int64{}
-		out.Months = append(out.Months, reportMonth{Month: m, ByCategory: []reportIDTotal{}})
+		monthlyAccount[i] = map[string]int64{}
+		out.Months = append(out.Months, reportMonth{Month: m, ByCategory: []reportIDTotal{}, ByAccount: []reportIDTotal{}})
 	}
 	byCat, byAccount, history := map[string]int64{}, map[string]int64{}, map[string]int64{}
+	type accCat struct{ account, category string }
+	accCats, accCounts := map[accCat]int64{}, map[accCat]int{}
+	out.AccountPurchases = map[string]int{}
 	var firstDay time.Time
 	for _, a := range activity {
 		if a.OccurredAt.After(now) {
@@ -108,16 +150,24 @@ func buildReportSummary(months []string, from, to, now time.Time, cats []store.C
 			if i, ok := monthIndex[local.Format("2006-01")]; ok {
 				out.Months[i].SpentCents += amount
 				monthly[i][category] += amount
+				monthlyAccount[i][a.AccountID] += amount
 			}
+			weekday[(int(local.Weekday())+6)%7] += amount
 			out.TotalCents += amount
 			byCat[category] += amount
 			byAccount[a.AccountID] += amount
+			accCats[accCat{a.AccountID, category}] += amount
 			if a.Kind == "refund" {
 				out.RefundCents += a.AmountCents
 			} else {
+				accCounts[accCat{a.AccountID, category}]++
+				out.AccountPurchases[a.AccountID]++
 				out.PurchaseCount++
 				out.PurchaseCents += amount
 			}
+		}
+		if !local.Before(heatFrom) {
+			daily[local.Format("2006-01-02")] += amount
 		}
 		// Only completed days train the forecast. Today's partial spending and
 		// future-dated transactions must not depress or inflate the daily rate.
@@ -139,12 +189,52 @@ func buildReportSummary(months []string, from, to, now time.Time, cats []store.C
 			out.ByAccount = append(out.ByAccount, reportIDTotal{id, amount})
 		}
 	}
+	out.AccountCategories = []reportAccountCategory{}
+	for k, amount := range accCats {
+		if amount != 0 || accCounts[k] > 0 {
+			out.AccountCategories = append(out.AccountCategories, reportAccountCategory{k.account, k.category, amount, accCounts[k]})
+		}
+	}
+	sort.Slice(out.AccountCategories, func(i, j int) bool {
+		x, y := out.AccountCategories[i], out.AccountCategories[j]
+		if x.AccountID != y.AccountID {
+			return x.AccountID < y.AccountID
+		}
+		if x.SpentCents != y.SpentCents {
+			return x.SpentCents > y.SpentCents
+		}
+		return x.CategoryID < y.CategoryID
+	})
 	for i := range out.Months {
 		for _, c := range cats {
 			if c.ParentID == "" {
 				out.Months[i].ByCategory = append(out.Months[i].ByCategory, reportIDTotal{c.ID, monthly[i][c.ID]})
 			}
 		}
+		for id, amount := range monthlyAccount[i] {
+			if amount != 0 {
+				out.Months[i].ByAccount = append(out.Months[i].ByAccount, reportIDTotal{id, amount})
+			}
+		}
+		sort.Slice(out.Months[i].ByAccount, func(a, b int) bool { return out.Months[i].ByAccount[a].ID < out.Months[i].ByAccount[b].ID })
+	}
+	// Días de la semana: cuántos lunes, martes… hubo en el periodo transcurrido.
+	var counts [7]int
+	for d, n := from.In(loc), 0; d.Before(end) && n < 1200; d, n = d.AddDate(0, 0, 1), n+1 {
+		counts[(int(d.Weekday())+6)%7]++
+	}
+	out.Weekdays = make([]reportWeekday, 7)
+	for i := range out.Weekdays {
+		w := reportWeekday{Weekday: i, SpentCents: weekday[i], Days: counts[i]}
+		if w.Days > 0 {
+			w.AvgCents = int64(math.Round(float64(w.SpentCents) / float64(w.Days)))
+		}
+		out.Weekdays[i] = w
+	}
+	out.Days = make([]reportDay, 0, 91)
+	for d := heatFrom; !d.After(today); d = d.AddDate(0, 0, 1) {
+		k := d.Format("2006-01-02")
+		out.Days = append(out.Days, reportDay{Date: k, SpentCents: daily[k]})
 	}
 	for _, list := range [][]reportIDTotal{out.ByCategory, out.ByAccount} {
 		sort.Slice(list, func(i, j int) bool {

@@ -1,15 +1,12 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 import { Link, NavLink, useLocation, useSearchParams } from 'react-router-dom'
-import { monthLabel, monthOf, shiftMonth } from '../lib/dates'
+import { monthLabel, monthOf, shiftMonth, versionLabel } from '../lib/dates'
 import { money } from '../lib/money'
 import { useAccounts, useCategories, useDashboard, useMe } from '../lib/queries'
 import type { Transaction } from '../lib/types'
 import { IconArrow, IconHome, IconList, IconPlan, IconPlus, IconPulse, IconReport, IconSettings, IconTag, IconWallet, PulseMark } from './icons'
-import { useQueryClient } from '@tanstack/react-query'
-import { flush } from '../lib/outbox'
-import { financeKeys } from '../lib/queries'
-import { useToast } from './Toast'
 import { Sheet } from './Sheet'
+import { SyncStatus } from './SyncStatus'
 import { TxForm } from './TxForm'
 
 const TxSheetCtx = createContext<(tx?: Transaction) => void>(() => {})
@@ -51,22 +48,6 @@ export function AppShell({ children }: { children: ReactNode }) {
       setParams(next, { replace: true })
     }
   }, [params, setParams])
-  const qc = useQueryClient()
-  const toast = useToast()
-  useEffect(() => {
-    const sync = () =>
-      flush()
-        .then(({ sent, rejected }) => {
-          if (sent) financeKeys.forEach((k) => qc.invalidateQueries({ queryKey: k }))
-          if (rejected) toast(`${rejected === 1 ? 'Un gasto hecho' : `${rejected} gastos hechos`} sin conexión no se pudo guardar. Regístralo de nuevo.`)
-          else if (sent) toast(sent === 1 ? 'Se envió el gasto que hiciste sin conexión' : `Se enviaron ${sent} gastos que hiciste sin conexión`)
-        })
-        .catch(() => {})
-    sync()
-    window.addEventListener('online', sync)
-    return () => window.removeEventListener('online', sync)
-  }, [qc, toast])
-
   const manage = [
     { to: '/ajustes/cuentas', label: 'Cuentas y tarjetas', icon: <IconWallet />, count: accounts.filter((a) => !a.archived).length },
     { to: '/ajustes/categorias', label: 'Categorías', icon: <IconTag />, count: categories.filter((c) => !c.archived && !c.is_system).length },
@@ -94,10 +75,10 @@ export function AppShell({ children }: { children: ReactNode }) {
           <header className="workspace-topbar">
             <Link className="mobile-brand" to="/" aria-label="Pulse, inicio"><PulseMark /><strong>Pulse</strong></Link>
             <div className="workspace-label"><span>Espacio personal</span><span className="breadcrumb-divider">/</span><strong>{pageName}</strong></div>
-            <div className="workspace-tools"><span className="workspace-date">{date}</span><button className="btn btn-primary mobile-add" onClick={() => open()} aria-label="Nuevo gasto"><IconPlus /><span>Nuevo</span></button><Link className="topbar-profile avatar" to="/ajustes/cuenta" aria-label="Mi cuenta">{initial}</Link></div>
+            <div className="workspace-tools"><SyncStatus tz={tz} /><span className="workspace-date">{date}</span><button className="btn btn-primary mobile-add" onClick={() => open()} aria-label="Nuevo gasto"><IconPlus /><span>Nuevo</span></button><Link className="topbar-profile avatar" to="/ajustes/cuenta" aria-label="Mi cuenta">{initial}</Link></div>
           </header>
           <div className={`page-content ${['/ajustes', '/ajustes/cuenta'].includes(location.pathname) ? 'settings-layout' : ''}`} data-view={location.pathname.split('/').filter(Boolean).at(-1) ?? 'inicio'} key={location.pathname}>{children}</div>
-          <footer className="workspace-footer"><span><IconPulse /> Pulse</span><span>Un gasto a la vez.</span></footer>
+          <footer className="workspace-footer"><span><IconPulse /> Pulse</span><span>Un gasto a la vez.{me?.build?.built_at && <> <span className="build-version num" title={`Versión del servidor${me.build.commit ? ` · commit ${me.build.commit}` : ''}`}>{versionLabel(me.build.built_at, tz)}</span></>}</span></footer>
         </main>
         <nav className="tabbar" aria-label="Principal">{nav.map((n) => <NavLink key={n.to} to={n.to} end={n.end} className="tab">{n.icon}{n.label}</NavLink>)}</nav>
       </div>

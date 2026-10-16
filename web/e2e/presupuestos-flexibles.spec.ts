@@ -1,0 +1,48 @@
+import { apiGet, apiPost, expect, expectAccessible, register, test } from './helpers'
+
+test('presupuestos flexibles: tope del mes, arrastre, tope por cuenta y copiar el plan', async ({ page }) => {
+  await register(page)
+  const accounts = await apiGet(page, '/api/accounts')
+  const cats = await apiGet(page, '/api/categories')
+  const comida = cats.find((c: any) => c.name === 'Comida')
+  await apiPost(page, '/api/transactions', { account_id: accounts[0].id, category_id: comida.id, amount_cents: 4000, occurred_at: new Date().toISOString(), merchant: 'Supermaxi' })
+
+  await page.goto('/plan')
+  await page.getByRole('button', { name: 'Crear presupuesto' }).click()
+  let sheet = page.getByRole('dialog', { name: 'Nuevo presupuesto' })
+  await sheet.getByLabel('Categoría').selectOption({ label: '🍽️ Comida' })
+  await sheet.getByLabel('Tope mensual', { exact: true }).fill('100')
+  await sheet.getByLabel(/Tope solo para/).fill('150')
+  await sheet.getByLabel('Avisarme al llegar a (%)').fill('25,90')
+  await sheet.getByLabel(/Pasar al mes siguiente/).check()
+  await expect(sheet.getByLabel('Contar desde')).toBeVisible()
+  await expectAccessible(page, 'Formulario de presupuesto flexible')
+  await sheet.getByRole('button', { name: 'Guardar presupuesto' }).click()
+  await expect(page.getByText('Presupuesto guardado')).toBeVisible()
+  const line = page.getByRole('button', { name: /Comida: 26% usado/ })
+  await expect(line).toBeVisible()
+  await expect(line.getByText('Tope de este mes')).toBeVisible()
+
+  // Tope por cuenta: va en su propia sección y no suma al total del plan.
+  await page.getByRole('button', { name: 'Agregar presupuesto' }).click()
+  sheet = page.getByRole('dialog', { name: 'Nuevo presupuesto' })
+  await sheet.getByRole('button', { name: 'Por cuenta' }).click()
+  await sheet.getByLabel('Cuenta o tarjeta').selectOption({ index: 1 })
+  await sheet.getByLabel('Tope mensual', { exact: true }).fill('80')
+  await sheet.getByRole('button', { name: 'Guardar presupuesto' }).click()
+  await expect(page.getByRole('heading', { name: 'Topes por cuenta' })).toBeVisible()
+  await expect(page.getByLabel('Total del plan')).toContainText('$150,00')
+
+  // Copiar el plan de este mes al siguiente: el tope propio pasa al mes siguiente.
+  await page.getByRole('button', { name: 'Mes siguiente' }).click()
+  await page.getByRole('button', { name: /^Copiar plan de/ }).click()
+  await page.getByRole('alertdialog').getByRole('button', { name: 'Copiar plan' }).click()
+  await expect(page.getByText(/Plan copiado \(2 presupuestos\)/)).toBeVisible()
+  await expect(page.getByRole('button', { name: /Comida: .* Editar presupuesto/ }).getByText('Tope de este mes')).toBeVisible()
+  const budgets = await apiGet(page, '/api/budgets')
+  const food = budgets.find((b: any) => b.category_id === comida.id)
+  expect(Object.values(food.months)).toEqual([15000, 15000])
+  expect(food.rollover).toBe(true)
+  await expectAccessible(page, 'Plan con presupuestos flexibles')
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBeTruthy()
+})

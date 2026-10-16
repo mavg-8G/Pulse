@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { dayKey, monthLabel, monthOf, shiftMonth, toLocalInput } from './dates'
+import { dayKey, monthLabel, monthOf, shiftMonth, toLocalInput, versionLabel } from './dates'
 
 const gye = 'America/Guayaquil'
 
@@ -16,5 +16,16 @@ describe('fechas en la zona del usuario', () => {
   })
   it('nombre del mes en español', () => {
     expect(monthLabel('2026-10').toLowerCase()).toContain('octubre')
+  })
+})
+
+describe('versionLabel', () => {
+  it('convierte la hora UTC de la compilación a la zona del usuario', () => {
+    expect(versionLabel('2026-10-16T06:18:00Z', 'America/Guayaquil')).toBe('V2026-10-16 01:18:00')
+    expect(versionLabel('2026-10-16T06:18:00Z', 'UTC')).toBe('V2026-10-16 06:18:00')
+  })
+  it('sin fecha válida no muestra nada', () => {
+    expect(versionLabel(undefined, 'UTC')).toBe('')
+    expect(versionLabel('x', 'UTC')).toBe('')
   })
 })

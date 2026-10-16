@@ -2,6 +2,7 @@
 import { mkdirSync, existsSync, unlinkSync, writeFileSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
 import { CLIENT_ID, CLIENT_SECRET, startFakeGoogle } from './fake-google.mjs'
+import { startFakeS3 } from './fake-s3.mjs'
 import { fileURLToPath } from 'node:url'
 import { resolve, join } from 'node:path'
 import { execFileSync, spawn } from 'node:child_process'
@@ -36,6 +37,10 @@ const port = process.env.PORT || '8091'
 const google = await startFakeGoogle(pathToFileURL(join(root, 'internal/mailparse/testdata/')))
 writeFileSync(join(secrets, 'google_client_secret'), CLIENT_SECRET)
 writeFileSync(join(dir, 'fake-google.url'), google.url)
+// Respaldo externo hacia un S3 falso. La clave age es solo PÚBLICA (de prueba): nadie puede leer estos respaldos.
+const s3 = await startFakeS3()
+writeFileSync(join(secrets, 'backup_s3_secret'), 'secreto-de-prueba')
+writeFileSync(join(dir, 'fake-s3.url'), s3.url)
 const child = spawn(binary, ['serve'], { stdio: 'inherit', env: {
   ...process.env, PULSE_ENV: 'development', PULSE_BASE_URL: `http://localhost:${port}`, PULSE_LISTEN: `:${port}`,
   PULSE_DB_PATH: join(dir, 'pulse.db'), PULSE_KEK_FILE: join(secrets, 'pulse_kek'), TZ: 'America/Guayaquil',
@@ -43,6 +48,9 @@ const child = spawn(binary, ['serve'], { stdio: 'inherit', env: {
   PULSE_VAPID_PRIVATE_FILE: join(secrets, 'vapid_private'), PULSE_VAPID_SUBJECT: 'mailto:test@example.com',
   PULSE_GOOGLE_FAKE_URL: google.url, PULSE_GOOGLE_CLIENT_ID: CLIENT_ID, PULSE_GOOGLE_CLIENT_SECRET_FILE: join(secrets, 'google_client_secret'),
   PULSE_GMAIL_POLL_INTERVAL: '1m',
+  PULSE_BACKUP_TARGET: 's3', PULSE_BACKUP_INTERVAL: 'manual', PULSE_BACKUP_AGE_RECIPIENTS: 'age1qqxq2avup3m4mtj05lqenylg9gn2nanfymkx76zyzh2e8fvw2slqx2av3c',
+  PULSE_BACKUP_S3_ENDPOINT: s3.url, PULSE_BACKUP_S3_BUCKET: 'pulse-e2e', PULSE_BACKUP_S3_ACCESS_KEY_ID: 'e2e',
+  PULSE_BACKUP_S3_SECRET_FILE: join(secrets, 'backup_s3_secret'), PULSE_BACKUP_DIR: join(dir, 'backups-externos'),
 } })
 for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, () => child.kill(signal))
-child.on('exit', (code) => { google.server.close(); process.exit(code ?? 0) })
+child.on('exit', (code) => { google.server.close(); s3.server.close(); process.exit(code ?? 0) })

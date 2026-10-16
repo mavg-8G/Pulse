@@ -13,7 +13,7 @@ web: ## Compila el frontend dentro de internal/webui/dist
 	cd web && npm ci && npm run build
 
 build: web ## Binario completo en ./bin/pulse
-	CGO_ENABLED=1 go build -trimpath -tags $(GO_TAGS) -o bin/pulse ./cmd/pulse
+	CGO_ENABLED=1 go build -trimpath -tags $(GO_TAGS) -ldflags "-X pulse/internal/buildinfo.Time=$$(date -u +%Y-%m-%dT%H:%M:%SZ)" -o bin/pulse ./cmd/pulse
 
 test: ## Tests de Go
 	go test -tags $(GO_TAGS) ./...

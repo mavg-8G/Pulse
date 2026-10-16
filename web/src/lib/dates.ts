@@ -50,3 +50,14 @@ export function toLocalInput(iso: string, tz: string): string {
 export function nowLocalInput(tz: string): string {
   return toLocalInput(new Date().toISOString(), tz)
 }
+
+/** Hora de una compilación en la zona del usuario: "V2026-10-16 01:18:00". */
+export function versionLabel(iso: string | undefined, tz: string): string {
+  if (!iso || Number.isNaN(Date.parse(iso))) return ''
+  const p = Object.fromEntries(
+    new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' })
+      .formatToParts(new Date(iso))
+      .map((x) => [x.type, x.value]),
+  )
+  return `V${p.year}-${p.month}-${p.day} ${p.hour}:${p.minute}:${p.second}`
+}

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"pulse/internal/auth"
+	"pulse/internal/backup"
 	"pulse/internal/clock"
 	"pulse/internal/config"
 	"pulse/internal/crypto"
@@ -34,6 +35,7 @@ type Deps struct {
 	// Ajustes por un admin tienen prioridad.
 	Google   *GoogleSettings
 	GoogleEP *gmail.Endpoints // nil: los de Google; el servidor falso en pruebas
+	Backup   *backup.Service  // nil: respaldo externo desactivado
 }
 
 type Server struct {
@@ -47,6 +49,7 @@ type Server struct {
 	secure  bool
 	static  http.Handler
 	push    *push.Service
+	backup  *backup.Service
 	limPush *auth.Limiter
 
 	limLogin    *auth.Limiter
@@ -68,6 +71,7 @@ func New(d Deps) *Server {
 	s := &Server{
 		cfg: d.Config, store: d.Store, keys: d.Keys, hasher: d.Hasher, clock: d.Clock, log: d.Log, static: d.Static,
 		push:        d.Push,
+		backup:      d.Backup,
 		limPush:     auth.NewLimiter(d.Clock, 1, 1, time.Minute),
 		rp:          passkey.RP{ID: d.Config.RPID(), Origin: d.Config.Origin(), Name: "Pulse"},
 		secure:      d.Config.BaseURL.Scheme == "https",
@@ -151,6 +155,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/admin/gmail", s.full(s.adminGmail))
 	mux.HandleFunc("PUT /api/admin/gmail", s.adminOnly(s.adminSetGmail))
 	mux.HandleFunc("DELETE /api/admin/gmail", s.adminOnly(s.adminDeleteGmail))
+	mux.HandleFunc("GET /api/admin/backups", s.full(s.adminBackups))
+	mux.HandleFunc("POST /api/admin/backups", s.adminOnly(s.adminBackupNow))
+	mux.HandleFunc("GET /api/admin/backups/latest", s.adminOnly(s.adminBackupDownload))
 	mux.HandleFunc("GET /api/push/vapid-key", s.full(s.pushKey))
 	mux.HandleFunc("GET /api/push/subscriptions", s.full(s.pushSubscriptions))
 	mux.HandleFunc("POST /api/push/subscribe", s.full(s.pushSubscribe))
@@ -178,14 +185,19 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("PATCH /api/budgets/{id}", s.full(s.updateBudget))
 	mux.HandleFunc("DELETE /api/budgets/{id}", s.full(s.deleteBudget))
 	mux.HandleFunc("GET /api/budgets/summary", s.full(s.budgetSummary))
+	mux.HandleFunc("GET /api/budgets/breakdown", s.full(s.budgetBreakdown))
+	mux.HandleFunc("PUT /api/budgets/{id}/months/{month}", s.full(s.putBudgetMonth))
+	mux.HandleFunc("POST /api/budgets/copy", s.full(s.copyBudgets))
 	mux.HandleFunc("GET /api/alerts", s.full(s.listAlerts))
 	mux.HandleFunc("GET /api/dashboard", s.full(s.dashboard))
 	mux.HandleFunc("GET /api/reports/summary", s.full(s.reportSummary))
+	mux.HandleFunc("GET /api/reports/projection", s.full(s.reportProjection))
 	mux.HandleFunc("GET /api/reports/export.csv", s.withStepUp(s.reportExport))
 	mux.HandleFunc("GET /api/reports/reconciliation", s.full(s.reconciliation))
 	mux.HandleFunc("PUT /api/statements", s.full(s.putStatement))
 	mux.HandleFunc("GET /api/recurring", s.full(s.listRecurring))
 	mux.HandleFunc("POST /api/recurring", s.full(s.createRecurring))
+	mux.HandleFunc("PATCH /api/recurring/{id}", s.full(s.updateRecurring))
 	mux.HandleFunc("DELETE /api/recurring/{id}", s.full(s.deleteRecurring))
 
 	mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) { s.fail(w, r, errNotFound) })
@@ -207,7 +219,12 @@ func (s *Server) Handler() http.Handler {
 func (s *Server) healthz(w http.ResponseWriter, r *http.Request) {
 	v, err := db.Version(r.Context(), s.store.DB)
 	latest, lerr := db.Latest()
-	out := map[string]any{"status": "ok", "schema": v, "gmail": s.gm() != nil, "push": s.push != nil}
+	out := map[string]any{"status": "ok", "schema": v, "gmail": s.gm() != nil, "push": s.push != nil, "backup": "off"}
+	// Solo el estado (off|pending|ok|stale|failing): ni destino ni fechas. Un respaldo viejo no tumba el servicio
+	// (Docker lo reiniciaría sin arreglar nada); se vigila con una palabra clave en Uptime Kuma.
+	if st, err := s.backup.Status(r.Context()); err == nil {
+		out["backup"] = st.State
+	}
 	if err != nil || lerr != nil || v != latest {
 		out["status"] = "error"
 		writeJSON(w, 503, out)

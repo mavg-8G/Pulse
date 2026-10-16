@@ -8,12 +8,9 @@ test('estadísticas, líneas y proyecciones por categoría para semana y mes', a
   const accounts = await apiGet(page, '/api/accounts')
   const comida = cats.find((c: any) => c.name === 'Comida').id
   const servicios = cats.find((c: any) => c.name === 'Servicios').id
-  const ago = (days: number) => {
-    const date = new Date()
-    date.setDate(date.getDate() - days)
-    date.setHours(12, 0, 0, 0)
-    return date.toISOString()
-  }
+  // Mediodía en la zona de la cuenta: con la fecha del runner (UTC) fallaba entre las 19:00 y las 24:00 de Guayaquil.
+  const [y, m, d] = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Guayaquil' }).format(new Date()).split('-').map(Number)
+  const ago = (days: number) => (days === 0 ? new Date() : new Date(Date.UTC(y, m - 1, d - days, 17))).toISOString()
   await apiPost(page, '/api/transactions', { account_id: accounts[0].id, category_id: comida, amount_cents: 14000, occurred_at: ago(14) })
   await apiPost(page, '/api/transactions', { account_id: accounts[0].id, category_id: servicios, amount_cents: 2800, occurred_at: ago(7) })
   await apiPost(page, '/api/transactions', { account_id: accounts[0].id, category_id: comida, kind: 'refund', amount_cents: 1400, occurred_at: ago(2) })
@@ -24,6 +21,14 @@ test('estadísticas, líneas y proyecciones por categoría para semana y mes', a
   const forecast = page.getByRole('region', { name: 'Proyección de gastos' })
   await expect(forecast.getByText('Total estimado · 7 días', { exact: true })).toBeVisible()
   await expect(forecast.locator('.report-forecast-metrics').getByText('$77,00', { exact: true })).toBeVisible()
+  // Rango del 95 % simulado con días reales; con 14 días aún no hay periodos pasados para elegir otro método.
+  await expect(forecast.getByText(/^Rango del 95 %: \$[\d.,]+ – \$[\d.,]+$/)).toBeVisible()
+  await expect(forecast.getByTestId('forecast-model')).toContainText('Promedio diario')
+  // Por cuenta: total de la cuenta y, al abrirla, en qué categorías se gastó.
+  const byAccount = page.getByRole('region', { name: 'Por cuenta', exact: true })
+  await byAccount.getByText(accounts[0].name, { exact: true }).click()
+  await expect(byAccount.getByRole('row', { name: /Comida 1 \$126,00 82%/ })).toBeVisible()
+  await expect(byAccount.getByRole('row', { name: /Servicios 1 \$28,00 18%/ })).toBeVisible()
   await page.getByRole('combobox', { name: 'Comparar categoría', exact: true }).first().selectOption(comida)
   await expect(page.locator('.report-series-secondary')).toHaveCount(1)
   await page.getByText('Ver evolución como tabla', { exact: true }).click()
@@ -82,7 +87,7 @@ test('reportes, CSV con step-up, gasto fijo y conciliación', async ({ page }) =
   await sheet.getByLabel(/Repetir cada mes/).check()
   await sheet.getByRole('button', { name: 'Guardar gasto' }).click()
   await expect(page.getByRole('heading', { name: 'Gastos fijos' })).toBeVisible()
-  await expect(page.getByText('Netflix ·')).toBeVisible()
+  await expect(page.getByRole('region', { name: 'Gastos fijos' }).getByText('Netflix ·')).toBeVisible()
 })
 
 test('un gasto hecho sin conexión se envía al volver la red', async ({ page, context }) => {
@@ -91,15 +96,60 @@ test('un gasto hecho sin conexión se envía al volver la red', async ({ page, c
   await page.getByRole('button', { name: 'Nuevo gasto' }).first().click()
   const sheet = page.getByRole('dialog', { name: 'Nuevo gasto' })
   await expect(sheet.getByRole('button', { name: /Comida/ })).toBeVisible() // categorías cargadas antes de perder la red
+  // El service worker hace las peticiones de la API: se cortan a nivel de contexto además de setOffline.
+  await context.route('**/api/**', (r) => r.abort('internetdisconnected'))
   await context.setOffline(true)
   await sheet.getByLabel('Monto').fill('3,75')
   await sheet.getByRole('button', { name: /Comida/ }).click()
   await sheet.getByLabel('Comercio').fill('Café sin red')
   await sheet.getByRole('button', { name: 'Guardar gasto' }).click()
-  await expect(page.getByText('Sin conexión: el gasto se enviará al volver a estar en línea')).toBeVisible()
+  await expect(page.getByText('Gasto guardado en este dispositivo: se enviará al volver la conexión')).toBeVisible()
+  await context.unroute('**/api/**')
   await context.setOffline(false)
-  await expect(page.getByText('Se envió el gasto que hiciste sin conexión')).toBeVisible()
+  await expect(page.getByText('Se envió un cambio hecho sin conexión')).toBeVisible()
   await expect(page.getByText('Café sin red')).toBeVisible()
   const txs = await apiGet(page, '/api/transactions')
   expect(txs.total).toBe(1)
+})
+
+test('proyección de fin de mes, comparación, día de la semana, mapa de calor y cuentas', async ({ page }, testInfo) => {
+  await register(page)
+  const cats = await apiGet(page, '/api/categories')
+  const accounts = await apiGet(page, '/api/accounts')
+  const comida = cats.find((c: any) => c.name === 'Comida').id
+  // Mediodía en la zona de la cuenta: con la fecha del runner (UTC) fallaba entre las 19:00 y las 24:00 de Guayaquil.
+  const [y, m, d] = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Guayaquil' }).format(new Date()).split('-').map(Number)
+  const ago = (days: number) => (days === 0 ? new Date() : new Date(Date.UTC(y, m - 1, d - days, 17))).toISOString()
+  const visa = await apiPost(page, '/api/accounts', { name: 'Visa', type: 'credit_card' })
+  const ids = [accounts[0].id, visa.id]
+  for (let d = 0; d < 70; d += 3) await apiPost(page, '/api/transactions', { account_id: ids[d % 2], category_id: comida, amount_cents: 1000 + d * 10, occurred_at: ago(d) })
+  await page.goto('/reportes')
+  const card = page.getByRole('region', { name: 'Proyección de fin de mes' })
+  await expect(card.getByTestId('projection-value')).toHaveText(/\$/)
+  const p = await apiGet(page, '/api/reports/projection')
+  expect(p.projected_cents).toBeGreaterThanOrEqual(p.spent_cents)
+  await expect(card.getByText(p.method === 'ritmo' ? 'Ritmo del mes (método actual)' : /Regresión|Media|Ajuste|Estacionalidad/).first()).toBeVisible()
+  await card.getByText('Precisión: proyección contra el cierre real').click()
+  await expect(card.getByRole('table', { name: 'Métodos comparados' })).toBeVisible()
+  // La gráfica se recorre con el teclado.
+  const chart = card.getByRole('group', { name: /Gráfica: detalle del día/ })
+  await chart.focus()
+  await page.keyboard.press('ArrowLeft')
+  await expect(card.getByRole('combobox', { name: 'Detalle del día' })).toHaveValue(String(Math.max(0, p.day - 2)))
+
+  await expect(page.getByRole('heading', { name: /^Categorías:/ })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Por día de la semana' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Evolución por cuenta' })).toBeVisible()
+  const heat = page.getByRole('group', { name: /Mapa de calor/ })
+  await heat.focus()
+  const before = await page.getByRole('region', { name: 'Gasto por día' }).locator('[aria-live]').textContent()
+  await page.keyboard.press('ArrowLeft')
+  await expect(page.getByRole('region', { name: 'Gasto por día' }).locator('[aria-live]')).not.toHaveText(before!)
+
+  await expectAccessible(page, 'Reportes con proyección')
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBeTruthy()
+  await page.screenshot({ path: testInfo.outputPath('reportes-proyeccion.png'), fullPage: true })
+  await page.evaluate(() => (document.documentElement.dataset.theme = 'dark'))
+  await expectAccessible(page, 'Reportes con proyección (oscuro)')
+  await page.screenshot({ path: testInfo.outputPath('reportes-proyeccion-oscuro.png'), fullPage: true })
 })

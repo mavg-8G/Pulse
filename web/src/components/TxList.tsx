@@ -14,6 +14,7 @@ export function TxRow({ tx, cat, acc, tz }: { tx: Transaction; cat?: Category; a
       <span className="tx-main">
         <span className="tx-title">
           {title} {tx.status === 'pending_review' && <span className="badge warn">Por revisar</span>}
+          {tx.pending && <span className="badge pending">Pendiente de enviar</span>}
         </span>
         <span className="tx-meta">
           {cat?.name}

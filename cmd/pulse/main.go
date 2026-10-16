@@ -27,10 +27,12 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"filippo.io/age"
 	webpush "github.com/SherClockHolmes/webpush-go"
 	"pulse/internal/admin"
 	"pulse/internal/api"
 	"pulse/internal/auth"
+	"pulse/internal/backup"
 	"pulse/internal/clock"
 	"pulse/internal/config"
 	"pulse/internal/crypto"
@@ -62,6 +64,8 @@ func main() {
 		err = backupCmd(os.Args[2:])
 	case "restore":
 		err = restoreCmd(os.Args[2:])
+	case "gdrive-auth":
+		err = gdriveAuthCmd(os.Args[2:])
 	case "parse":
 		err = parseCmd(os.Args[2:])
 	case "vapid":
@@ -88,7 +92,10 @@ func usage() {
   genkeys --out <directorio>
   vapid --out <directorio>
   backup [--keep N] <archivo.db>  respaldo en caliente (VACUUM INTO)
-  restore <archivo.db>     reemplaza la base por un respaldo (con el servidor detenido)
+  restore [--identity clave.txt] [--sha256 huella] <archivo.db|archivo.db.age>
+                           reemplaza la base por un respaldo (con el servidor detenido)
+  gdrive-auth --client-id ID --client-secret-file F --out F [--listen 127.0.0.1:53682]
+                           autoriza una vez los respaldos en Google Drive y guarda el refresh token
   parse [--texto] [--titular "NOMBRE"] correo.eml…`)
 	os.Exit(2)
 }
@@ -140,8 +147,13 @@ func serve() error {
 			ep = &fake
 			log.Warn("Gmail usa un servidor FALSO de Google (solo pruebas)", "url", a.cfg.GoogleFakeURL)
 		}
+		backups, err := backupService(a, log)
+		if err != nil {
+			return fmt.Errorf("respaldo externo: %w", err)
+		}
 		srv := api.New(api.Deps{Config: a.cfg, Store: a.store, Keys: a.keys, Hasher: &auth.Hasher{Keys: a.keys},
-			Clock: clock.Real{}, Log: log, Static: webui.Handler(), Push: notifications, Google: google, GoogleEP: ep})
+			Clock: clock.Real{}, Log: log, Static: webui.Handler(), Push: notifications, Google: google, GoogleEP: ep,
+			Backup: backups})
 		hs := &http.Server{
 			Addr: a.cfg.Listen, Handler: srv.Handler(),
 			ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, WriteTimeout: 30 * time.Second,
@@ -159,7 +171,16 @@ func serve() error {
 		go func() { defer close(gmailDone); srv.RunGmail(ctx) }()
 		recurringDone := make(chan struct{})
 		go func() { defer close(recurringDone); srv.RunRecurring(ctx) }()
-		defer func() { stop(); <-pushDone; <-gmailDone; <-recurringDone }()
+		backupDone := make(chan struct{})
+		if backups != nil {
+			backups.Alert = srv.BackupAlert
+			go func() { defer close(backupDone); backups.Loop(ctx) }()
+			log.Info("respaldo cifrado activo", "destino", backups.Dest.Describe(), "cada", a.cfg.BackupInterval.String())
+		} else {
+			log.Warn("respaldo automático apagado: define PULSE_BACKUP_AGE_RECIPIENTS (ver deploy/README.md)")
+			close(backupDone)
+		}
+		defer func() { stop(); <-pushDone; <-gmailDone; <-recurringDone; <-backupDone }()
 		go func() { // limpieza periódica de sesiones y desafíos caducados
 			t := time.NewTicker(10 * time.Minute)
 			defer t.Stop()
@@ -441,6 +462,59 @@ func googleFromEnv(cfg *config.Config) (*api.GoogleSettings, error) {
 	return gs, nil
 }
 
+// backupService arma el respaldo externo cifrado (fase 12) desde la configuración; nil si está apagado.
+// Los secretos del destino se leen de archivos (Docker secrets), nunca de variables de entorno.
+func backupService(a *app, log *slog.Logger) (*backup.Service, error) {
+	c := a.cfg
+	if !c.BackupEnabled {
+		return nil, nil
+	}
+	recipients, err := backup.ParseRecipients(c.BackupAgeRecipients)
+	if err != nil {
+		return nil, err
+	}
+	var dests []backup.Destination
+	if c.BackupLocalDir != "" {
+		dests = append(dests, &backup.Local{Dir: c.BackupLocalDir, Keep: c.BackupLocalKeep})
+	}
+	for _, t := range c.BackupTargets {
+		switch t {
+		case "s3":
+			secret, err := readSecret(c.BackupS3SecretFile)
+			if err != nil {
+				return nil, fmt.Errorf("PULSE_BACKUP_S3_SECRET_FILE: %w", err)
+			}
+			dests = append(dests, &backup.S3{Endpoint: c.BackupS3Endpoint, Region: c.BackupS3Region, Bucket: c.BackupS3Bucket,
+				Prefix: c.BackupS3Prefix, AccessKey: c.BackupS3AccessKey, SecretKey: secret, PathStyle: c.BackupS3PathStyle})
+		case "webdav":
+			pass, err := readSecret(c.BackupWebDAVPassFile)
+			if err != nil {
+				return nil, fmt.Errorf("PULSE_BACKUP_WEBDAV_PASSWORD_FILE: %w", err)
+			}
+			dests = append(dests, &backup.WebDAV{URL: c.BackupWebDAVURL, User: c.BackupWebDAVUser, Password: pass})
+		case "gdrive":
+			secret, err := readSecret(c.BackupGDriveSecretFile)
+			if err != nil {
+				return nil, fmt.Errorf("PULSE_BACKUP_GDRIVE_CLIENT_SECRET_FILE: %w", err)
+			}
+			token, err := readSecret(c.BackupGDriveTokenFile)
+			if err != nil {
+				return nil, fmt.Errorf("PULSE_BACKUP_GDRIVE_TOKEN_FILE: %w", err)
+			}
+			dests = append(dests, &backup.GDrive{ClientID: c.BackupGDriveClientID, ClientSecret: secret, RefreshToken: token,
+				Folder: c.BackupGDriveFolder, Keep: c.BackupGDriveKeep, EP: backup.GoogleDriveEndpoints()})
+		default:
+			return nil, fmt.Errorf("destino desconocido %q", t)
+		}
+	}
+	var dest backup.Destination = &backup.Multi{Dests: dests}
+	if len(dests) == 1 {
+		dest = dests[0]
+	}
+	return &backup.Service{DB: a.store.DB, Store: a.store, Dest: dest, Recipients: recipients, Dir: c.BackupDir,
+		Interval: c.BackupInterval, Clock: clock.Real{}, Log: log}, nil
+}
+
 func readSecret(path string) (string, error) {
 	b, err := os.ReadFile(path)
 	if err != nil {
@@ -494,17 +568,53 @@ func backupCmd(args []string) error {
 	return nil
 }
 
+// restoreCmd acepta un respaldo local (.db) o uno externo cifrado (.db.age): este se descifra con la
+// identidad age (que no vive en el servidor) a un archivo privado que se borra al terminar.
 func restoreCmd(args []string) error {
+	fs := flag.NewFlagSet("restore", flag.ContinueOnError)
+	identity := fs.String("identity", "", "archivo con la identidad age (AGE-SECRET-KEY-1…) para respaldos .age")
+	sum := fs.String("sha256", "", "huella SHA-256 esperada del archivo cifrado (la muestra Ajustes › Respaldo)")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	args = fs.Args()
 	if len(args) != 1 {
-		return errors.New("uso: pulse restore <archivo.db>")
+		return errors.New("uso: pulse restore [--identity clave.txt] [--sha256 huella] <archivo.db | archivo.db.age>")
 	}
 	cfg, err := config.Load(os.Getenv)
 	if err != nil {
 		return fmt.Errorf("configuración inválida:\n%w", err)
 	}
+	src := args[0]
+	if strings.HasSuffix(src, ".age") {
+		if *identity == "" {
+			return errors.New("este respaldo está cifrado: indica la identidad age con --identity")
+		}
+		f, err := os.Open(*identity)
+		if err != nil {
+			return err
+		}
+		ids, err := age.ParseIdentities(f)
+		f.Close()
+		if err != nil {
+			return fmt.Errorf("identidad age inválida: %w", err)
+		}
+		tmp, err := os.MkdirTemp(filepath.Dir(cfg.DBPath), ".restaurar-")
+		if err != nil {
+			return err
+		}
+		defer os.RemoveAll(tmp)
+		plain := filepath.Join(tmp, "respaldo.db")
+		if err := backup.Decrypt(src, plain, ids, *sum); err != nil {
+			return err
+		}
+		src = plain
+	} else if *sum != "" || *identity != "" {
+		return errors.New("--identity y --sha256 solo aplican a respaldos cifrados (.age)")
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
-	if err := db.Restore(ctx, args[0], cfg.DBPath); err != nil {
+	if err := db.Restore(ctx, src, cfg.DBPath); err != nil {
 		return err
 	}
 	fmt.Printf("base restaurada desde %s\n", args[0])

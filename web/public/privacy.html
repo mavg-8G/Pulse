@@ -20,7 +20,7 @@
       </header>
 
       <h1>Privacy Policy</h1>
-      <p class="meta">Pulse (https://pulse.espectro.uk) · Effective October 14, 2026 · Version 1.0</p>
+      <p class="meta">Pulse (https://pulse.espectro.uk) · Effective October 16, 2026 · Version 1.1</p>
 
       <div class="box">
         <p><strong>Summary.</strong> Pulse is a private, invitation-only personal expense tracker available at
@@ -159,6 +159,10 @@
         <li>HTTPS only, mandatory two-factor sign-in, expiring sessions and protected session cookies.</li>
         <li>Invitation-only registration, tamper-resistant security log and alerts on important account changes.</li>
         <li>Automatic backups on the same server before each update (the last 15 are kept).</li>
+        <li>If the administrator enables it, a periodic off-server backup (S3-compatible storage or WebDAV). It is encrypted with
+          <code>age</code> before leaving the server, using a public key whose private key is not on the server: whoever stores the
+          copy cannot read it. Making or downloading a manual backup requires confirming your identity and is recorded in the
+          security log.</li>
       </ul>
       <p>If a breach affects your data, it will be notified to the supervisory authority and, where required, to you, within the
         deadlines of the LOPDP (art. 43) and the GDPR (arts. 33–34; 72 hours to the authority).</p>
@@ -217,8 +221,11 @@
       <h2 id="cookies">8. Cookies and local storage</h2>
       <p>Pulse uses a single strictly necessary cookie, <code>__Host-pulse</code>, to keep you signed in (Secure, HttpOnly,
         SameSite=Strict). Your browser also stores your theme and animation preferences, and the app shell is cached for offline use
-        without caching financial API responses. If you create a manual expense without a connection, its data is temporarily
-        stored in IndexedDB in that browser until it is sent to the server. This local queue is also deleted when you sign out.
+        without caching financial API responses. So the app works offline, the latest Home, recent Transactions, Plan, accounts,
+        categories and recurring expenses, plus changes made offline that have not been sent yet, are stored in IndexedDB in that
+        browser, <strong>encrypted</strong> (AES-256-GCM) with a per-account key the browser does not allow to be exported. Each
+        person has their own store; everything is deleted when you sign out, and offline the app only shows what was saved within
+        the last 7 days.
         There are no third-party cookies, ads or analytics.</p>
 
       <h2 id="children">9. Children</h2>

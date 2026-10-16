@@ -421,23 +421,56 @@ func (s *Server) getTransaction(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
+// conditional lee If-Match e Idempotency-Key de una edición o un borrado.
+func conditional(r *http.Request) (expect int64, op string, err error) {
+	if expect, err = ifMatch(r); err != nil {
+		return
+	}
+	op, err = opID(r)
+	return
+}
+
+// currentTx devuelve lo que hay en el servidor tras un conflicto de versión (o el error original).
+func (s *Server) currentTx(r *http.Request, id *identity, txID string, err error) error {
+	var vc *store.VersionConflict
+	if !errors.As(err, &vc) {
+		return err
+	}
+	cur, cerr := s.store.Transaction(r.Context(), id.user.ID, id.seal(), txID)
+	if cerr != nil {
+		return cerr
+	}
+	return versionConflict(cur)
+}
+
 func (s *Server) updateTransaction(w http.ResponseWriter, r *http.Request) error {
 	id := ident(r)
 	t, err := s.store.Transaction(r.Context(), id.user.ID, id.seal(), r.PathValue("id"))
 	if err != nil {
 		return err
 	}
-	oldCat, oldWhen := t.CategoryID, t.OccurredAt
-	before := *t
+	expect, op, err := conditional(r)
+	if err != nil {
+		return err
+	}
 	var in txInput
 	if err := decode(w, r, &in); err != nil {
 		return err
 	}
+	if op != "" && t.LastOp == op { // reenvío de una edición que ya se aplicó (se perdió la respuesta)
+		writeJSON(w, 200, t)
+		return nil
+	}
+	if expect != 0 && t.Version != expect {
+		return versionConflict(t)
+	}
+	oldCat, oldWhen := t.CategoryID, t.OccurredAt
+	before := *t
 	if err := s.applyTx(r, id, &in, t, false); err != nil {
 		return err
 	}
-	if err := s.store.UpdateTransaction(r.Context(), id.user.ID, id.seal(), t); err != nil {
-		return err
+	if err := s.store.UpdateTransactionIf(r.Context(), id.user.ID, id.seal(), t, expect, op); err != nil {
+		return s.currentTx(r, id, t.ID, err)
 	}
 	if before.Status == "pending_review" && t.Status == "confirmed" {
 		if err := s.store.SetReview(r.Context(), id.user.ID, t.ID, reviewOf(&before, t, s.loc(id))); err != nil {
@@ -460,10 +493,21 @@ func (s *Server) confirmTransaction(w http.ResponseWriter, r *http.Request) erro
 	if err != nil {
 		return err
 	}
+	expect, op, err := conditional(r)
+	if err != nil {
+		return err
+	}
+	if t.Status == "confirmed" { // confirmar dos veces (o reenviar desde la cola) no cambia nada
+		writeJSON(w, 200, t)
+		return nil
+	}
+	if expect != 0 && t.Version != expect {
+		return versionConflict(t)
+	}
 	pending := t.Status == "pending_review"
 	t.Status = "confirmed"
-	if err := s.store.UpdateTransaction(r.Context(), id.user.ID, id.seal(), t); err != nil {
-		return err
+	if err := s.store.UpdateTransactionIf(r.Context(), id.user.ID, id.seal(), t, expect, op); err != nil {
+		return s.currentTx(r, id, t.ID, err)
 	}
 	if pending {
 		if err := s.store.SetReview(r.Context(), id.user.ID, t.ID, "ok"); err != nil {
@@ -474,9 +518,16 @@ func (s *Server) confirmTransaction(w http.ResponseWriter, r *http.Request) erro
 	return nil
 }
 
+// deleteTransaction: con If-Match solo borra si nadie lo cambió; 404 si ya no existe (otro dispositivo lo borró),
+// que la cola sin conexión trata como "hecho".
 func (s *Server) deleteTransaction(w http.ResponseWriter, r *http.Request) error {
-	if err := s.store.DeleteTransaction(r.Context(), ident(r).user.ID, r.PathValue("id")); err != nil {
+	id := ident(r)
+	expect, _, err := conditional(r)
+	if err != nil {
 		return err
+	}
+	if err := s.store.DeleteTransactionIf(r.Context(), id.user.ID, r.PathValue("id"), expect); err != nil {
+		return s.currentTx(r, id, r.PathValue("id"), err)
 	}
 	w.WriteHeader(204)
 	return nil
@@ -589,13 +640,16 @@ func (s *Server) listTransactions(w http.ResponseWriter, r *http.Request) error 
 // ---------------- Presupuestos ----------------
 
 type budgetInput struct {
-	CategoryID  *string `json:"category_id"`
-	AmountCents *int64  `json:"amount_cents"`
-	Thresholds  *string `json:"thresholds"`
-	Active      *bool   `json:"active"`
+	CategoryID   *string `json:"category_id"`
+	AccountID    *string `json:"account_id"`
+	AmountCents  *int64  `json:"amount_cents"`
+	Thresholds   *string `json:"thresholds"`
+	Active       *bool   `json:"active"`
+	Rollover     *bool   `json:"rollover"`
+	RolloverFrom *string `json:"rollover_from"` // AAAA-MM; por defecto, el mes actual
 }
 
-func (in *budgetInput) apply(b *store.Budget) error {
+func (s *Server) applyBudget(in *budgetInput, b *store.Budget, id *identity) error {
 	if in.AmountCents != nil {
 		b.AmountCents = *in.AmountCents
 	}
@@ -608,6 +662,23 @@ func (in *budgetInput) apply(b *store.Budget) error {
 	}
 	if in.Active != nil {
 		b.Active = *in.Active
+	}
+	current := budget.MonthOf(s.clock.Now(), s.loc(id))
+	if in.Rollover != nil && *in.Rollover != b.Rollover {
+		b.Rollover, b.RolloverFrom = *in.Rollover, ""
+		if b.Rollover {
+			b.RolloverFrom = current // lo que sobre (o falte) este mes pasa al siguiente
+		}
+	}
+	if in.RolloverFrom != nil {
+		if !b.Rollover {
+			return badRequest("Activa el arrastre para elegir desde qué mes cuenta.")
+		}
+		oldest, _ := budget.ShiftMonth(current, -12)
+		if _, _, err := budget.MonthRange(*in.RolloverFrom, s.loc(id)); err != nil || *in.RolloverFrom > current || *in.RolloverFrom < oldest {
+			return badRequest("El arrastre puede empezar entre hace 12 meses y el mes actual.")
+		}
+		b.RolloverFrom = *in.RolloverFrom
 	}
 	if b.AmountCents <= 0 || b.AmountCents > maxAmount {
 		return badRequest("El monto del presupuesto debe ser mayor a cero.")
@@ -626,26 +697,41 @@ func (s *Server) listBudgets(w http.ResponseWriter, r *http.Request) error {
 
 func (s *Server) createBudget(w http.ResponseWriter, r *http.Request) error {
 	id := ident(r)
+	ctx := r.Context()
 	var in budgetInput
 	if err := decode(w, r, &in); err != nil {
 		return err
 	}
-	if in.CategoryID == nil {
-		return badRequest("Elige una categoría.")
+	b := &store.Budget{ID: auth.NewID(), Thresholds: "50,80,100", Active: true}
+	switch {
+	case in.CategoryID != nil && in.AccountID != nil:
+		return badRequest("Un presupuesto es de una categoría o de una cuenta, no de ambas.")
+	case in.CategoryID != nil:
+		if _, err := s.store.Category(ctx, id.user.ID, *in.CategoryID); errors.Is(err, store.ErrNotFound) {
+			return badRequest("La categoría no existe.")
+		} else if err != nil {
+			return err
+		}
+		b.CategoryID = *in.CategoryID
+	case in.AccountID != nil:
+		if a, err := s.store.Account(ctx, id.user.ID, *in.AccountID); errors.Is(err, store.ErrNotFound) {
+			return badRequest("La cuenta no existe.")
+		} else if err != nil {
+			return err
+		} else if a.Archived {
+			return badRequest("La cuenta está archivada.")
+		}
+		b.AccountID = *in.AccountID
+	default:
+		return badRequest("Elige una categoría o una cuenta.")
 	}
-	if _, err := s.store.Category(r.Context(), id.user.ID, *in.CategoryID); errors.Is(err, store.ErrNotFound) {
-		return badRequest("La categoría no existe.")
-	} else if err != nil {
+	if err := s.applyBudget(&in, b, id); err != nil {
 		return err
 	}
-	b := &store.Budget{ID: auth.NewID(), CategoryID: *in.CategoryID, Thresholds: "50,80,100", Active: true}
-	if err := in.apply(b); err != nil {
+	if err := s.store.CreateBudget(ctx, id.user.ID, b); err != nil {
 		return err
 	}
-	if err := s.store.CreateBudget(r.Context(), id.user.ID, b); err != nil {
-		return err
-	}
-	s.recheck(r, id, []string{b.CategoryID}, []time.Time{s.clock.Now()})
+	s.recheck(r, id, nil, []time.Time{s.clock.Now()})
 	writeJSON(w, 201, b)
 	return nil
 }
@@ -660,16 +746,16 @@ func (s *Server) updateBudget(w http.ResponseWriter, r *http.Request) error {
 	if err := decode(w, r, &in); err != nil {
 		return err
 	}
-	if in.CategoryID != nil && *in.CategoryID != b.CategoryID {
-		return badRequest("No se puede cambiar la categoría de un presupuesto; crea uno nuevo.")
+	if in.CategoryID != nil && *in.CategoryID != b.CategoryID || in.AccountID != nil && *in.AccountID != b.AccountID {
+		return badRequest("No se puede cambiar la categoría o la cuenta de un presupuesto; crea uno nuevo.")
 	}
-	if err := in.apply(b); err != nil {
+	if err := s.applyBudget(&in, b, id); err != nil {
 		return err
 	}
 	if err := s.store.UpdateBudget(r.Context(), id.user.ID, b); err != nil {
 		return err
 	}
-	s.recheck(r, id, []string{b.CategoryID}, []time.Time{s.clock.Now()})
+	s.recheck(r, id, nil, []time.Time{s.clock.Now()})
 	writeJSON(w, 200, b)
 	return nil
 }
@@ -680,6 +766,133 @@ func (s *Server) deleteBudget(w http.ResponseWriter, r *http.Request) error {
 	}
 	w.WriteHeader(204)
 	return nil
+}
+
+// putBudgetMonth fija el tope de un mes concreto (por ejemplo, diciembre); null vuelve al tope general.
+func (s *Server) putBudgetMonth(w http.ResponseWriter, r *http.Request) error {
+	id := ident(r)
+	month := r.PathValue("month")
+	if _, _, err := budget.MonthRange(month, s.loc(id)); err != nil {
+		return badRequest("Mes inválido.")
+	}
+	var in struct {
+		AmountCents *int64 `json:"amount_cents"`
+	}
+	if err := decode(w, r, &in); err != nil {
+		return err
+	}
+	var amount int64
+	if in.AmountCents != nil {
+		if amount = *in.AmountCents; amount <= 0 || amount > maxAmount {
+			return badRequest("El tope del mes debe ser mayor a cero.")
+		}
+	}
+	if err := s.store.SetBudgetMonth(r.Context(), id.user.ID, r.PathValue("id"), month, amount); err != nil {
+		return err
+	}
+	s.recheck(r, id, nil, []time.Time{s.clock.Now()})
+	b, err := s.store.Budget(r.Context(), id.user.ID, r.PathValue("id"))
+	if err != nil {
+		return err
+	}
+	writeJSON(w, 200, b)
+	return nil
+}
+
+// copyBudgets copia el plan de un mes a otro: los topes de cada presupuesto activo en el mes origen
+// pasan a ser los del mes destino (los que coinciden con el tope general no necesitan tope propio).
+func (s *Server) copyBudgets(w http.ResponseWriter, r *http.Request) error {
+	id := ident(r)
+	var in struct {
+		From string `json:"from"`
+		To   string `json:"to"`
+	}
+	if err := decode(w, r, &in); err != nil {
+		return err
+	}
+	loc := s.loc(id)
+	if _, _, err := budget.MonthRange(in.From, loc); err != nil {
+		return badRequest("Mes de origen inválido.")
+	}
+	if _, _, err := budget.MonthRange(in.To, loc); err != nil || in.To == in.From {
+		return badRequest("Mes de destino inválido.")
+	}
+	bs, err := s.store.Budgets(r.Context(), id.user.ID)
+	if err != nil {
+		return err
+	}
+	copied := 0
+	for _, b := range bs {
+		if !b.Active {
+			continue
+		}
+		plan := budget.Plan{BaseCents: b.AmountCents, Months: b.Months}
+		amount := plan.CapFor(in.From)
+		if amount == b.AmountCents {
+			amount = 0 // igual al general: se quita el tope propio del destino
+		}
+		if err := s.store.SetBudgetMonth(r.Context(), id.user.ID, b.ID, in.To, amount); err != nil {
+			return err
+		}
+		copied++
+	}
+	s.recheck(r, id, nil, []time.Time{s.clock.Now()})
+	writeJSON(w, 200, map[string]any{"copied": copied})
+	return nil
+}
+
+// planCalc calcula topes efectivos (tope del mes + arrastre) y gasto por mes, con caché por mes.
+type planCalc struct {
+	s     *Server
+	ctx   context.Context
+	user  string
+	loc   *time.Location
+	cats  []store.Category
+	memo  map[string]monthSpend
+	plans map[string]budget.Plan
+}
+
+type monthSpend struct{ byCat, byAcc map[string]int64 }
+
+func (s *Server) newPlanCalc(ctx context.Context, u *store.User, cats []store.Category) *planCalc {
+	return &planCalc{s: s, ctx: ctx, user: u.ID, loc: s.userLoc(u), cats: cats, memo: map[string]monthSpend{}}
+}
+
+func (c *planCalc) month(m string) (monthSpend, error) {
+	if v, ok := c.memo[m]; ok {
+		return v, nil
+	}
+	from, to, err := budget.MonthRange(m, c.loc)
+	if err != nil {
+		return monthSpend{}, err
+	}
+	cat, err := c.s.store.SpentByCategory(c.ctx, c.user, from, to)
+	if err != nil {
+		return monthSpend{}, err
+	}
+	acc, err := c.s.store.SpentByAccount(c.ctx, c.user, from, to)
+	if err != nil {
+		return monthSpend{}, err
+	}
+	v := monthSpend{rollup(c.cats, cat), acc}
+	c.memo[m] = v
+	return v, nil
+}
+
+// spent: lo gastado en el mes por el presupuesto (categoría con subcategorías, o cuenta), reversos descontados.
+func (c *planCalc) spent(b store.Budget, m string) (int64, error) {
+	v, err := c.month(m)
+	if b.AccountID != "" {
+		return v.byAcc[b.AccountID], err
+	}
+	return v.byCat[b.CategoryID], err
+}
+
+// effective devuelve el tope del mes (general o propio) y el arrastre que llega de meses anteriores.
+func (c *planCalc) effective(b store.Budget, m string) (capCents, carry int64, err error) {
+	plan := budget.Plan{BaseCents: b.AmountCents, Months: b.Months, Rollover: b.Rollover, RolloverFrom: b.RolloverFrom}
+	carry, err = plan.Carry(m, func(x string) (int64, error) { return c.spent(b, x) })
+	return plan.CapFor(m), carry, err
 }
 
 // rollup suma lo gastado de cada categoría más sus subcategorías.
@@ -697,17 +910,16 @@ func rollup(cats []store.Category, spent map[string]int64) map[string]int64 {
 // recheck registra los umbrales cruzados en los presupuestos afectados por un cambio.
 // Un fallo aquí no debe romper el guardado del gasto: se registra y sigue.
 func (s *Server) recheck(r *http.Request, id *identity, catIDs []string, whens []time.Time) {
-	if err := s.recheckErr(r, id, catIDs, whens); err != nil {
+	if err := s.RecheckBudgets(r.Context(), id.user, catIDs, whens); err != nil {
 		s.log.Error("recalculando presupuestos", "err", err.Error())
 	}
 }
 
-func (s *Server) recheckErr(r *http.Request, id *identity, catIDs []string, whens []time.Time) error {
-	return s.RecheckBudgets(r.Context(), id.user, catIDs, whens)
-}
-
-// RecheckBudgets registra los umbrales cruzados (las alertas push salen de ahí).
-// También la usa la sincronización de Gmail, fuera de una petición HTTP.
+// RecheckBudgets registra los umbrales cruzados (las alertas push salen de ahí). Revisa todos los
+// presupuestos activos en los meses de whens y en el mes actual: un cambio en un mes pasado mueve el
+// arrastre de los siguientes, y los presupuestos por cuenta no dependen de la categoría. Cada umbral
+// se registra una sola vez por presupuesto y mes (clave primaria), aunque luego cambie el tope.
+// También la usa la sincronización de Gmail, fuera de una petición HTTP; catIDs se conserva por compatibilidad.
 func (s *Server) RecheckBudgets(ctx context.Context, u *store.User, catIDs []string, whens []time.Time) error {
 	bs, err := s.store.Budgets(ctx, u.ID)
 	if err != nil || len(bs) == 0 {
@@ -717,41 +929,29 @@ func (s *Server) RecheckBudgets(ctx context.Context, u *store.User, catIDs []str
 	if err != nil {
 		return err
 	}
-	parent := map[string]string{}
-	for _, c := range cats {
-		parent[c.ID] = c.ParentID
-	}
-	affected := map[string]bool{}
-	for _, c := range catIDs {
-		affected[c] = true
-		if p := parent[c]; p != "" {
-			affected[p] = true
-		}
-	}
-	loc := s.userLoc(u)
-	months := map[string]bool{}
+	calc := s.newPlanCalc(ctx, u, cats)
+	months := map[string]bool{budget.MonthOf(s.clock.Now(), calc.loc): true}
 	for _, w := range whens {
-		months[budget.MonthOf(w, loc)] = true
+		months[budget.MonthOf(w, calc.loc)] = true
 	}
 	for m := range months {
-		from, to, err := budget.MonthRange(m, loc)
-		if err != nil {
-			return err
-		}
-		spent, err := s.store.SpentByCategory(ctx, u.ID, from, to)
-		if err != nil {
-			return err
-		}
-		total := rollup(cats, spent)
 		for _, b := range bs {
-			if !b.Active || !affected[b.CategoryID] {
+			if !b.Active {
 				continue
 			}
 			th, err := budget.ParseThresholds(b.Thresholds)
 			if err != nil {
 				continue
 			}
-			if _, err := s.store.InsertAlerts(ctx, b.ID, m, budget.Crossed(th, b.AmountCents, total[b.CategoryID]), total[b.CategoryID]); err != nil {
+			capCents, carry, err := calc.effective(b, m)
+			if err != nil {
+				return err
+			}
+			spent, err := calc.spent(b, m)
+			if err != nil {
+				return err
+			}
+			if _, err := s.store.InsertAlerts(ctx, b.ID, m, budget.Crossed(th, capCents+carry, spent), spent); err != nil {
 				return err
 			}
 		}
@@ -761,11 +961,19 @@ func (s *Server) RecheckBudgets(ctx context.Context, u *store.User, catIDs []str
 
 type budgetLine struct {
 	BudgetID   string `json:"budget_id"`
+	Kind       string `json:"kind"` // category | account
 	CategoryID string `json:"category_id"`
+	AccountID  string `json:"account_id"`
 	Name       string `json:"name"`
 	Color      string `json:"color"`
 	Icon       string `json:"icon"`
 	Thresholds string `json:"thresholds"`
+	BaseCents  int64  `json:"base_cents"`  // tope general
+	CapCents   int64  `json:"cap_cents"`   // tope de este mes (general o propio)
+	MonthCap   bool   `json:"month_cap"`   // este mes tiene tope propio
+	CarryCents int64  `json:"carry_cents"` // + sobrante / − exceso que llega del mes anterior
+	Rollover   bool   `json:"rollover"`
+	RollFrom   string `json:"rollover_from"`
 	budget.Progress
 }
 
@@ -804,14 +1012,26 @@ func (s *Server) buildSummary(r *http.Request, id *identity, month string) (*sum
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	total := rollup(cats, spent)
-	byID := map[string]store.Category{}
+	accs, err := s.store.Accounts(ctx, id.user.ID, true)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	byAcc, err := s.store.SpentByAccount(ctx, id.user.ID, from, to)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	calc := s.newPlanCalc(ctx, id.user, cats)
+	calc.memo[month] = monthSpend{rollup(cats, spent), byAcc}
+	catByID, accByID := map[string]store.Category{}, map[string]store.Account{}
 	for _, c := range cats {
-		byID[c.ID] = c
+		catByID[c.ID] = c
+	}
+	for _, a := range accs {
+		accByID[a.ID] = a
 	}
 	budgeted := map[string]bool{}
 	for _, b := range bs {
-		if b.Active {
+		if b.Active && b.CategoryID != "" {
 			budgeted[b.CategoryID] = true
 		}
 	}
@@ -822,13 +1042,29 @@ func (s *Server) buildSummary(r *http.Request, id *identity, month string) (*sum
 		if !b.Active {
 			continue
 		}
-		c := byID[b.CategoryID]
-		out.Lines = append(out.Lines, budgetLine{b.ID, c.ID, c.Name, c.Color, c.Icon, b.Thresholds, budget.Compute(b.AmountCents, total[c.ID], month, now, loc)})
-		// Si la categoría padre también tiene presupuesto, no se cuenta dos veces.
-		if c.ParentID == "" || !budgeted[c.ParentID] {
-			sumBudget += b.AmountCents
-			sumSpent += total[c.ID]
+		capCents, carry, err := calc.effective(b, month)
+		if err != nil {
+			return nil, nil, nil, err
 		}
+		used, _ := calc.spent(b, month)
+		_, own := b.Months[month]
+		line := budgetLine{BudgetID: b.ID, CategoryID: b.CategoryID, AccountID: b.AccountID, Thresholds: b.Thresholds,
+			BaseCents: b.AmountCents, CapCents: capCents, MonthCap: own, CarryCents: carry, Rollover: b.Rollover, RollFrom: b.RolloverFrom,
+			Progress: budget.Compute(capCents+carry, used, month, now, loc)}
+		if b.AccountID != "" {
+			a := accByID[b.AccountID]
+			line.Kind, line.Name, line.Color, line.Icon = "account", a.Name, a.Color, a.Icon
+		} else {
+			c := catByID[b.CategoryID]
+			line.Kind, line.Name, line.Color, line.Icon = "category", c.Name, c.Color, c.Icon
+			// Si la categoría padre también tiene presupuesto, no se cuenta dos veces. Las cuentas
+			// se cruzan con las categorías, así que no entran en el total del plan.
+			if c.ParentID == "" || !budgeted[c.ParentID] {
+				sumBudget += capCents + carry
+				sumSpent += used
+			}
+		}
+		out.Lines = append(out.Lines, line)
 	}
 	sort.SliceStable(out.Lines, func(i, j int) bool { return out.Lines[i].Percent > out.Lines[j].Percent })
 	var all int64
@@ -929,8 +1165,18 @@ func (s *Server) dashboard(w http.ResponseWriter, r *http.Request) error {
 	}
 	writeJSON(w, 200, map[string]any{
 		"month": m, "spent_cents": sum.SpentCents, "count": len(txs), "daily_cents": daily,
-		"by_category": byCat, "budget": sum.Totals, "has_budgets": len(sum.Lines) > 0,
+		"by_category": byCat, "budget": sum.Totals, "has_budgets": hasCategoryBudget(sum.Lines),
 		"recent": recent, "alerts": alerts, "pending_review": pending,
 	})
 	return nil
+}
+
+// hasCategoryBudget: Inicio muestra el total del plan, que solo suma presupuestos por categoría.
+func hasCategoryBudget(lines []budgetLine) bool {
+	for _, l := range lines {
+		if l.Kind == "category" {
+			return true
+		}
+	}
+	return false
 }
