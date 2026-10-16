@@ -20,7 +20,7 @@
       </header>
 
       <h1>Política de privacidad</h1>
-      <p class="meta">Vigente desde el 14 de octubre de 2026 · Versión 1.0</p>
+      <p class="meta">Vigente desde el 16 de octubre de 2026 · Versión 1.1</p>
 
       <div class="box">
         <p><strong>En resumen.</strong> Pulse es un registro personal de gastos, privado y solo por invitación. Tratamos lo mínimo
@@ -118,6 +118,10 @@
         <li>Conexión siempre cifrada (HTTPS), segundo factor obligatorio, sesiones que caducan y cookies de sesión protegidas.</li>
         <li>Registro solo por invitación, registro de seguridad inalterable y avisos ante cambios importantes de tu cuenta.</li>
         <li>Copias de seguridad automáticas en el mismo servidor antes de cada actualización (se conservan las últimas 15).</li>
+        <li>Si quien administra Pulse lo activa, una copia de seguridad periódica fuera del servidor (almacenamiento compatible con S3 o
+          WebDAV). Se cifra con <code>age</code> antes de salir del servidor, con una clave pública cuya clave privada no está en el
+          servidor: quien guarda la copia no puede leerla. Hacer o descargar una copia manual exige confirmar la identidad y queda en el
+          registro de seguridad.</li>
       </ul>
       <p>Ninguna medida es infalible. Si ocurre una vulneración que afecte tus datos, lo notificaremos a la autoridad de control
         y, cuando corresponda, a ti, en los plazos que fijan la LOPDP (art. 43) y el RGPD (arts. 33 y 34; 72 horas ante la
@@ -190,8 +194,11 @@
       <p>Pulse usa una única cookie, <code>__Host-pulse</code>, estrictamente necesaria para mantener tu sesión; está protegida
         (Secure, HttpOnly, SameSite=Strict) y no sirve para rastrearte. En tu navegador se guardan además tus preferencias de tema y
         de animaciones, y la app se guarda en caché para funcionar sin conexión; las respuestas de la API financiera no se guardan
-        en esa caché. Si creas un gasto manual sin red, sus datos se guardan temporalmente en IndexedDB en ese navegador hasta
-        enviarlo al servidor. Esta cola local también se elimina al cerrar sesión.
+        en esa caché. Para que la app funcione sin red, la última versión de Inicio, Movimientos recientes, Plan, cuentas,
+        categorías y gastos fijos, y los cambios hechos sin conexión que aún no se enviaron, se guardan en IndexedDB en ese
+        navegador, <strong>cifrados</strong> (AES-256-GCM) con una clave propia de tu cuenta que el navegador no permite exportar.
+        Cada persona tiene su propio almacén; todo se borra al cerrar sesión, y sin conexión solo se muestra lo guardado durante
+        7 días como máximo.
         No hay cookies de terceros, publicidad ni analítica, por lo que no necesitamos un banner de consentimiento.</p>
 
       <h2 id="menores">9. Menores de edad</h2>

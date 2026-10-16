@@ -2,7 +2,7 @@
 
 Registro de gastos personales: cuentas y tarjetas, categorías, plan de gastos mensual con avisos y proyección. PWA para escritorio y móvil, modo claro/oscuro. Multiusuario **solo por invitación**, con MFA y aislamiento de datos por usuario (ver [`PLAN.md`](PLAN.md) §4).
 
-Estado: **fases 0–8 implementadas y fase 9 en curso**. Incluye el rediseño de todas las vistas, estadísticas y gráficas de líneas, proyecciones semanales y mensuales, CSV, conciliación, gastos fijos, registro sin conexión y métricas de revisión de Gmail. Quedan aceptaciones con datos y dispositivos reales, configuración de monitores y nuevos bancos; el roadmap está en [`PLAN.md`](PLAN.md). Los cambios se registran en [`CHANGELOG.md`](CHANGELOG.md).
+Estado: **fases 0–8 y 10–13 implementadas y fase 9 en curso**. Incluye el rediseño de todas las vistas, estadísticas y gráficas, proyección de fin de mes con regresión y selección automática del método, presupuestos flexibles, uso sin conexión con almacén cifrado, respaldo externo cifrado, CSV, conciliación, gastos fijos y métricas de revisión de Gmail. Quedan aceptaciones con datos y dispositivos reales, configuración de monitores y nuevos bancos; el roadmap está en [`PLAN.md`](PLAN.md). Los cambios se registran en [`CHANGELOG.md`](CHANGELOG.md).
 
 ## Funciones
 
@@ -13,9 +13,11 @@ Estado: **fases 0–8 implementadas y fase 9 en curso**. Incluye el rediseño de
 - Presentación pública y páginas de privacidad y términos en español e inglés, accesibles sin sesión; exportación y supresión de cuentas mediante CLI, y retención del registro de seguridad de 365 días.
 - Inicio con gasto mensual, barra de presupuesto, saldo disponible o exceso, referencia del día del mes y cierre estimado; temas claro/oscuro y control de animaciones con respeto al movimiento reducido.
 - Diseño común en todas las vistas, con azul petróleo y acentos suaves en salvia, lavanda y azul grisáceo; navegación móvil con Reportes, tarjetas de cuentas/categorías y formularios adaptados a cada pantalla.
-- Respaldos en caliente, copia externa cifrada con `age` a Nextcloud y restauración verificada en CI. Configuración en [`deploy/README.md`](deploy/README.md).
-- Reportes de 3, 6 o 12 meses: estadísticas de compras y devoluciones, líneas del total y por categoría, y proyecciones de la próxima semana o mes por categoría y total. Exportación CSV con confirmación de identidad y conciliación con tus estados de cuenta.
-- Gastos fijos mensuales y cola local para enviar gastos manuales nuevos cuando vuelve la conexión, con identificadores que evitan duplicarlos al reenviar.
+- Respaldos en caliente y respaldo externo continuo cifrado con `age` antes de salir del servidor (S3 compatible o WebDAV), con **Respaldar ahora** y descarga cifrada para admins con confirmación de identidad, estado en `/healthz` y aviso push si falla. Configuración en [`deploy/README.md`](deploy/README.md).
+- Reportes de 3, 6 o 12 meses: estadísticas de compras y devoluciones, líneas del total y por categoría, y proyecciones de la próxima semana o mes por categoría y total. Proyección de la próxima semana y el próximo mes con rango del 95 % simulado con tus días reales y método elegido por su error en periodos pasados. Proyección de fin de mes con valor y rango, elegida entre ritmo, regresión lineal, media móvil ponderada, día de la semana y perfil del mes según su error en meses cerrados; incluye gastos fijos por venir, excluye atípicos de forma visible y muestra su precisión. Gráficas del acumulado contra el mes anterior, categorías, día de la semana, mapa de calor y cuentas, todas con tabla y teclado. Exportación CSV con confirmación de identidad y conciliación con tus estados de cuenta.
+- Plan con el detalle de en qué se gastó cada categoría (subcategorías y comercios) y Reportes con el gasto de cada cuenta por categoría.
+- Presupuestos por categoría o por cuenta, con tope propio para un mes, umbrales de aviso a elección, arrastre del sobrante o exceso al mes siguiente y copia del plan del mes anterior.
+- Gastos fijos mensuales y uso sin conexión: lectura de Inicio, Movimientos recientes y Plan, y cola cifrada de gastos nuevos, ediciones, borrados y gastos fijos que se envía sin duplicados al volver la conexión, con resolución de conflictos.
 
 ## Navegación
 
@@ -97,11 +99,14 @@ En **Conciliación**, selecciona un mes e introduce el total del estado de cuent
 
 Para crear un gasto fijo, abre **Nuevo gasto** y marca **Repetir cada mes este día (gasto fijo)**. Puedes ver los próximos cobros y quitar la repetición en **Plan → Gastos fijos**. El servidor registra los vencidos al arrancar y los revisa cada hora; si el día no existe en un mes, usa el último día de ese mes. Quitar la repetición conserva los movimientos ya registrados.
 
-## Gastos sin conexión
+## Uso sin conexión
 
-Si ya tienes la app abierta y sus cuentas y categorías cargadas, puedes crear un gasto manual nuevo sin red. Se guarda temporalmente en IndexedDB en ese navegador hasta enviarlo. Pulse reintenta al recuperar la conexión o al abrir la app con sesión; el identificador del gasto evita duplicados si se reenvía. La edición y la creación de gastos fijos requieren conexión.
+Después de entrar con conexión, Pulse guarda en el navegador lo último de Inicio, Movimientos recientes y Plan, además de cuentas, categorías y gastos fijos. Sin red puedes verlo, y también crear, editar o borrar gastos, confirmar los de **Por revisar** y crear, cambiar o quitar gastos fijos. La cabecera muestra cuántos cambios faltan por enviar; se envían solos al volver la conexión (y cada 30 s mientras quede alguno), o con **Reintentar ahora**.
 
-La API sigue sin almacenarse en la caché del service worker. La cola local contiene los datos de los gastos pendientes y se elimina al cerrar sesión; envía los pendientes antes de salir si quieres conservarlos. Si el servidor rechaza definitivamente un gasto, la app avisa para que lo registres de nuevo.
+- **Cifrado y aislamiento**: todo se guarda en IndexedDB cifrado con AES-256-GCM, con una clave no exportable propia de cada cuenta y en una base separada por persona. Sin conexión solo se abre lo de la última persona que entró en ese navegador, durante 7 días como máximo. Al cerrar sesión se borra todo (si quedan cambios sin enviar, la app avisa antes), y sin red no se puede cerrar sesión, para no dejarla abierta en el servidor.
+- **Sin duplicados**: cada cambio lleva su propio `Idempotency-Key`; reenviarlo tras perder la respuesta no lo aplica dos veces. Varios cambios del mismo registro se combinan en uno.
+- **Conflictos**: las ediciones y los borrados llevan la versión que se vio (`If-Match`). Si el registro cambió en otro dispositivo, la app pregunta si usar tu versión o conservar la del servidor; si lo borraron allí, puedes volver a crearlo con tus cambios o descartarlos.
+- La caché del service worker sigue sin guardar respuestas de la API. Si el servidor rechaza un cambio de forma definitiva (datos inválidos), la app avisa y lo descarta.
 
 ## Estructura
 ```
@@ -189,6 +194,7 @@ Ejecuta la CLI con las mismas variables de configuración y claves que el servid
 | `pulse user delete persona@example.com --confirmar persona@example.com` | Eliminar la cuenta y sus datos asociados |
 | `pulse backup --keep 15 respaldo.db` | Crear un respaldo en caliente y rotar los anteriores |
 | `pulse restore respaldo.db` | Restaurar un respaldo con el servidor detenido |
+| `pulse restore --identity clave.txt [--sha256 huella] respaldo.db.age` | Descifrar y restaurar un respaldo externo (la clave privada de `age` nunca está en el servidor) |
 | `pulse parse correo.eml` | Probar el parser sin guardar movimientos |
 
 La exportación contiene datos personales descifrados: entrégala por un canal seguro y elimina el archivo después. La supresión conserva el registro de seguridad hasta que vence su retención; los respaldos anteriores se eliminan al rotar. Si existía una conexión con Gmail, el usuario también puede retirar el acceso desde su cuenta de Google. Los textos públicos están en `web/public/`, con una página HTML por ruta y estilos compartidos en `legal.css`.
@@ -259,8 +265,8 @@ git rev-parse HEAD
 
 El pie muestra los primeros siete caracteres de esa revisión y convierte `built_at` a tu zona horaria. La fecha indica cuándo se construyó el servidor; la coincidencia del commit permite confirmar qué cambios está sirviendo el VPS. Si el pie indica **sin verificar**, muestra el último dato consultado y todavía no confirma la versión actual: recupera la conexión y espera la siguiente consulta o vuelve a la pestaña.
 
-`/healthz` comprueba la base y que el esquema coincida con el binario; devuelve 503 si falla esa comprobación e informa si Gmail y push están activos. La guía de despliegue incluye la copia externa con `deploy/backup-offsite.sh`, la restauración en una máquina limpia y la configuración de monitores.
+`/healthz` comprueba la base y que el esquema coincida con el binario; devuelve 503 si falla esa comprobación e informa si Gmail y push están activos. Con el respaldo externo activado, también informa su estado (`"backup": "ok"`, `"stale"` o `"failing"`). La guía de despliegue explica cómo configurarlo con variables de entorno y secretos en archivos, la política de solo escritura del almacenamiento, la restauración en una máquina limpia y la configuración de monitores; `deploy/backup-offsite.sh` sigue disponible.
 
 La migración `0009_reportes_recurrentes` añade las revisiones de importación, avisos de plantillas, totales de conciliación y gastos recurrentes; se aplica al arrancar como las migraciones anteriores. El despliegue debe conservar la base y la KEK para mantener acceso a los campos cifrados.
 
-El rediseño y las estadísticas/proyecciones ampliadas no requieren una migración adicional. La migración `0010_unir_cuentas_repetidas` se describe en la sección de importación bancaria.
+El rediseño y las estadísticas/proyecciones ampliadas no requieren una migración adicional. La migración `0010_unir_cuentas_repetidas` se describe en la sección de importación bancaria. Las migraciones `0011_sin_conexion` (versiones y claves de cambio), `0012_presupuestos_flexibles` (conserva los presupuestos y avisos existentes) y `0013_respaldos` (historial de respaldos) se aplican al arrancar.

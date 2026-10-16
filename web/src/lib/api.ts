@@ -2,6 +2,8 @@
 // el frontend nunca ve ni guarda tokens.
 
 export class ApiError extends Error {
+  /** En un conflicto de versión (409 version_conflict), lo que hay ahora en el servidor. */
+  current?: unknown
   constructor(public status: number, public code: string, message: string) {
     super(message)
   }
@@ -20,8 +22,8 @@ export function onUnauthorized(h: (() => void) | null) {
   unauthorizedHandler = h
 }
 
-async function raw<T>(method: string, path: string, body?: unknown): Promise<T> {
-  const init: RequestInit = { method, credentials: 'same-origin', headers: {} }
+async function raw<T>(method: string, path: string, body?: unknown, headers: Record<string, string> = {}): Promise<T> {
+  const init: RequestInit = { method, credentials: 'same-origin', headers: { ...headers } }
   if (body !== undefined) {
     init.body = JSON.stringify(body)
     ;(init.headers as Record<string, string>)['Content-Type'] = 'application/json'
@@ -42,18 +44,20 @@ async function raw<T>(method: string, path: string, body?: unknown): Promise<T> 
   }
   if (!res.ok) {
     const e = data?.error
-    throw new ApiError(res.status, e?.code ?? 'error', e?.message ?? 'Ocurrió un error inesperado.')
+    const err = new ApiError(res.status, e?.code ?? 'error', e?.message ?? 'Ocurrió un error inesperado.')
+    if (data?.current) err.current = data.current
+    throw err
   }
   return (data ?? text) as T // CSV y otras respuestas que no son JSON llegan como texto
 }
 
-export async function api<T>(method: string, path: string, body?: unknown): Promise<T> {
+export async function api<T>(method: string, path: string, body?: unknown, headers?: Record<string, string>): Promise<T> {
   try {
-    return await raw<T>(method, path, body)
+    return await raw<T>(method, path, body, headers)
   } catch (err) {
     if (err instanceof ApiError) {
       if (err.code === 'step_up_required' && stepUpHandler) {
-        if (await stepUpHandler()) return raw<T>(method, path, body)
+        if (await stepUpHandler()) return raw<T>(method, path, body, headers)
       }
       if (err.status === 401 && ['unauthorized', 'mfa_required', 'enrollment_required'].includes(err.code)) {
         unauthorizedHandler?.()
@@ -61,6 +65,27 @@ export async function api<T>(method: string, path: string, body?: unknown): Prom
     }
     throw err
   }
+}
+
+/** Descarga binaria (p. ej. la copia cifrada del respaldo) con el mismo manejo de errores y step-up. */
+export async function getBlob(path: string, retried = false): Promise<Blob> {
+  let res: Response
+  try {
+    res = await fetch(path, { credentials: 'same-origin' })
+  } catch {
+    throw new ApiError(0, 'network', 'Sin conexión. Revisa tu internet e inténtalo de nuevo.')
+  }
+  if (res.ok) return res.blob()
+  let e: any
+  try {
+    e = (await res.json())?.error
+  } catch {
+    /* sin cuerpo JSON */
+  }
+  const err = new ApiError(res.status, e?.code ?? 'error', e?.message ?? 'Ocurrió un error inesperado.')
+  if (err.code === 'step_up_required' && stepUpHandler && !retried && (await stepUpHandler())) return getBlob(path, true)
+  if (err.status === 401) unauthorizedHandler?.()
+  throw err
 }
 
 export const get = <T>(path: string) => api<T>('GET', path)

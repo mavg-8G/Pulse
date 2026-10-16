@@ -25,6 +25,9 @@ type Transaction struct {
 	Status      string    `json:"status"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
+	// Version sube con cada cambio: la cola sin conexión la envía en If-Match para detectar conflictos.
+	Version int64  `json:"version"`
+	LastOp  string `json:"-"`
 	// Solo para importados:
 	MessageHash []byte   `json:"-"`
 	Parser      string   `json:"parser,omitempty"`
@@ -33,13 +36,13 @@ type Transaction struct {
 
 var ErrDuplicate = Conflict("ese correo ya fue importado")
 
-const txCols = `id, account_id, category_id, amount_cents, currency, occurred_at, kind, merchant_enc, description_enc, notes_enc, source, status, created_at, updated_at`
+const txCols = `id, account_id, category_id, amount_cents, currency, occurred_at, kind, merchant_enc, description_enc, notes_enc, source, status, created_at, updated_at, version, last_op`
 
 func scanTx(row interface{ Scan(...any) error }, s *crypto.Sealer) (*Transaction, error) {
 	var t Transaction
 	var occ, c, u string
 	var m, d, n []byte
-	err := row.Scan(&t.ID, &t.AccountID, &t.CategoryID, &t.AmountCents, &t.Currency, &occ, &t.Kind, &m, &d, &n, &t.Source, &t.Status, &c, &u)
+	err := row.Scan(&t.ID, &t.AccountID, &t.CategoryID, &t.AmountCents, &t.Currency, &occ, &t.Kind, &m, &d, &n, &t.Source, &t.Status, &c, &u, &t.Version, &t.LastOp)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -61,7 +64,7 @@ func scanTx(row interface{ Scan(...any) error }, s *crypto.Sealer) (*Transaction
 
 func (s *Store) CreateTransaction(ctx context.Context, userID string, sl *crypto.Sealer, t *Transaction) error {
 	now := s.Clock.Now()
-	t.CreatedAt, t.UpdatedAt = now, now
+	t.CreatedAt, t.UpdatedAt, t.Version = now, now, 1
 	var hash any
 	if len(t.MessageHash) > 0 {
 		hash = t.MessageHash
@@ -86,20 +89,63 @@ func (s *Store) Transaction(ctx context.Context, userID string, sl *crypto.Seale
 }
 
 func (s *Store) UpdateTransaction(ctx context.Context, userID string, sl *crypto.Sealer, t *Transaction) error {
+	return s.UpdateTransactionIf(ctx, userID, sl, t, 0, "")
+}
+
+// VersionConflict: el registro cambió (otro dispositivo) desde la versión que el cliente conocía.
+type VersionConflict struct{ Current int64 }
+
+func (e *VersionConflict) Error() string { return "el registro cambió en otro dispositivo" }
+func (e *VersionConflict) Unwrap() error { return ErrConflict }
+
+// UpdateTransactionIf guarda solo si la versión sigue siendo expect (0 = sin condición) y anota op,
+// el identificador de la operación del cliente. La comprobación va en el mismo UPDATE: sin carreras.
+func (s *Store) UpdateTransactionIf(ctx context.Context, userID string, sl *crypto.Sealer, t *Transaction, expect int64, op string) error {
 	t.UpdatedAt = s.Clock.Now()
-	err := affected(s.DB.ExecContext(ctx, `UPDATE transactions SET account_id = ?, category_id = ?, amount_cents = ?, currency = ?, occurred_at = ?, kind = ?,
-		merchant_enc = ?, description_enc = ?, notes_enc = ?, status = ?, updated_at = ? WHERE id = ? AND user_id = ?`,
+	res, err := s.DB.ExecContext(ctx, `UPDATE transactions SET account_id = ?, category_id = ?, amount_cents = ?, currency = ?, occurred_at = ?, kind = ?,
+		merchant_enc = ?, description_enc = ?, notes_enc = ?, status = ?, updated_at = ?, version = version + 1, last_op = ?
+		WHERE id = ? AND user_id = ? AND (? = 0 OR version = ?)`,
 		t.AccountID, t.CategoryID, t.AmountCents, t.Currency, TS(t.OccurredAt), t.Kind,
 		sl.Seal("tx.merchant", t.Merchant), sl.Seal("tx.description", t.Description), sl.Seal("tx.notes", t.Notes),
-		t.Status, TS(t.UpdatedAt), t.ID, userID))
+		t.Status, TS(t.UpdatedAt), op, t.ID, userID, expect, expect)
 	if isFK(err) {
 		return ErrNotFound
 	}
-	return err
+	if err := s.versionResult(ctx, res, err, "transactions", userID, t.ID); err != nil {
+		return err
+	}
+	t.LastOp = op
+	return s.DB.QueryRowContext(ctx, `SELECT version FROM transactions WHERE id = ? AND user_id = ?`, t.ID, userID).Scan(&t.Version)
+}
+
+// versionResult distingue "no existe" de "existe con otra versión" cuando un UPDATE/DELETE condicionado no tocó filas.
+func (s *Store) versionResult(ctx context.Context, res sql.Result, err error, table, userID, id string) error {
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n > 0 {
+		return nil
+	}
+	var v int64
+	// table es siempre una constante del paquete, nunca un dato del usuario.
+	err = s.DB.QueryRowContext(ctx, `SELECT version FROM `+table+` WHERE id = ? AND user_id = ?`, id, userID).Scan(&v)
+	if errors.Is(err, sql.ErrNoRows) {
+		return ErrNotFound
+	}
+	if err != nil {
+		return err
+	}
+	return &VersionConflict{Current: v}
 }
 
 func (s *Store) DeleteTransaction(ctx context.Context, userID, id string) error {
-	return affected(s.DB.ExecContext(ctx, `DELETE FROM transactions WHERE id = ? AND user_id = ?`, id, userID))
+	return s.DeleteTransactionIf(ctx, userID, id, 0)
+}
+
+// DeleteTransactionIf borra solo si la versión sigue siendo expect (0 = sin condición).
+func (s *Store) DeleteTransactionIf(ctx context.Context, userID, id string, expect int64) error {
+	res, err := s.DB.ExecContext(ctx, `DELETE FROM transactions WHERE id = ? AND user_id = ? AND (? = 0 OR version = ?)`, id, userID, expect, expect)
+	return s.versionResult(ctx, res, err, "transactions", userID, id)
 }
 
 type TxFilter struct {

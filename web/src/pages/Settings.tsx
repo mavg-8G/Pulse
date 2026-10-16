@@ -5,11 +5,13 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Sheet } from '../components/Sheet'
 import { useMotion } from '../components/AppShell'
 import { IconPause, IconPulse } from '../components/icons'
+import { BackupSettings } from '../components/BackupSettings'
 import { GmailSettings } from '../components/GmailSettings'
 import { NotificationSettings } from '../components/NotificationSettings'
 import { useToast } from '../components/Toast'
-import { del, errorMessage, get, patch, post } from '../lib/api'
+import { ApiError, del, errorMessage, get, patch, post } from '../lib/api'
 import { useAuth, wipeLocalData } from '../lib/auth'
+import { snapshot } from '../lib/outbox'
 import { dateTimeLabel } from '../lib/dates'
 import { useMe } from '../lib/queries'
 import { applyTheme } from '../lib/theme'
@@ -48,6 +50,8 @@ const eventText: Record<string, string> = {
   email_imported: 'Correo importado',
   csv_exported: 'Movimientos exportados a CSV',
   template_unknown: 'Correo del banco que Pulse no supo leer',
+  backup_manual: 'Respaldo cifrado hecho a mano',
+  backup_downloaded: 'Copia cifrada del respaldo descargada',
 }
 
 function browserName(ua: string) {
@@ -131,7 +135,16 @@ export function Settings({ view = 'prefs' }: { view?: 'prefs' | 'account' }) {
     reloadSecurity()
   }
   async function logout() {
-    await post('/api/auth/logout').catch(() => {})
+    const waiting = snapshot().length
+    if (waiting > 0 && !(await ask({ title: `¿Cerrar sesión con ${waiting === 1 ? 'un cambio' : `${waiting} cambios`} sin enviar?`,
+      body: 'Están guardados solo en este dispositivo. Al cerrar sesión se borran y no llegarán a tu cuenta. Conéctate y espera a que se envíen si quieres conservarlos.',
+      confirm: 'Cerrar sesión y borrarlos', danger: true }))) return
+    try {
+      await post('/api/auth/logout')
+    } catch (e) {
+      // Sin red la sesión seguiría abierta en el servidor: no se finge un cierre que no ocurrió.
+      if (e instanceof ApiError && e.status === 0) return toast('Sin conexión: conéctate para cerrar la sesión.')
+    }
     qc.clear()
     await wipeLocalData()
     await refresh()
@@ -286,6 +299,8 @@ export function Settings({ view = 'prefs' }: { view?: 'prefs' | 'account' }) {
 
       <NotificationSettings />
 
+      {me?.role === 'admin' && <BackupSettings tz={tz} />}
+
       <section className="section" aria-labelledby="h-legal">
         <div className="section-head"><h2 id="h-legal">Privacidad</h2></div>
         <div className="list">
@@ -297,6 +312,7 @@ export function Settings({ view = 'prefs' }: { view?: 'prefs' | 'account' }) {
           </a>
         </div>
       </section>
+
 
       </>}
 

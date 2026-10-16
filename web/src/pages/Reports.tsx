@@ -3,11 +3,12 @@ import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-quer
 import { MonthSwitch } from '../components/AppShell'
 import { useToast } from '../components/Toast'
 import { ReportOverview, ForecastCard } from '../components/ReportAnalytics'
+import { AccountEvolution, CategoryCompare, ProjectionCard, SpendingHeatmap, WeekdayChart } from '../components/ReportCharts'
 import { api, errorMessage, get } from '../lib/api'
 import { monthLabel, monthOf, shiftMonth } from '../lib/dates'
 import { centsToInput, money, moneyShort, parseAmount } from '../lib/money'
 import { useAccounts, useCategories, useMe } from '../lib/queries'
-import type { Reconciliation, ReportSummary } from '../lib/types'
+import type { Account, Category, Reconciliation, ReportSummary } from '../lib/types'
 
 const ranges = [3, 6, 12] as const
 
@@ -58,10 +59,17 @@ export function Reports() {
       {r && (
         <>
           <ReportOverview report={r} categories={categories} current={current} />
+          <ProjectionCard categories={categories} />
+          <CategoryCompare report={r} categories={categories} current={current} />
           <ForecastCard forecast={r.forecast} categories={categories} />
           <div className="report-grid">
             <Breakdown title="Por categoría" id="h-rcat" total={r.total_cents} rows={r.by_category.map((x) => ({ key: x.id, cents: x.spent_cents, name: cats.get(x.id)?.name ?? 'Categoría', icon: cats.get(x.id)?.icon, color: cats.get(x.id)?.color }))} />
-            <Breakdown title="Por cuenta" id="h-racc" total={r.total_cents} rows={r.by_account.map((x) => ({ key: x.id, cents: x.spent_cents, name: accs.get(x.id)?.name ?? 'Cuenta', icon: accs.get(x.id)?.icon, color: accs.get(x.id)?.color }))} />
+            <AccountSpending report={r} accountName={(id) => accs.get(id)?.name ?? 'Cuenta'} account={(id) => accs.get(id)} category={(id) => cats.get(id)} />
+          </div>
+          <AccountEvolution report={r} accounts={accounts} />
+          <div className="report-grid">
+            <WeekdayChart report={r} />
+            <SpendingHeatmap report={r} />
           </div>
         </>
       )}
@@ -84,6 +92,43 @@ function Breakdown({ title, id, total, rows }: { title: string; id: string; tota
                 <div><div className="category-summary-top"><strong>{x.name}</strong><span className="num">{money(x.cents)}</span></div><div className="track" aria-hidden="true"><div className="fill" style={{ width: `${pct}%`, background: x.color ?? 'var(--accent)' }} /></div></div>
                 <span className="category-percent num">{pct}%</span>
               </div>
+            )
+          })}
+        </div>
+      )}
+    </section>
+  )
+}
+
+/** Gasto del periodo por cuenta o tarjeta, con su reparto por categoría. */
+function AccountSpending({ report: r, accountName, account, category }: { report: ReportSummary; accountName: (id: string) => string; account: (id: string) => Account | undefined; category: (id: string) => Category | undefined }) {
+  const positive = r.by_account.reduce((t, x) => t + Math.max(0, x.spent_cents), 0)
+  return (
+    <section className="panel report-card" aria-labelledby="h-racc">
+      <div className="section-head"><div><h2 id="h-racc">Por cuenta</h2><p className="small muted">Toca una cuenta para ver en qué categorías se gastó.</p></div></div>
+      {r.by_account.length === 0 ? <p className="muted small">Sin gastos en este periodo.</p> : (
+        <div className="account-spend-list">
+          {r.by_account.map((x) => {
+            const acc = account(x.id)
+            const rows = r.account_categories.filter((c) => c.account_id === x.id)
+            const plus = rows.reduce((t, c) => t + Math.max(0, c.spent_cents), 0)
+            const pct = positive > 0 ? Math.round(Math.max(0, x.spent_cents) / positive * 100) : 0
+            const count = r.account_purchases?.[x.id] ?? 0
+            return (
+              <details key={x.id} className="breakdown-item account-spend">
+                <summary>
+                  <span className="category-symbol" style={{ background: `color-mix(in srgb, ${acc?.color ?? '#888'} 14%, transparent)` }} aria-hidden="true">{acc?.icon || '•'}</span>
+                  <span className="grow"><strong>{accountName(x.id)}</strong><span className="small muted"> · {count} {count === 1 ? 'compra' : 'compras'}</span>
+                    <span className="account-spend-split" aria-hidden="true">{rows.filter((c) => c.spent_cents > 0).map((c) => <span key={c.category_id} style={{ width: `${plus > 0 ? c.spent_cents / plus * 100 : 0}%`, background: category(c.category_id)?.color ?? 'var(--accent)' }} />)}</span></span>
+                  <span className="num breakdown-amount"><strong>{money(x.spent_cents)}</strong><span className="small muted">{pct}% del periodo</span></span>
+                </summary>
+                <div className="breakdown-body">
+                  <div className="report-table-scroll" tabIndex={0}><table className="report-table report-forecast-table"><caption className="sr-only">Gasto de {accountName(x.id)} por categoría en el periodo</caption>
+                    <thead><tr><th scope="col">Categoría</th><th scope="col">Compras</th><th scope="col">Gasto</th><th scope="col">De la cuenta</th></tr></thead>
+                    <tbody>{rows.map((c) => <tr key={c.category_id}><th scope="row">{category(c.category_id)?.name ?? 'Categoría'}</th><td className="num">{c.purchase_count}</td><td className="num">{money(c.spent_cents)}</td><td className="num muted">{x.spent_cents > 0 ? Math.round(c.spent_cents / x.spent_cents * 100) : 0}%</td></tr>)}</tbody>
+                  </table></div>
+                </div>
+              </details>
             )
           })}
         </div>

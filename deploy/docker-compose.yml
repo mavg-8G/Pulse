@@ -14,13 +14,23 @@ services:
       # Gmail (ver GMAIL.md): descomenta junto con los secretos de abajo.
       # PULSE_GOOGLE_CLIENT_SECRET_FILE: /run/secrets/google_client_secret
       # PULSE_GEMINI_KEY_FILE: /run/secrets/gemini_key
+      # Respaldo externo cifrado (ver README.md): descomenta el secreto del destino que uses.
+      # PULSE_BACKUP_S3_SECRET_FILE: /run/secrets/backup_s3_secret
+      # PULSE_BACKUP_WEBDAV_PASSWORD_FILE: /run/secrets/backup_webdav_password
+      # PULSE_BACKUP_GDRIVE_CLIENT_SECRET_FILE: /run/secrets/backup_gdrive_client_secret
+      # PULSE_BACKUP_GDRIVE_TOKEN_FILE: /run/secrets/backup_gdrive_token
     secrets:
       - pulse_kek
       - vapid_private
       # - google_client_secret
       # - gemini_key
+      # - backup_s3_secret
+      # - backup_webdav_password
+      # - backup_gdrive_client_secret
+      # - backup_gdrive_token
     volumes:
       - ./data:/data          # pulse.db y backups/ (propiedad de uid 65532)
+      - /opt/backup/pulse:/backups  # respaldos cifrados locales (sudo install -d -o 65532 -g 65532 -m 700 /opt/backup/pulse)
     networks:
       - proxy                 # sin "ports:": solo Caddy llega al contenedor
     read_only: true
@@ -51,6 +61,14 @@ secrets:
   #   file: ./secrets/google_client_secret
   # gemini_key:                 # opcional
   #   file: ./secrets/gemini_key
+  # backup_s3_secret:
+  #   file: ./secrets/backup_s3_secret
+  # backup_webdav_password:
+  #   file: ./secrets/backup_webdav_password
+  # backup_gdrive_client_secret:
+  #   file: ./secrets/backup_gdrive_client_secret
+  # backup_gdrive_token:
+  #   file: ./secrets/backup_gdrive_token
 
 networks:
   proxy:

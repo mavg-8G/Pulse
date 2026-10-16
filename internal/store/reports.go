@@ -2,6 +2,9 @@ package store
 
 import (
 	"context"
+	"database/sql"
+	"errors"
+	"sort"
 	"time"
 
 	"pulse/internal/auth"
@@ -201,21 +204,49 @@ type Recurring struct {
 	Merchant    string `json:"merchant"`
 	Day         int    `json:"day"`
 	NextDate    string `json:"next_date"` // AAAA-MM-DD, zona del usuario
+	Version     int64  `json:"version"`
+	LastOp      string `json:"-"`
 }
 
 func (s *Store) CreateRecurring(ctx context.Context, userID string, sl *crypto.Sealer, r *Recurring) error {
+	r.Version = 1
 	_, err := s.DB.ExecContext(ctx, `INSERT INTO recurring (id, user_id, account_id, category_id, amount_cents, merchant_enc, day, next_date, created_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, r.ID, userID, r.AccountID, r.CategoryID, r.AmountCents, sl.Seal("recurring.merchant", r.Merchant),
 		r.Day, r.NextDate, TS(s.Clock.Now()))
 	if isFK(err) {
 		return ErrNotFound
 	}
+	if isUnique(err) {
+		return Conflict("ese identificador ya está en uso")
+	}
 	return err
+}
+
+const recCols = `id, account_id, category_id, amount_cents, merchant_enc, day, next_date, version, last_op`
+
+func scanRecurring(row interface{ Scan(...any) error }, sl *crypto.Sealer) (*Recurring, error) {
+	var r Recurring
+	var m []byte
+	err := row.Scan(&r.ID, &r.AccountID, &r.CategoryID, &r.AmountCents, &m, &r.Day, &r.NextDate, &r.Version, &r.LastOp)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	if r.Merchant, err = sl.Open("recurring.merchant", m); err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
+func (s *Store) RecurringByID(ctx context.Context, userID string, sl *crypto.Sealer, id string) (*Recurring, error) {
+	return scanRecurring(s.DB.QueryRowContext(ctx, `SELECT `+recCols+` FROM recurring WHERE user_id = ? AND id = ?`, userID, id), sl)
 }
 
 // Recurrings lista los del usuario; con due != "" solo los que vencen ese día o antes.
 func (s *Store) Recurrings(ctx context.Context, userID string, sl *crypto.Sealer, due string) ([]Recurring, error) {
-	q := `SELECT id, account_id, category_id, amount_cents, merchant_enc, day, next_date FROM recurring WHERE user_id = ?`
+	q := `SELECT ` + recCols + ` FROM recurring WHERE user_id = ?`
 	args := []any{userID}
 	if due != "" {
 		q += ` AND next_date <= ?`
@@ -228,23 +259,113 @@ func (s *Store) Recurrings(ctx context.Context, userID string, sl *crypto.Sealer
 	defer rows.Close()
 	out := []Recurring{}
 	for rows.Next() {
-		var r Recurring
-		var m []byte
-		if err := rows.Scan(&r.ID, &r.AccountID, &r.CategoryID, &r.AmountCents, &m, &r.Day, &r.NextDate); err != nil {
+		r, err := scanRecurring(rows, sl)
+		if err != nil {
 			return nil, err
 		}
-		if r.Merchant, err = sl.Open("recurring.merchant", m); err != nil {
-			return nil, err
-		}
-		out = append(out, r)
+		out = append(out, *r)
 	}
 	return out, rows.Err()
 }
 
-func (s *Store) AdvanceRecurring(ctx context.Context, userID, id, next string) error {
-	return affected(s.DB.ExecContext(ctx, `UPDATE recurring SET next_date = ? WHERE id = ? AND user_id = ?`, next, id, userID))
+// UpdateRecurring guarda los cambios del usuario si la versión sigue siendo expect (0 = sin condición).
+func (s *Store) UpdateRecurring(ctx context.Context, userID string, sl *crypto.Sealer, r *Recurring, expect int64, op string) error {
+	res, err := s.DB.ExecContext(ctx, `UPDATE recurring SET account_id = ?, category_id = ?, amount_cents = ?, merchant_enc = ?, day = ?, next_date = ?,
+		version = version + 1, last_op = ? WHERE id = ? AND user_id = ? AND (? = 0 OR version = ?)`,
+		r.AccountID, r.CategoryID, r.AmountCents, sl.Seal("recurring.merchant", r.Merchant), r.Day, r.NextDate, op, r.ID, userID, expect, expect)
+	if isFK(err) {
+		return ErrNotFound
+	}
+	if err := s.versionResult(ctx, res, err, "recurring", userID, r.ID); err != nil {
+		return err
+	}
+	r.LastOp = op
+	return s.DB.QueryRowContext(ctx, `SELECT version FROM recurring WHERE id = ? AND user_id = ?`, r.ID, userID).Scan(&r.Version)
 }
 
-func (s *Store) DeleteRecurring(ctx context.Context, userID, id string) error {
-	return affected(s.DB.ExecContext(ctx, `DELETE FROM recurring WHERE id = ? AND user_id = ?`, id, userID))
+// AdvanceRecurring mueve el próximo cobro de from a next. No cambia la versión (no es un cambio del usuario)
+// y no hace nada si el usuario cambió el día mientras tanto.
+func (s *Store) AdvanceRecurring(ctx context.Context, userID, id, from, next string) error {
+	_, err := s.DB.ExecContext(ctx, `UPDATE recurring SET next_date = ? WHERE id = ? AND user_id = ? AND next_date = ?`, next, id, userID, from)
+	return err
+}
+
+func (s *Store) DeleteRecurring(ctx context.Context, userID, id string, expect int64) error {
+	res, err := s.DB.ExecContext(ctx, `DELETE FROM recurring WHERE id = ? AND user_id = ? AND (? = 0 OR version = ?)`, id, userID, expect, expect)
+	return s.versionResult(ctx, res, err, "recurring", userID, id)
+}
+
+// ProjectionTx es lo mínimo que necesita la proyección de fin de mes (fase 13): sin descifrar nada.
+// Recurring marca los cobros que generó un gasto fijo (manual con hash de recurrente).
+type ProjectionTx struct {
+	CategoryID, Kind string
+	AmountCents      int64
+	OccurredAt       time.Time
+	Recurring        bool
+}
+
+func (s *Store) ProjectionActivity(ctx context.Context, userID string, from, now time.Time) ([]ProjectionTx, error) {
+	rows, err := s.DB.QueryContext(ctx, `SELECT category_id, kind, amount_cents, occurred_at, source = 'manual' AND message_hash IS NOT NULL
+		FROM transactions WHERE user_id = ? AND occurred_at >= ? AND occurred_at <= ? ORDER BY occurred_at`, userID, TS(from), TS(now))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []ProjectionTx{}
+	for rows.Next() {
+		var t ProjectionTx
+		var occurred string
+		if err := rows.Scan(&t.CategoryID, &t.Kind, &t.AmountCents, &occurred, &t.Recurring); err != nil {
+			return nil, err
+		}
+		t.OccurredAt = ParseTS(occurred)
+		out = append(out, t)
+	}
+	return out, rows.Err()
+}
+
+// UpcomingRecurring devuelve los gastos fijos con próximo cobro en [from, to] (AAAA-MM-DD), sin descifrar el comercio.
+type UpcomingCharge struct {
+	CategoryID  string
+	AmountCents int64
+	Date        string
+}
+
+// UpcomingRecurring lista los cobros de gastos fijos con fecha entre from y to (AAAA-MM-DD, ambas incluidas): el
+// próximo de cada uno y los de los meses siguientes en su mismo día (el último del mes si ese día no existe).
+func (s *Store) UpcomingRecurring(ctx context.Context, userID, from, to string) ([]UpcomingCharge, error) {
+	rows, err := s.DB.QueryContext(ctx, `SELECT category_id, amount_cents, day, next_date FROM recurring
+		WHERE user_id = ? AND next_date <= ? ORDER BY next_date`, userID, to)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []UpcomingCharge{}
+	for rows.Next() {
+		var u UpcomingCharge
+		var day int
+		if err := rows.Scan(&u.CategoryID, &u.AmountCents, &day, &u.Date); err != nil {
+			return nil, err
+		}
+		d, err := time.Parse("2006-01-02", u.Date)
+		for i := 0; err == nil && i < 120 && d.Format("2006-01-02") <= to; i++ {
+			if k := d.Format("2006-01-02"); k >= from {
+				out = append(out, UpcomingCharge{CategoryID: u.CategoryID, AmountCents: u.AmountCents, Date: k})
+			}
+			next := time.Date(d.Year(), d.Month()+1, 1, 0, 0, 0, 0, time.UTC)
+			d = time.Date(next.Year(), next.Month(), min(day, time.Date(next.Year(), next.Month()+1, 0, 0, 0, 0, 0, time.UTC).Day()), 0, 0, 0, 0, time.UTC)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Date < out[j].Date })
+	return out, rows.Err()
+}
+
+// FirstActivity es la fecha del primer movimiento del usuario (cero si no tiene).
+func (s *Store) FirstActivity(ctx context.Context, userID string) (time.Time, error) {
+	var v sql.NullString
+	err := s.DB.QueryRowContext(ctx, `SELECT MIN(occurred_at) FROM transactions WHERE user_id = ?`, userID).Scan(&v)
+	if err != nil || !v.Valid {
+		return time.Time{}, err
+	}
+	return ParseTS(v.String), nil
 }

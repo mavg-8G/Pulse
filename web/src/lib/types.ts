@@ -50,6 +50,9 @@ export interface Transaction {
   notes: string
   source: 'manual' | 'gmail' | 'email'
   status: 'confirmed' | 'pending_review'
+  version: number
+  /** Solo en la app: el cambio está guardado en el dispositivo y falta enviarlo. */
+  pending?: boolean
 }
 
 export interface TxPage {
@@ -63,9 +66,13 @@ export interface TxPage {
 export interface Budget {
   id: string
   category_id: string
+  account_id: string
   amount_cents: number
   thresholds: string
   active: boolean
+  rollover: boolean
+  rollover_from: string
+  months: Record<string, number> | null
 }
 
 export interface Progress {
@@ -82,11 +89,19 @@ export interface Progress {
 
 export interface BudgetLine extends Progress {
   budget_id: string
+  kind: 'category' | 'account'
   category_id: string
+  account_id: string
   name: string
   color: string
   icon: string
   thresholds: string
+  base_cents: number
+  cap_cents: number
+  month_cap: boolean
+  carry_cents: number
+  rollover: boolean
+  rollover_from: string
 }
 
 export interface Summary {
@@ -197,7 +212,7 @@ export interface ReportSummary {
   refund_cents: number
   purchase_count: number
   elapsed_days: number
-  months: { month: string; spent_cents: number; by_category: { id: string; spent_cents: number }[] }[]
+  months: { month: string; spent_cents: number; by_category: { id: string; spent_cents: number }[]; by_account: { id: string; spent_cents: number }[] }[]
   by_category: { id: string; spent_cents: number }[]
   by_account: { id: string; spent_cents: number }[]
   forecast: {
@@ -213,7 +228,74 @@ export interface ReportSummary {
     week_cents: number
     month_cents: number
     by_category: { id: string; week_cents: number; month_cents: number }[]
+    week_model: HorizonModel | null
+    month_model: HorizonModel | null
   }
+  account_categories: { account_id: string; category_id: string; spent_cents: number; purchase_count: number }[]
+  account_purchases: Record<string, number>
+  weekdays: { weekday: number; spent_cents: number; days: number; avg_cents: number }[] // 0 = lunes
+  days: { date: string; spent_cents: number }[] // últimos 91 días
+}
+
+/** Proyección de la próxima semana o el próximo mes con el método que menos se equivocó y su rango del 95 %. */
+export interface HorizonModel {
+  from: string
+  to: string
+  days: number
+  history_days: number
+  method: 'ritmo' | 'media_movil' | 'dia_semana'
+  projected_cents: number
+  low_cents: number | null
+  high_cents: number | null
+  upcoming_cents: number
+  baseline_cents: number
+  methods: { id: 'ritmo' | 'media_movil' | 'dia_semana'; available: boolean; projected_cents: number; mae_cents: number | null; evaluated: number }[]
+  by_category: { id: string; projected_cents: number; upcoming_cents: number }[]
+  backtests: number
+  coverage: number | null
+  outliers: number
+  cumulative: number[]
+  cumulative_low: number[]
+  cumulative_high: number[]
+}
+
+export interface BudgetBreakdown {
+  month: string
+  categories: {
+    id: string
+    spent_cents: number
+    purchase_count: number
+    refund_cents: number
+    pending_review: number
+    subcategories: { id: string; spent_cents: number }[]
+    merchants: { name: string; count: number; spent_cents: number }[]
+    other_cents: number
+    other_count: number
+  }[]
+}
+
+export type ProjectionMethodId = 'ritmo' | 'regresion' | 'media_movil' | 'dia_semana' | 'perfil'
+
+export interface Projection {
+  month: string
+  day: number
+  days_in_month: number
+  spent_cents: number
+  upcoming_cents: number
+  method: ProjectionMethodId
+  projected_cents: number
+  low_cents: number | null
+  high_cents: number | null
+  baseline_cents: number
+  methods: { id: ProjectionMethodId; available: boolean; projected_cents: number; low_cents: number | null; high_cents: number | null; mae_cents: number | null; mape: number | null; evaluated: number; candidate: boolean }[]
+  by_category: { id: string; spent_cents: number; upcoming_cents: number; projected_cents: number }[]
+  accuracy: { month: string; day: number; actual_cents: number; predicted_cents: number; baseline_cents: number; error_cents: number; error_pct: number | null; baseline_error_pct: number | null }[]
+  outliers: { date: string; category_id: string; amount_cents: number }[]
+  outlier_threshold_cents: number | null
+  warnings: string[]
+  cumulative: number[]
+  previous_cumulative: number[]
+  previous_month: string
 }
 
 export interface Reconciliation {
@@ -229,4 +311,30 @@ export interface Recurring {
   merchant: string
   day: number
   next_date: string
+  version: number
+  pending?: boolean
+}
+
+export interface BackupRun {
+  id: string
+  trigger: 'manual' | 'scheduled'
+  started_at: string
+  finished_at: string
+  status: 'ok' | 'failed'
+  name: string
+  size_bytes: number
+  sha256: string
+  attempts: number
+  error: string
+}
+
+export interface BackupStatus {
+  configured: boolean
+  target: string
+  interval: string
+  state: 'off' | 'pending' | 'ok' | 'stale' | 'failing'
+  last_ok: BackupRun | null
+  runs: BackupRun[]
+  running: boolean
+  download: boolean
 }

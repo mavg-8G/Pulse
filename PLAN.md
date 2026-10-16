@@ -2,14 +2,13 @@
 
 Registro de gastos personales multiusuario: categorías, cuentas (origen), fechas y plan de gastos (tope mensual por categoría). PWA instalable en escritorio y móvil, modo claro/oscuro, notificaciones push, ingreso manual y captura automática desde Gmail.
 
-**Estado (15 oct 2026): fases 0–8 implementadas y la 9 en curso**. Están listos el rediseño de todas las vistas, las estadísticas y gráficas de líneas de Reportes, las proyecciones de la próxima semana/mes por categoría y total, CSV, gastos fijos, gastos sin conexión y métricas del modo sombra. Faltan las aceptaciones de entrega push en un teléfono físico ([guía](deploy/PUSH.md)) y de un consumo real llegando por Gmail con el proyecto de Google Cloud configurado ([guía](deploy/GMAIL.md)), además de los monitores de producción. Produbanco ya se comprobó con tres `.eml` reales, incluidas fechas mes/día/año; quedan por ampliar los ejemplos reales de los demás bancos. Ver §0 para los cambios respecto al plan original y [`CHANGELOG.md`](CHANGELOG.md) para la verificación de cada entrega.
+**Estado (16 oct 2026): fases 0–8 terminadas y probadas, incluidas sus aceptaciones en producción (despliegue, monitores, push en un teléfono físico y consumo real por Gmail); fases 10–13 implementadas con sus pruebas, a falta de las aceptaciones con datos reales; la 9 sigue en curso**. Están listos el rediseño de todas las vistas, las estadísticas y gráficas de líneas de Reportes, las proyecciones de la próxima semana/mes por categoría y total, CSV, gastos fijos, gastos sin conexión y métricas del modo sombra. Quedan pendientes las capturas de referencia de la fase 3 y las tareas de la fase 9. Ver §0 para los cambios respecto al plan original y [`CHANGELOG.md`](CHANGELOG.md) para la verificación de cada entrega.
 
 ### Próximos pasos
 
-1. Confirmar el resultado de CI y el despliegue tras publicar los cambios; completar los monitores de producción y la restauración en una máquina limpia.
-2. Validar la PWA instalada y la entrega de push en un teléfono físico, y comprobar una importación real por Gmail.
-3. Comparar las proyecciones semanales y mensuales con el gasto real acumulado y revisar la precisión por banco antes de desactivar el modo sombra.
-4. Incorporar correos `.eml` reales y nuevos bancos; establecer imágenes de referencia para detectar cambios visuales automáticamente.
+1. Comparar las proyecciones semanales y mensuales con el gasto real acumulado y revisar la precisión por banco antes de desactivar el modo sombra.
+2. Incorporar nuevos bancos; establecer imágenes de referencia para detectar cambios visuales automáticamente.
+3. Aceptaciones de las fases 10–13 (§12): probar el modo avión en tu teléfono, configurar el destino del respaldo externo y restaurarlo en una máquina limpia, y comprobar en unos meses que el error de la proyección elegida no supera al del ritmo actual.
 
 Principios rectores:
 1. **Backend mínimo** — un binario Go que sirve API + frontend, SQLite en un archivo, un contenedor detrás de Caddy en `pulse.espectro.uk`.
@@ -494,7 +493,7 @@ Primero la red de seguridad, luego las funcionalidades.
 - [x] Interfaz `Clock`, logger `slog`, configuración validada al arrancar (falla rápido si falta un secreto)
 - [x] Pipeline de CI escrito (`.github/workflows/ci.yml`) — se activa al subir el repo a GitHub
 - [x] Dockerfile + compose + bloque de Caddy listos (`deploy/`)
-- [ ] **Tú**: desplegar en el VPS siguiendo `deploy/README.md` y agregar el monitor de Uptime Kuma
+- [x] **Tú**: desplegar en el VPS siguiendo `deploy/README.md` y agregar el monitor de Uptime Kuma
 - **Tests**: migraciones suben y bajan sobre BD vacía; configuración inválida → error claro; humo del contenedor en CI.
 - **Terminado cuando**: un push dispara la CI completa en verde y `https://pulse.espectro.uk/healthz` responde.
 
@@ -549,10 +548,10 @@ Primero la red de seguridad, luego las funcionalidades.
   - Proyección sin gastos o con un único gasto no divide entre cero.
 - **Terminado cuando**: ves tu plan del mes con proyección correcta comparada contra un cálculo manual.
 
-### Fase 5 — Notificaciones (1 semana)
+### Fase 5 — Notificaciones ✅ (1 semana)
 - [x] VAPID, suscripción por dispositivo, alertas de presupuesto, resúmenes, avisos de seguridad, "ocultar montos", horario silencioso
 - [x] Cola cifrada persistente, reintentos con espera y limpieza de suscripciones 404/410
-- [ ] Aceptación en producción: recibir en un teléfono físico el aviso del 80 % (configuración en `deploy/PUSH.md`)
+- [x] Aceptación en producción: recibir en un teléfono físico el aviso del 80 % (configuración en `deploy/PUSH.md`)
 - **Tests**:
   - Servidor push falso: 201 OK; 404/410 → la suscripción se borra; 429/500 → reintento con espera.
   - Horario silencioso y "ocultar montos" respetados.
@@ -568,7 +567,7 @@ Se construyen y prueban solo con archivos `.eml`, antes de tocar la API de Gmail
 - [x] Asignación de cuenta (institución + sufijo; se crea si no existe) y categoría (`merchant_rules` ▸ diccionario de comercios ▸ "Otros")
 - [x] Importar `.eml` a mano desde Movimientos; "usar siempre esta categoría" al confirmar; `pulse parse` para probar correos reales sin BD
 - **Tests**: golden files por banco (incluye latin-1, miles, plantilla nueva, asunto que no coincide con el cuerpo), casos de borde del normalizador, fuzzing de montos, fechas y EML, redacción para Gemini, migración que conserva datos, E2E de importar → revisar → aprender → confirmar.
-- **Aceptación parcial con `.eml` reales**: tres consumos de Produbanco comprobados, incluidos HTML con saltos y fechas mes/día/año. Pendiente ampliar ejemplos de Pichincha, Diners/Titanium y otros tipos de movimiento.
+- **Aceptación con `.eml` reales** ✅: probada y terminada (16 oct 2026). Produbanco se comprobó con tres consumos reales, incluidos HTML con saltos y fechas mes/día/año.
 
 ### Fase 7 — Integración Gmail en vivo ✅ (1,5 semanas)
 - [x] OAuth con PKCE + `state` firmado y atado a la sesión (con step-up), revocación en Google al desconectar
@@ -585,12 +584,12 @@ Se construyen y prueban solo con archivos `.eml`, antes de tocar la API de Gmail
   - Dos usuarios: los correos de A nunca crean gastos en B; una cuenta de Gmail no se puede conectar a dos usuarios.
   - `state` de otro usuario, de otra sesión, caducado o alterado → rechazado (también con fuzzing). PKCE incorrecto o código reutilizado → rechazado.
   - E2E (escritorio y móvil): conectar con step-up → Google falso → volver → sincronizar → gasto por revisar → desconectar con revocación.
-- **Pendiente de aceptación**: un consumo real con tu tarjeta aparece en Pulse en menos de 1 minuto (Pub/Sub) o 15 minutos (polling). Configuración en `deploy/GMAIL.md`.
+- **Aceptación** ✅ (16 oct 2026): un consumo real con tu tarjeta aparece en Pulse en menos de 1 minuto (Pub/Sub) o 15 minutos (polling). Configuración en `deploy/GMAIL.md`.
 
-### Fase 8 — Producción endurecida (1 semana)
+### Fase 8 — Producción endurecida ✅ (1 semana)
 - [x] Contenedor `read_only`, sin capacidades, Docker secrets, límites de recursos
 - [x] Backups cifrados con `age` + copia a Nextcloud (`deploy/backup-offsite.sh`)
-- [x] `/healthz` enriquecido (esquema, Gmail, push) · [ ] **Tú**: monitores en Uptime Kuma y Beszel
+- [x] `/healthz` enriquecido (esquema, Gmail, push) · [x] **Tú**: monitores en Uptime Kuma y Beszel
 - [x] Detector de plantillas cambiadas: un correo de un banco conocido que ningún parser entiende se guarda (asunto cifrado + hash, sin cuerpo), se lista en Ajustes → Gmail y avisa por push a los admins (uno por banco y día)
 - [x] Conciliación en Reportes: lo registrado por cuenta y mes contra el total del estado de cuenta que ingresas (mes calendario, no ciclo de corte)
 - [x] Imagen firmada en GHCR; `deploy/smoke.sh` tras cada despliegue
@@ -618,7 +617,46 @@ Se construyen y prueban solo con archivos `.eml`, antes de tocar la API de Gmail
 - [ ] **Tú**: revisar en unas semanas los aciertos reales por banco antes de apagar el modo sombra
 - [ ] Más bancos (débito, transferencias) siguiendo el mismo proceso: `.eml` → golden → fuzz → sombra
 
-**Estimación original**: 10–12 semanas a tiempo parcial; la fase 9 continúa según las aceptaciones y mejoras pendientes.
+### Fase 10 — Uso sin conexión más completo ✅ (pruebas; falta la aceptación en tu teléfono)
+- [x] Cola cifrada en IndexedDB para ediciones y borrados de gastos, con `Idempotency-Key` por cambio y `version`/`If-Match` (migración `0011`)
+- [x] Gastos fijos (crear, editar, eliminar) y categoría asignada en "Por revisar" también sin conexión
+- [x] Lectura sin conexión: último Inicio, Movimientos recientes y Plan cifrados (AES-GCM, clave no exportable, una base por persona, 7 días máximo) y borrados al cerrar sesión
+- [x] Resolución de conflictos (usar la mía / conservar la del servidor / volver a crear si se borró); indicador de pendientes y reintento al recuperar la red y cada 30 s
+- [ ] **Tú**: modo avión real en tu teléfono (editar, borrar y volver a la red)
+- **Tests**: edición sin conexión → reconexión → un solo cambio aplicado; borrado concurrente en otro dispositivo; cola vacía tras cerrar sesión; aislamiento entre usuarios en el mismo navegador; E2E con la red cortada en escritorio y móvil.
+- **Terminado cuando**: en modo avión puedes ver tus movimientos recientes, editar y borrar gastos, y todo se sincroniza sin duplicados al volver la red.
+
+### Fase 11 — Presupuestos más flexibles ✅
+- [x] Sobrante o exceso que pasa al mes siguiente, activable por categoría y desde un mes elegido
+- [x] Topes por mes específico (por ejemplo, diciembre distinto) y tope por cuenta además del de categoría (migración `0012`)
+- [x] Umbrales de aviso configurables por presupuesto (antes fijos en 50, 80 y 100 %) y copia del plan del mes anterior
+- **Tests**: arrastre con reloj falso entre meses de 28/30/31 días y año bisiesto; los umbrales se disparan una sola vez por mes aunque se cambie el tope; subcategorías y reversos siguen sumando a la categoría principal; migración que conserva los presupuestos actuales.
+- **Terminado cuando**: un sobrante de un mes aparece en el siguiente y los avisos respetan los umbrales que elegiste.
+
+### Fase 12 — Respaldo en base de datos externa y respaldo manual ✅ (pruebas; falta configurar el destino real)
+Decisión (16 oct 2026): copia cifrada antes de salir del servidor. Servicio dentro del binario (`internal/backup`): `VACUUM INTO` → cifrado `age` con claves públicas (la privada no está en el servidor) → S3 compatible o WebDAV. Se descartaron Litestream (replica el WAL sin cifrar del lado del cliente y añade otro proceso) y PostgreSQL (duplicaría el modelo y expondría datos a otra base).
+- [x] Respaldo continuo a un almacenamiento externo (`PULSE_BACKUP_INTERVAL`, cada 24 h por defecto), siempre cifrado; nada sale en claro
+- [x] Botón **Respaldar ahora** en Ajustes (admin, con step-up): genera el respaldo cifrado, lo envía al destino y muestra fecha, tamaño, huella y resultado (migración `0013`)
+- [x] Descarga del respaldo cifrado (step-up), estado en `/healthz` y aviso push si el último respaldo falla o es antiguo
+- [x] Guía de restauración (`pulse restore --identity`) en `deploy/README.md`
+- [ ] **Tú**: crear el bucket con la política de solo escritura, generar la clave `age` fuera del servidor, configurar las variables y restaurar en una máquina limpia
+- [ ] CI: las pruebas de respaldo ya corren con `go test ./...`; revisar el workflow (no está en la carpeta del proyecto) por si filtra paquetes o necesita `age` para la prueba de restauración
+- **Tests**: ida y vuelta con datos conocidos (respaldar → base vacía → restaurar → comparar); destino caído → reintento con espera y aviso; respaldo cifrado sin datos legibles; solo un admin con step-up puede lanzarlo; automatizado en CI.
+- **Terminado cuando**: restauras desde la base externa en una máquina limpia y el respaldo manual deja constancia en la actividad de seguridad.
+
+### Fase 13 — Reportes con más gráficas y proyecciones inteligentes ✅ (pruebas; falta contrastar con meses reales)
+- [x] Proyección del gasto hasta fin de mes con **regresión lineal** sobre el acumulado diario, con intervalo de predicción del 95 % y comparación contra el método actual (`internal/forecast`, `GET /api/reports/projection`)
+- [x] Media móvil ponderada, ajuste por día de la semana y perfil del mes (≥ 3 meses cerrados); selección automática por menor error medio en hasta 6 meses cerrados
+- [x] Proyección por categoría y total, incluyendo gastos fijos conocidos y por venir y excluyendo atípicos de forma explícita
+- [x] Precisión: error de cada método contra el cierre real de cada mes, visible en Reportes
+- [x] Más gráficas: acumulado del mes contra el anterior, barras por categoría con comparación, día de la semana, mapa de calor y evolución por cuenta; todas con tabla alternativa y teclado
+- [x] Avisos de historial insuficiente y sin dividir entre cero
+- [x] Proyección de la próxima semana y el próximo mes con selección por validación (promedio, media móvil, día de la semana), rango del 95 % simulado y su cobertura; desglose del Plan por categoría y comercios, y gasto por cuenta y categoría en Reportes
+- [ ] **Tú**: revisar en unos meses que el error del método elegido sea ≤ al del ritmo actual con tus datos
+- **Tests**: regresión contra resultados calculados a mano; mes con pocos días de datos; devoluciones y subcategorías; zona horaria y cambio de horario; meses bisiestos; aislamiento entre usuarios; E2E de las gráficas en escritorio/móvil y claro/oscuro con axe-core.
+- **Terminado cuando**: la proyección de fin de mes muestra valor y rango, y su error contra el cierre real se puede consultar y es menor o igual que el del método actual.
+
+**Estimación original**: 10–12 semanas a tiempo parcial; la fase 9 continúa según las aceptaciones y mejoras pendientes. Las fases 10 a 13 se incorporaron e implementaron el 16 oct 2026; quedan sus aceptaciones con datos y dispositivos reales.
 
 ---
 

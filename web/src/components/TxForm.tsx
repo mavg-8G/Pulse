@@ -1,10 +1,10 @@
 import { useConfirm } from './Confirm'
 import { useMemo, useRef, useState, type FormEvent } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { ApiError, del, errorMessage, patch, post } from '../lib/api'
-import { enqueue } from '../lib/outbox'
+import { errorMessage } from '../lib/api'
+import { sendOrQueue } from '../lib/outbox'
 import { nowLocalInput, toLocalInput } from '../lib/dates'
-import { centsToInput, parseAmount } from '../lib/money'
+import { centsToInput, money, parseAmount } from '../lib/money'
 import { financeKeys, useAccounts, useCategories, useMe } from '../lib/queries'
 import type { Transaction } from '../lib/types'
 import { useToast } from './Toast'
@@ -50,37 +50,42 @@ export function TxForm({ tx, onDone }: { tx?: Transaction; onDone: () => void })
     if (!effectiveAccount) return setError('Primero crea una cuenta en Ajustes → Cuentas.')
     setBusy(true)
     const body = { amount_cents: cents, kind, category_id: categoryId, account_id: effectiveAccount, occurred_at: when, merchant, notes }
-    const created = { ...body, id: crypto.randomUUID() } // id del cliente: reenviarlo sin conexión no lo duplica
+    const label = `${merchant.trim() || categoryName || 'Gasto'} ${money(cents)}`
     try {
-      if (tx) await patch(`/api/transactions/${tx.id}`, { ...body, learn_rule: learn && categoryChanged, ...(confirmRef.current ? { status: 'confirmed' } : {}) })
-      else if (repeat) await post('/api/recurring', { account_id: effectiveAccount, category_id: categoryId, amount_cents: cents, merchant, start_date: when.slice(0, 10) })
-      else await post('/api/transactions', created)
+      let result: 'sent' | 'queued'
+      if (tx) {
+        const changes = { ...body, ...(learn && categoryChanged ? { learn_rule: true } : {}), ...(confirmRef.current ? { status: 'confirmed' } : {}) }
+        result = await sendOrQueue({ kind: 'tx.update', entity: tx.id, body: changes, version: tx.version || undefined, base: { ...tx }, label })
+      } else if (repeat) {
+        const id = crypto.randomUUID() // id del cliente: reenviarlo desde la cola no lo duplica
+        result = await sendOrQueue({ kind: 'rec.create', entity: id, body: { account_id: effectiveAccount, category_id: categoryId, amount_cents: cents, merchant, start_date: when.slice(0, 10) }, label })
+      } else {
+        result = await sendOrQueue({ kind: 'tx.create', entity: crypto.randomUUID(), body, label })
+      }
       financeKeys.forEach((k) => qc.invalidateQueries({ queryKey: k }))
       if (repeat) qc.invalidateQueries({ queryKey: ['recurring'] })
-      toast(confirmRef.current ? 'Gasto confirmado' : tx ? 'Gasto actualizado' : repeat ? 'Gasto fijo creado: se registrará cada mes' : 'Gasto guardado')
+      const what = confirmRef.current ? 'Gasto confirmado' : tx ? 'Gasto actualizado' : repeat ? 'Gasto fijo creado: se registrará cada mes' : 'Gasto guardado'
+      toast(result === 'queued' ? `${what} en este dispositivo: se enviará al volver la conexión` : what)
       onDone()
     } catch (err) {
-      if (!tx && !repeat && err instanceof ApiError && err.status === 0) {
-        try {
-          await enqueue(created)
-          toast('Sin conexión: el gasto se enviará al volver a estar en línea')
-          return onDone()
-        } catch { /* sin IndexedDB: se muestra el error */ }
-      }
       setError(errorMessage(err))
+      if (tx) financeKeys.forEach((k) => qc.invalidateQueries({ queryKey: k })) // p. ej. cambió en otro dispositivo: se recarga
     } finally {
       setBusy(false)
+      confirmRef.current = false
     }
   }
   async function remove() {
     if (!tx || !(await ask({ title: '¿Borrar este gasto?', body: 'No se puede deshacer.', confirm: 'Borrar gasto', danger: true }))) return
     try {
-      await del(`/api/transactions/${tx.id}`)
+      const label = `${tx.merchant || categoryName || 'Gasto'} ${money(tx.amount_cents)}`
+      const result = await sendOrQueue({ kind: 'tx.delete', entity: tx.id, version: tx.version || undefined, base: { ...tx }, label })
       financeKeys.forEach((k) => qc.invalidateQueries({ queryKey: k }))
-      toast('Gasto borrado')
+      toast(result === 'queued' ? 'Gasto borrado en este dispositivo: se enviará al volver la conexión' : 'Gasto borrado')
       onDone()
     } catch (err) {
       setError(errorMessage(err))
+      financeKeys.forEach((k) => qc.invalidateQueries({ queryKey: k }))
     }
   }
 
