@@ -4,6 +4,11 @@ Cambios relevantes de Pulse. Las entradas «Sin publicar» describen cambios pos
 
 La guía de uso y desarrollo está en [`README.md`](README.md); el roadmap y las aceptaciones pendientes, en [`PLAN.md`](PLAN.md).
 
+## Sin publicar — documentación de respaldos y limpieza del repositorio (16 oct 2026)
+
+- README actualizado con la copia cifrada local, su retención por defecto, los destinos externos combinables y Google Drive en `Backups/pulse`. Incluye el comando `pulse gdrive-auth` y el enlace a su configuración.
+- La caché incremental de TypeScript (`*.tsbuildinfo`) deja de versionarse y queda excluida en `.gitignore`; las compilaciones pueden regenerarla sin añadir cambios al repositorio.
+
 ## Sin publicar — respaldo local en el servidor y en Google Drive (16 oct 2026)
 
 - Con solo `PULSE_BACKUP_AGE_RECIPIENTS`, cada respaldo deja una copia **cifrada** en la carpeta local `/backups` del contenedor (montada desde `/opt/backup/pulse` en el host) y conserva las 30 más recientes (`PULSE_BACKUP_LOCAL_KEEP`). `PULSE_BACKUP_LOCAL_DIR=off` la apaga.
