@@ -116,6 +116,16 @@ Después de entrar con conexión, Pulse guarda en el navegador lo último de Ini
 - **Conflictos**: las ediciones y los borrados llevan la versión que se vio (`If-Match`). Si el registro cambió en otro dispositivo, la app pregunta si usar tu versión o conservar la del servidor; si lo borraron allí, puedes volver a crearlo con tus cambios o descartarlos.
 - La caché del service worker sigue sin guardar respuestas de la API. Si el servidor rechaza un cambio de forma definitiva (datos inválidos), la app avisa y lo descarta.
 
+## Comodidad de uso
+
+Movimientos conserva el mes, los filtros, las filas cargadas y la posición al volver desde otra pantalla. La búsqueda se conserva solo mientras dure la sesión abierta en esa pestaña; no se incluye en la dirección ni se guarda al recargar. **Limpiar filtros** conserva el mes y **Volver al mes actual** cambia solo el periodo. Plan y Reportes mantienen sus propias selecciones.
+
+Al crear un gasto, Pulse recuerda la última cuenta elegida en ese dispositivo, cifrada y separada por persona. Si abres el formulario desde una cuenta filtrada, esa cuenta tiene prioridad. Una cuenta archivada o fusionada que ya no se pueda elegir deja de usarse como predeterminada; editar conserva la cuenta del gasto.
+
+Si cierras un formulario con cambios, puedes **Seguir editando** o **Descartar cambios**. Los errores conservan los valores y señalan el campo que debes corregir; no se guardan borradores entre recargas. Al cerrar una pestaña con cambios, Pulse solicita el aviso nativo cuando el navegador lo admite. Los resultados de importar correos permanecen visibles por archivo hasta que los cierres o hagas otra importación.
+
+Las pantallas distinguen la carga inicial de una actualización y ofrecen reintentar las lecturas que fallan. Un gasto pendiente de enviar se identifica como guardado en el dispositivo. Los cambios confirmados también actualizan los reportes y las proyecciones. Detalles de implementación, pruebas y aceptaciones en [`docs/CALIDAD_DE_VIDA.md`](docs/CALIDAD_DE_VIDA.md).
+
 ## Estructura
 ```
 cmd/pulse/           CLI: servidor, migraciones, invitaciones, usuarios, claves, respaldos y parser

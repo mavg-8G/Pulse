@@ -24,6 +24,7 @@ test('importar un correo del banco, revisarlo, aprender la categoría y confirma
     const label = await page.locator('.month-switch strong').textContent()
     if (label?.startsWith('Junio de 2026')) break
     await page.getByRole('button', { name: 'Mes anterior' }).click()
+    await expect(page.locator('.month-switch strong')).not.toHaveText(label!)
   }
   await expect(page.getByText('Por revisar')).toBeVisible()
   await page.getByText('Uber Eats').click()

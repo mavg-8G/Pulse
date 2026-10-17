@@ -15,6 +15,42 @@
   --nav-w: 248px;
 }
 
+/* Calidad de vida: estados estables y reflujo sin cambiar la composición visual. */
+.form-controls { border: 0; padding: 0; margin: 0; min-width: 0; width: 100%; }
+.form-controls > * + * { margin-top: 18px; }
+.form-controls[disabled] { opacity: .75; }
+.query-feedback { min-height: 1.8rem; margin-block: 8px; font-size: .85rem; color: var(--ink-2); }
+.query-feedback.error { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; color: var(--over); }
+.query-feedback p { margin: 0; flex: 1 1 180px; }
+.list-skeleton { min-height: 240px; display: grid; gap: 12px; }
+.list-skeleton > div { min-height: 65px; border-radius: var(--r-m); background: var(--surface-2); }
+.content-loading { min-height: 60vh; padding-block: 24px; color: var(--ink-2); }
+.import-results { margin-block: 16px; overflow-wrap: anywhere; }
+.import-results li + li { margin-top: 10px; }
+.field, .grid-2 > *, .filters > *, .form-controls > * { min-width: 0; }
+.form-controls input, .form-controls select, .form-controls textarea { max-width: 100%; }
+.form-controls .seg { flex-wrap: wrap; }
+.sheet-head h2, .confirm-body h2, .btn, .toast { overflow-wrap: anywhere; }
+.sheet-head h2 { min-width: 0; }
+.page-head > div { min-width: 0; }
+.page-head h1 { overflow-wrap: anywhere; }
+.sheet-head .icon-btn { flex-shrink: 0; }
+.workspace-signoff { min-width: 0; max-width: 100%; }
+.workspace-signoff .build-version { display: inline-flex; min-width: 0; max-width: 100%; margin-left: 0; white-space: normal; flex-wrap: wrap; justify-content: flex-end; gap: 0 .25em; }
+.workspace-signoff .build-version time { white-space: normal; }
+.tx-form [aria-invalid='true'] { outline: 2px solid var(--over); outline-offset: 2px; }
+.tx-form [data-field='category']:focus { outline: 2px solid var(--focus); outline-offset: 3px; }
+@media (max-width: 520px) {
+  .workspace-topbar { flex-wrap: wrap; gap: 12px; }
+  .workspace-tools { min-width: 0; max-width: 100%; flex-wrap: wrap; justify-content: flex-end; }
+  .tabbar { height: auto; min-height: calc(var(--tabbar-h) + env(safe-area-inset-bottom)); }
+  .tab { min-width: 0; overflow-wrap: anywhere; text-align: center; }
+  .shell .main { padding-bottom: calc(var(--tabbar-h) + 3rem + env(safe-area-inset-bottom)); }
+  .form-controls .grid-2 { grid-template-columns: minmax(0, 1fr); }
+  .month-switch { max-width: 100%; flex-wrap: wrap; justify-content: center; }
+  .month-switch strong { overflow-wrap: anywhere; }
+}
+
 body { background: var(--bg); }
 h1, h2, h3 { letter-spacing: -0.025em; font-weight: 600; }
 .page-head { margin-bottom: 28px; gap: 20px; }

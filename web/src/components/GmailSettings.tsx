@@ -1,6 +1,7 @@
 import { useConfirm } from './Confirm'
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { QueryFeedback } from './QueryFeedback'
 import { api, del, errorMessage, get, patch, post } from '../lib/api'
 import { dateTimeLabel } from '../lib/dates'
 import { financeKeys } from '../lib/queries'
@@ -85,7 +86,8 @@ export function GmailSettings({ tz }: { tz: string }) {
   return (
     <section className="section" aria-labelledby="h-gmail">
       <div className="section-head"><h2 id="h-gmail">Correo del banco (Gmail)</h2></div>
-      {(error || status.error) && <p className="error" role="alert" style={{ marginBottom: 10 }}>{error || errorMessage(status.error)}</p>}
+      {error && <p className="error" role="alert" style={{ marginBottom: 10 }}>{error}</p>}
+      {status.error && <QueryFeedback error={status.error} retry={status.refetch} />}
       {s && !s.available && (
         <p className="hint">
           La conexión con Gmail todavía no está configurada{isAdmin ? '. Añade abajo las credenciales de Google.' : '; pide a quien administra Pulse que la active en Ajustes.'} Mientras tanto puedes importar correos .eml desde Movimientos.

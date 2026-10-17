@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { QueryFeedback } from './QueryFeedback'
 import { api, del, errorMessage, get, post } from '../lib/api'
 import { disablePush, enablePush, pushSupported, type NotificationPreferences, type PushDevice } from '../lib/push'
 import { useToast } from './Toast'
@@ -21,7 +22,8 @@ export function NotificationSettings() {
   return (
     <section className="section" aria-labelledby="h-notifications">
       <div className="section-head"><h2 id="h-notifications">Notificaciones</h2></div>
-      {(error || config.error || devices.error || prefs.error) && <p className="error" role="alert">{error || errorMessage(config.error || devices.error || prefs.error)}</p>}
+      {error && <p className="error" role="alert">{error}</p>}
+      {(config.error || devices.error || prefs.error) && <QueryFeedback error={config.error || devices.error || prefs.error} retry={() => [config, devices, prefs].filter((q) => q.error).forEach((q) => q.refetch())} />}
       {config.data && !config.data.enabled && <p className="hint">Las notificaciones todavía no están configuradas en el servidor.</p>}
       {!pushSupported() && <p className="hint">Este navegador no admite notificaciones. En iPhone, instala Pulse en la pantalla de inicio.</p>}
       <div className="list">

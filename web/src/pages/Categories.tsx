@@ -5,13 +5,14 @@ import { get } from '../lib/api'
 import { Link } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { Sheet } from '../components/Sheet'
+import { QueryFeedback } from '../components/QueryFeedback'
 import { useToast } from '../components/Toast'
 import { del, errorMessage, patch, post } from '../lib/api'
 import { financeKeys, useCategories } from '../lib/queries'
 import type { Category } from '../lib/types'
 
 export function Categories() {
-  const { data: cats = [] } = useCategories()
+  const { data: cats = [], error, refetch, isFetching } = useCategories()
   const [edit, setEdit] = useState<{ open: boolean; cat?: Category }>({ open: false })
   const tops = cats.filter((c) => !c.parent_id)
   return (
@@ -21,6 +22,7 @@ export function Categories() {
         <div><p className="page-kicker">Tu organización</p><h1>Categorías</h1><p className="page-description">Dale a tus gastos un orden que tenga sentido para ti.</p></div>
         <button className="btn btn-primary" onClick={() => setEdit({ open: true })}>Agregar categoría</button>
       </div>
+      <QueryFeedback error={error} retry={refetch} updating={isFetching} />
       <ul className="list category-collection">
         {tops.map((c) => (
           <li key={c.id}>
@@ -145,6 +147,7 @@ function RulesSection({ cats }: { cats: Category[] }) {
   }
   return (
     <section className="section" aria-labelledby="h-rules">
+      {rules.error && <QueryFeedback error={rules.error} retry={rules.refetch} />}
       <div className="section-head"><h2 id="h-rules">Reglas automáticas</h2></div>
       <p className="muted small" style={{ marginBottom: 10 }}>
         Los gastos importados de correos usan estas reglas para elegir la categoría. Se crean al corregir la categoría de un gasto y marcar “Usar siempre”.

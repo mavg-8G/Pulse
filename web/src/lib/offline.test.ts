@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cachedGet, localInputToISO, overlayRecurring, overlayTransactions } from './offline'
 import { __reset, enqueue, flush, loadOutbox, resetOutbox, resolve, sendOrQueue, snapshot, withDay } from './outbox'
 import type { Transaction, TxPage } from './types'
-import { OFFLINE_DAYS, allRecords, closeVault, getCache, lastUser, openVault, putCache, rememberUser, wipeVaults } from './vault'
+import { OFFLINE_DAYS, allRecords, closeVault, getCache, getPreference, lastUser, openVault, putCache, putPreference, rememberUser, wipeVaults } from './vault'
 
 type Call = { method: string; url: string; headers: Record<string, string>; body: any }
 let calls: Call[] = []
@@ -35,6 +35,45 @@ const tx = (over: Partial<Transaction> = {}): Transaction => ({
 })
 
 describe('almacén cifrado por persona', () => {
+  it('una respuesta antigua no se guarda en el almacén de quien entró después', async () => {
+    let finish!: (r: Response) => void
+    respond = () => new Promise<Response>((resolve) => { finish = resolve })
+    const pending = cachedGet('/api/dashboard?month=2026-10')
+    await openVault('beto')
+    finish(json(200, { private: 'datos de Ana' }))
+    await expect(pending).rejects.toMatchObject({ name: 'AbortError' })
+    expect(await getCache('/api/dashboard?month=2026-10')).toBeNull()
+  })
+  it('la cuenta recordada sobrevive a rotar la caché, no aparece en la cola ni en otra persona', async () => {
+    await putPreference('last-account', 'cuenta-ana')
+    for (let i = 0; i < 45; i++) await putCache(`cache-${i}`, { value: i })
+    expect(await getPreference('last-account')).toBe('cuenta-ana')
+    expect(await allRecords()).toEqual([])
+    await openVault('beto')
+    expect(await getPreference('last-account')).toBeNull()
+    await putPreference('last-account', 'cuenta-beto')
+    await openVault('ana')
+    expect(await getPreference('last-account')).toBe('cuenta-ana')
+  })
+  it('conserva la clave de idempotencia si se perdió la respuesta de una edición aplicada', async () => {
+    const applied = new Set<string>()
+    let version = 3
+    let lost = false
+    respond = (c) => {
+      const key = c.headers['Idempotency-Key']
+      if (applied.has(key)) return json(200, { version })
+      if (c.headers['If-Match'] !== String(version)) return json(409, { error: { code: 'version_conflict' }, current: { version } })
+      applied.add(key)
+      version++
+      if (!lost) { lost = true; return offline() }
+      return json(200, { version })
+    }
+    await sendOrQueue({ kind: 'tx.update', entity: 't1', version: 3, body: { amount_cents: 2000 }, label: 'Edición' })
+    await flush()
+    expect(version).toBe(4)
+    expect(new Set(calls.map((c) => c.headers['Idempotency-Key'])).size).toBe(1)
+    expect(snapshot()).toEqual([])
+  })
   it('cada persona solo lee lo suyo y una entrada copiada a otra base no se descifra', async () => {
     await putCache('/api/me', { email: 'ana@example.com' })
     expect((await getCache<{ email: string }>('/api/me'))?.value.email).toBe('ana@example.com')

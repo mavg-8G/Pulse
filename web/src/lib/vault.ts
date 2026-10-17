@@ -166,6 +166,24 @@ export async function getCache<T>(k: string): Promise<{ value: T; at: number } |
   return value === null ? null : { value, at: s.at }
 }
 
+/** Preferencias cifradas separadas de la caché rotativa; no se confunden con operaciones pendientes. */
+export async function putPreference(k: string, value: unknown): Promise<void> {
+  const v = await ready()
+  if (!v) return
+  const key = `preference:${k}`
+  const sealed = await seal(v, 'meta', key, value)
+  const tx = v.db.transaction('meta', 'readwrite')
+  tx.objectStore('meta').put(sealed, key)
+  await done(tx)
+}
+
+export async function getPreference<T>(k: string): Promise<T | null> {
+  const v = await ready()
+  if (!v) return null
+  const sealed = await req(v.db.transaction('meta').objectStore('meta').get(`preference:${k}`)) as Sealed | undefined
+  return sealed ? open<T>(v, 'meta', sealed) : null
+}
+
 export async function putRecord(k: string, value: unknown): Promise<void> {
   const v = await ready()
   if (!v) throw new Error('No hay un almacén local abierto.')

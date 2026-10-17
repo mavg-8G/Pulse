@@ -1,7 +1,8 @@
 import { useConfirm } from './Confirm'
-import { useMemo, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { errorMessage } from '../lib/api'
+import { ApiError, errorMessage } from '../lib/api'
+import { getPreference, putPreference } from '../lib/vault'
 import { sendOrQueue } from '../lib/outbox'
 import { nowLocalInput, toLocalInput } from '../lib/dates'
 import { centsToInput, money, parseAmount } from '../lib/money'
@@ -11,11 +12,11 @@ import type { Transaction } from '../lib/types'
 import { useToast } from './Toast'
 import { finePointer } from '../lib/device'
 
-export function TxForm({ tx, onDone }: { tx?: Transaction; onDone: () => void }) {
+export function TxForm({ tx, onDone, defaultAccountId, onStateChange, onReplace }: { tx?: Transaction; onDone: () => void; defaultAccountId?: string; onStateChange?: (s: { dirty: boolean; busy: boolean }) => void; onReplace?: (tx: Transaction) => void }) {
   const ask = useConfirm()
   const { data: me } = useMe()
   const tz = me?.timezone ?? 'America/Guayaquil'
-  const { data: accounts = [] } = useAccounts()
+  const { data: accounts = [] } = useAccounts(!!tx)
   const { data: categories = [] } = useCategories()
   const qc = useQueryClient()
   const toast = useToast()
@@ -31,9 +32,26 @@ export function TxForm({ tx, onDone }: { tx?: Transaction; onDone: () => void })
   const [repeat, setRepeat] = useState(false)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  const lock = useRef(false)
+  const form = useRef<HTMLFormElement>(null)
+  const [fieldError, setFieldError] = useState('')
+  const [remembered, setRemembered] = useState('')
+  const [conflict, setConflict] = useState<Transaction | null>(null)
+  // La misma identidad para un reintento del mismo contenido, incluso si no hay almacén disponible.
+  const operation = useRef({ content: '', id: crypto.randomUUID(), entity: crypto.randomUUID() })
+  const deletion = useRef(crypto.randomUUID())
+  const initial = useRef(JSON.stringify({ amount, kind, categoryId, accountId, when, merchant, notes, learn, repeat }))
+  const dirty = initial.current !== JSON.stringify({ amount, kind, categoryId, accountId, when, merchant, notes, learn, repeat })
+  useEffect(() => { onStateChange?.({ dirty, busy }) }, [dirty, busy, onStateChange])
+  useEffect(() => {
+    let active = true
+    getPreference<string>('last-account').then((id) => { if (active && id) setRemembered(id) }).catch(() => {})
+    return () => { active = false }
+  }, [])
 
-  const choices = pickable(accounts, tx?.account_id)
-  const effectiveAccount = accountId || choices[0]?.id || ''
+  const choices = pickable(accounts, tx?.account_id).filter((a) => !a.archived || a.id === tx?.account_id)
+  const eligible = (id?: string) => choices.some((a) => a.id === id) ? id! : ''
+  const effectiveAccount = tx ? accountId : eligible(accountId) || eligible(defaultAccountId) || eligible(remembered) || choices[0]?.id || ''
   const tops = useMemo(() => categories.filter((c) => !c.parent_id && !c.archived), [categories])
   const children = (id: string) => categories.filter((c) => c.parent_id === id && !c.archived)
   const selectedParent = categories.find((c) => c.id === categoryId)?.parent_id || categoryId
@@ -46,71 +64,92 @@ export function TxForm({ tx, onDone }: { tx?: Transaction; onDone: () => void })
 
   async function submit(e: FormEvent) {
     e.preventDefault()
+    if (lock.current) return
     setError('')
-    if (cents === null) return setError('Escribe un monto válido, por ejemplo 17,68.')
-    if (!categoryId) return setError('Elige una categoría.')
-    if (!effectiveAccount) return setError('Primero crea una cuenta en Ajustes → Cuentas.')
+    setFieldError('')
+    const invalid = (field: string, message: string) => {
+      setFieldError(field); setError(message); confirmRef.current = false
+      form.current?.querySelector<HTMLElement>(`[data-field="${field}"]`)?.focus()
+    }
+    if (cents === null) return invalid('amount', 'Escribe un monto válido, por ejemplo 17,68.')
+    if (!categoryId) return invalid('category', 'Elige una categoría.')
+    if (!effectiveAccount) return invalid('account', 'Primero crea una cuenta en Ajustes → Cuentas.')
+    if (!when || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(when)) return invalid('when', 'Elige una fecha y hora válidas.')
+    lock.current = true
     setBusy(true)
     const body = { amount_cents: cents, kind, category_id: categoryId, account_id: effectiveAccount, occurred_at: when, merchant, notes }
     const label = `${merchant.trim() || categoryName || 'Gasto'} ${money(cents)}`
+    const content = JSON.stringify({ body, repeat, learn, confirm: confirmRef.current })
+    if (content !== operation.current.content) operation.current = { content, id: crypto.randomUUID(), entity: crypto.randomUUID() }
     try {
       let result: 'sent' | 'queued'
       if (tx) {
         const changes = { ...body, ...(learn && categoryChanged ? { learn_rule: true } : {}), ...(confirmRef.current ? { status: 'confirmed' } : {}) }
-        result = await sendOrQueue({ kind: 'tx.update', entity: tx.id, body: changes, version: tx.version || undefined, base: { ...tx }, label })
+        result = await sendOrQueue({ kind: 'tx.update', entity: tx.id, body: changes, version: tx.version || undefined, base: { ...tx }, label }, operation.current.id)
       } else if (repeat) {
-        const id = crypto.randomUUID() // id del cliente: reenviarlo desde la cola no lo duplica
-        result = await sendOrQueue({ kind: 'rec.create', entity: id, body: { account_id: effectiveAccount, category_id: categoryId, amount_cents: cents, merchant, start_date: when.slice(0, 10) }, label })
+        result = await sendOrQueue({ kind: 'rec.create', entity: operation.current.entity, body: { account_id: effectiveAccount, category_id: categoryId, amount_cents: cents, merchant, start_date: when.slice(0, 10) }, label }, operation.current.id)
       } else {
-        result = await sendOrQueue({ kind: 'tx.create', entity: crypto.randomUUID(), body, label })
+        result = await sendOrQueue({ kind: 'tx.create', entity: operation.current.entity, body, label }, operation.current.id)
       }
       financeKeys.forEach((k) => qc.invalidateQueries({ queryKey: k }))
       if (repeat) qc.invalidateQueries({ queryKey: ['recurring'] })
       const what = confirmRef.current ? 'Gasto confirmado' : tx ? 'Gasto actualizado' : repeat ? 'Gasto fijo creado: se registrará cada mes' : 'Gasto guardado'
       toast(result === 'queued' ? `${what} en este dispositivo: se enviará al volver la conexión` : what)
+      if (!tx) await putPreference('last-account', effectiveAccount).catch(() => {})
+      onStateChange?.({ dirty: false, busy: false })
       onDone()
     } catch (err) {
+      if (err instanceof ApiError && err.code === 'version_conflict' && err.current) setConflict(err.current as Transaction)
       setError(errorMessage(err))
       if (tx) financeKeys.forEach((k) => qc.invalidateQueries({ queryKey: k })) // p. ej. cambió en otro dispositivo: se recarga
     } finally {
       setBusy(false)
+      lock.current = false
       confirmRef.current = false
     }
   }
   async function remove() {
-    if (!tx || !(await ask({ title: '¿Borrar este gasto?', body: 'No se puede deshacer.', confirm: 'Borrar gasto', danger: true }))) return
+    if (!tx || lock.current) return
+    lock.current = true
+    if (!(await ask({ title: '¿Borrar este gasto?', body: `Se borrará ${tx.merchant || 'este gasto'} por ${money(tx.amount_cents)}. No se puede deshacer.`, confirm: 'Borrar gasto', danger: true }))) { lock.current = false; return }
+    setBusy(true)
+    setError('')
     try {
       const label = `${tx.merchant || categoryName || 'Gasto'} ${money(tx.amount_cents)}`
-      const result = await sendOrQueue({ kind: 'tx.delete', entity: tx.id, version: tx.version || undefined, base: { ...tx }, label })
+      const result = await sendOrQueue({ kind: 'tx.delete', entity: tx.id, version: tx.version || undefined, base: { ...tx }, label }, deletion.current)
       financeKeys.forEach((k) => qc.invalidateQueries({ queryKey: k }))
       toast(result === 'queued' ? 'Gasto borrado en este dispositivo: se enviará al volver la conexión' : 'Gasto borrado')
-      onDone()
+      onStateChange?.({ dirty: false, busy: false }); onDone()
     } catch (err) {
       setError(errorMessage(err))
       financeKeys.forEach((k) => qc.invalidateQueries({ queryKey: k }))
-    }
+    } finally { lock.current = false; setBusy(false) }
   }
 
   return (
-    <form onSubmit={submit} className="stack" noValidate>
+    <form ref={form} onSubmit={submit} className="stack tx-form" noValidate aria-busy={busy}>
+      <fieldset className="form-controls" disabled={busy}>
       <label className="amount-input">
         <span aria-hidden="true">$</span>
         <input
           aria-label="Monto"
+          data-field="amount"
+          aria-describedby={fieldError === 'amount' ? 'tx-amount-error' : undefined}
           inputMode="decimal"
           autoComplete="off"
           placeholder="0,00"
           autoFocus={!tx && finePointer()}
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
-          aria-invalid={amount !== '' && cents === null}
+          aria-invalid={fieldError === 'amount' || (amount !== '' && cents === null)}
         />
       </label>
+      {fieldError === 'amount' && <p id="tx-amount-error" className="error" role="alert">{error}</p>}
       <div className="seg" role="group" aria-label="Tipo">
         <button type="button" aria-pressed={kind === 'purchase'} onClick={() => setKind('purchase')}>Gasto</button>
-        <button type="button" aria-pressed={kind === 'refund'} onClick={() => setKind('refund')}>Reverso</button>
+        <button type="button" aria-pressed={kind === 'refund'} onClick={() => { setKind('refund'); setRepeat(false) }}>Devolución</button>
       </div>
-      <fieldset style={{ border: 0, padding: 0, margin: '14px 0 0' }}>
+      <fieldset tabIndex={-1} data-field="category" aria-describedby={fieldError === 'category' ? 'tx-category-error' : undefined} aria-invalid={fieldError === 'category'} style={{ border: 0, padding: 0, margin: '14px 0 0' }}>
         <legend className="small muted" style={{ fontWeight: 600, marginBottom: 8 }}>Categoría</legend>
         <div className="chips">
           {tops.map((c) => (
@@ -130,10 +169,11 @@ export function TxForm({ tx, onDone }: { tx?: Transaction; onDone: () => void })
           </div>
         )}
       </fieldset>
+      {fieldError === 'category' && <p id="tx-category-error" className="error" role="alert">{error}</p>}
       <div className="grid-2">
         <label className="field">
-          <span>Cuenta</span>
-          <select className="select" value={effectiveAccount} onChange={(e) => setAccountId(e.target.value)}>
+          <span id="tx-account-label">Cuenta</span>
+          <select className="select" data-field="account" aria-labelledby="tx-account-label" aria-invalid={fieldError === 'account'} aria-describedby={fieldError === 'account' ? 'tx-account-error' : undefined} value={effectiveAccount} onChange={(e) => setAccountId(e.target.value)}>
             {choices.map((a) => (
               <option key={a.id} value={a.id}>
                 {a.name}
@@ -141,10 +181,12 @@ export function TxForm({ tx, onDone }: { tx?: Transaction; onDone: () => void })
               </option>
             ))}
           </select>
+          {fieldError === 'account' && <span id="tx-account-error" className="error" role="alert">{error}</span>}
         </label>
         <label className="field">
-          <span>Fecha y hora</span>
-          <input className="input" type="datetime-local" required value={when} onChange={(e) => setWhen(e.target.value)} />
+          <span id="tx-when-label">Fecha y hora</span>
+          <input className="input" data-field="when" aria-labelledby="tx-when-label" aria-invalid={fieldError === 'when'} aria-describedby={fieldError === 'when' ? 'tx-when-error' : undefined} type="datetime-local" required value={when} onChange={(e) => setWhen(e.target.value)} />
+          {fieldError === 'when' && <span id="tx-when-error" className="error" role="alert">{error}</span>}
         </label>
       </div>
       <label className="field">
@@ -168,15 +210,19 @@ export function TxForm({ tx, onDone }: { tx?: Transaction; onDone: () => void })
         </label>
       )}
       {pending && <p className="small muted">Este gasto llegó por correo. Revísalo y confírmalo.</p>}
-      {error && <p className="error" role="alert">{error}</p>}
+      {error && !fieldError && <p className={error.startsWith('Confirmación cancelada') ? 'hint' : 'error'} role={error.startsWith('Confirmación cancelada') ? 'status' : 'alert'}>{error}</p>}
+      {conflict && onReplace && <button type="button" className="btn" onClick={async () => {
+        if (await ask({ title: '¿Cargar la versión actual?', body: 'Se descartarán los cambios de este formulario.', cancel: 'Seguir editando', confirm: 'Cargar versión actual' })) onReplace(conflict)
+      }}>Cargar versión actual</button>}
       {pending ? (
-        <button className="btn btn-primary btn-block" disabled={busy} onClick={() => (confirmRef.current = true)}>Confirmar gasto</button>
+        <button className="btn btn-primary btn-block" disabled={busy} onClick={() => (confirmRef.current = true)}>{busy ? 'Guardando…' : 'Confirmar gasto'}</button>
       ) : (
-        <button className="btn btn-primary btn-block" disabled={busy}>{tx ? 'Guardar cambios' : 'Guardar gasto'}</button>
+        <button className="btn btn-primary btn-block" disabled={busy}>{busy ? 'Guardando…' : tx ? 'Guardar cambios' : 'Guardar gasto'}</button>
       )}
       {tx && (
-        <button type="button" className="btn btn-danger btn-block" onClick={remove}>Borrar gasto</button>
+        <button type="button" disabled={busy} className="btn btn-danger btn-block" onClick={remove}>Borrar gasto</button>
       )}
+      </fieldset>
     </form>
   )
 }

@@ -4,6 +4,7 @@ import { errorMessage, get, getBlob, post } from '../lib/api'
 import { dateTimeLabel } from '../lib/dates'
 import type { BackupRun, BackupStatus } from '../lib/types'
 import { useToast } from './Toast'
+import { QueryFeedback } from './QueryFeedback'
 
 const stateText: Record<BackupStatus['state'], string> = {
   off: 'Apagado',
@@ -64,7 +65,7 @@ export function BackupSettings({ tz }: { tz: string }) {
     <section className="section" aria-labelledby="h-backup">
       <div className="section-head"><h2 id="h-backup">Respaldo (admin)</h2></div>
       {!s ? (
-        st.error ? <p className="error" role="alert">{errorMessage(st.error)}</p> : <p className="hint">Cargando…</p>
+        st.error ? <QueryFeedback error={st.error} retry={st.refetch} /> : <p className="hint">Cargando…</p>
       ) : !s.configured ? (
         <p className="hint">
           El respaldo externo está apagado. Se activa en el servidor con <code>PULSE_BACKUP_TARGET</code> y tu clave pública age

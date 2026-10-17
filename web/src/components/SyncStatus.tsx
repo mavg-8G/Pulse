@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { dateTimeLabel } from '../lib/dates'
 import { money } from '../lib/money'
@@ -27,11 +27,16 @@ export function SyncStatus({ tz }: { tz: string }) {
   const toast = useToast()
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
+  const syncing = useRef(false)
+  const syncAgain = useRef(false)
+  const [rejected, setRejected] = useState<string[]>([])
   const waiting = pendingCount(ops)
   const conflicted = conflicts(ops)
 
   async function sync(manual = false) {
-    setBusy(manual)
+    if (syncing.current) { syncAgain.current = true; return }
+    syncing.current = true
+    setBusy(true)
     try {
       const r = await flush()
       if (r.sent) {
@@ -43,12 +48,14 @@ export function SyncStatus({ tz }: { tz: string }) {
         toast(r.conflicts === 1 ? 'Un cambio choca con otro dispositivo: elige cuál conservar' : `${r.conflicts} cambios chocan con otro dispositivo: elige cuáles conservar`)
         setOpen(true)
       }
-      r.rejected.forEach((m) => toast(`No se pudo guardar: ${m}`))
-      if (manual && !r.sent && !r.conflicts && waiting) toast('Todavía sin conexión. Se reintentará solo.')
+      if (r.rejected.length) { setRejected((prev) => [...prev, ...r.rejected]); setOpen(true) }
+      if (manual && !r.sent && !r.conflicts && waiting) toast('Los cambios siguen pendientes. Se reintentará al recuperar la conexión o cuando el servidor esté disponible.')
     } catch {
       /* sin almacén local */
     } finally {
       setBusy(false)
+      syncing.current = false
+      if (syncAgain.current) { syncAgain.current = false; queueMicrotask(() => sync()) }
     }
   }
 
@@ -62,21 +69,22 @@ export function SyncStatus({ tz }: { tz: string }) {
     }
   }, [waiting]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (!net.offline && ops.length === 0) return null
+  if (!net.offline && ops.length === 0 && rejected.length === 0) return null
   const label = conflicted.length
-    ? `${conflicted.length} por resolver`
+    ? `${conflicted.length} requieren tu atención`
     : waiting
       ? `${waiting} pendiente${waiting === 1 ? '' : 's'} de enviar`
-      : 'Sin conexión'
+      : rejected.length ? 'Requiere tu atención' : 'Sin conexión'
   return (
     <>
       <button className={`sync-pill ${conflicted.length ? 'sync-conflict' : ''}`} onClick={() => setOpen(true)} aria-haspopup="dialog" data-testid="sync-status">
         <span className="sync-dot" aria-hidden="true" />
         {/* En móvil se ve solo el número (vía CSS, sin duplicar el texto accesible). */}
-        <span className="sync-long" data-short={conflicted.length || waiting || 'Sin red'}>{label}</span>
+        <span className="sync-long" data-short={conflicted.length || waiting || (rejected.length ? 'Revisar' : 'Sin red')}>{busy ? 'Sincronizando…' : label}</span>
       </button>
       <Sheet open={open} title="Cambios en este dispositivo" onClose={() => setOpen(false)}>
         <div className="stack">
+          {rejected.length > 0 && <section aria-label="Cambios rechazados"><h3>No se pudieron guardar estos cambios</h3><p className="small">El servidor los rechazó y ya no están en la cola. Revisa los datos antes de volver a crearlos.</p><ul>{rejected.map((m, i) => <li key={i}>{m}</li>)}</ul><button className="btn btn-sm" onClick={() => setRejected([])}>Entendido</button></section>}
           {net.offline && (
             <p className="hint" role="status">
               Sin conexión. {net.cachedAt ? `Ves lo guardado el ${dateTimeLabel(new Date(net.cachedAt).toISOString(), tz)}.` : ''} Lo que hagas se guarda cifrado en este dispositivo y se envía solo al volver la conexión.
@@ -107,7 +115,7 @@ export function SyncStatus({ tz }: { tz: string }) {
 
 function describe(v: Record<string, unknown> | null | undefined) {
   if (!v) return ''
-  const parts = [v.merchant, typeof v.amount_cents === 'number' ? money(v.amount_cents) : '', v.kind === 'refund' ? 'reverso' : ''].filter(Boolean)
+  const parts = [v.merchant, typeof v.amount_cents === 'number' ? money(v.amount_cents) : '', v.kind === 'refund' ? 'devolución' : ''].filter(Boolean)
   return parts.join(' · ')
 }
 

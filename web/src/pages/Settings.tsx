@@ -3,6 +3,7 @@ import { useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Sheet } from '../components/Sheet'
+import { QueryFeedback } from '../components/QueryFeedback'
 import { useMotion } from '../components/AppShell'
 import { IconPause, IconPulse } from '../components/icons'
 import { BackupSettings } from '../components/BackupSettings'
@@ -167,6 +168,7 @@ export function Settings({ view = 'prefs' }: { view?: 'prefs' | 'account' }) {
       </section>
 
       <section className="section" aria-labelledby="h-sessions">
+        {(sessions.error || passkeys.error || activity.error) && <QueryFeedback error={sessions.error || passkeys.error || activity.error} retry={() => [sessions, passkeys, activity].filter((q) => q.error).forEach((q) => q.refetch())} />}
         <div className="section-head"><h2 id="h-sessions">Dispositivos con sesión abierta</h2></div>
         <ul className="list">
           {(sessions.data ?? []).map((s) => (

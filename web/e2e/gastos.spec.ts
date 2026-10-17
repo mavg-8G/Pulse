@@ -22,6 +22,7 @@ test('registrar, editar, buscar y borrar un gasto', async ({ page }) => {
   await sheet.getByRole('button', { name: 'Guardar gasto' }).click()
   await expect(sheet.getByRole('alert')).toContainText('monto válido')
   await sheet.getByRole('button', { name: 'Cerrar' }).click()
+  await page.getByRole('alertdialog', { name: '¿Descartar los cambios?' }).getByRole('button', { name: 'Descartar cambios' }).click()
 
   // Movimientos: búsqueda sin tildes
   await page.goto('/movimientos')

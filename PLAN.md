@@ -4,11 +4,15 @@ Registro de gastos personales multiusuario: categorías, cuentas (origen), fecha
 
 **Estado (16 oct 2026): fases 0–8 terminadas y probadas, incluidas sus aceptaciones en producción (despliegue, monitores, push en un teléfono físico y consumo real por Gmail); fases 10–13 implementadas con sus pruebas, a falta de las aceptaciones con datos reales; la 9 sigue en curso**. Están listos el rediseño de todas las vistas, las estadísticas y gráficas de líneas de Reportes, las proyecciones de la próxima semana/mes por categoría y total, CSV, gastos fijos, gastos sin conexión y métricas del modo sombra. Quedan pendientes las capturas de referencia de la fase 3 y las tareas de la fase 9. Ver §0 para los cambios respecto al plan original y [`CHANGELOG.md`](CHANGELOG.md) para la verificación de cada entrega.
 
+**Ampliación (17 oct 2026):** fases 14, 15, 16, 18 y 19 implementadas para mejorar la comodidad de uso de las funciones existentes, con 80 pruebas unitarias, 90 escenarios funcionales E2E verificados entre la suite y sus repeticiones, y comparación local de rendimiento completada. La fase 19 conserva la aceptación pendiente con un lector de pantalla real. La fase 17 queda reservada para un futuro rediseño visual de escritorio y móvil, pendiente de definir. Alcance y resultados en [`docs/CALIDAD_DE_VIDA.md`](docs/CALIDAD_DE_VIDA.md).
+
 ### Próximos pasos
 
 1. Comparar las proyecciones semanales y mensuales con el gasto real acumulado y revisar la precisión por banco antes de desactivar el modo sombra.
 2. Incorporar nuevos bancos; establecer imágenes de referencia para detectar cambios visuales automáticamente.
 3. Aceptaciones de las fases 10–13 (§12): probar el modo avión en tu teléfono, configurar el destino del respaldo externo y restaurarlo en una máquina limpia, y comprobar en unos meses que el error de la proyección elegida no supera al del ritmo actual.
+
+4. Mejoras de calidad de vida: completar la aceptación con lector de pantalla (§12). La fase 17 se abordará más adelante como proyecto de rediseño visual.
 
 Principios rectores:
 1. **Backend mínimo** — un binario Go que sirve API + frontend, SQLite en un archivo, un contenedor detrás de Caddy en `pulse.espectro.uk`.
@@ -657,6 +661,101 @@ Decisión (16 oct 2026): copia cifrada antes de salir del servidor. Servicio den
 - **Terminado cuando**: la proyección de fin de mes muestra valor y rango, y su error contra el cierre real se puede consultar y es menor o igual que el del método actual.
 
 **Estimación original**: 10–12 semanas a tiempo parcial; la fase 9 continúa según las aceptaciones y mejoras pendientes. Las fases 10 a 13 se incorporaron e implementaron el 16 oct 2026; quedan sus aceptaciones con datos y dispositivos reales.
+
+---
+
+### Fases 14–19 — Calidad de vida (implementación del 17 oct 2026)
+
+**Objetivo:** reducir pasos, pérdida de contexto, incertidumbre y esperas en las funciones actuales. Estas fases no añaden nuevos módulos financieros ni cambian la identidad visual. Las correcciones de accesibilidad y comportamiento necesarias sí forman parte de ellas.
+
+**Punto de partida revisado:** Reportes ya conserva selecciones en URL y sesión; Movimientos solo lee inicialmente el mes de la URL y mantiene búsqueda, filtros y límite en estado local. `TxForm` conserva los campos cuando falla un envío y ya usa teclado decimal; la capa sin conexión dispone de cifrado, idempotencia y control de versiones. `Sheet` usa un diálogo nativo y cierra con Escape, botón o fondo. Se ampliarán estas bases sin duplicarlas.
+
+**Orden de ejecución:** 15 → 14 → 16 → 18 → 19. La numeración conserva los acuerdos de alcance; no obliga al orden de entrega. La 15 fija el contexto de navegación; la 14 protege la edición; la 16 unifica la recuperación; la 18 optimiza esos recorridos y la 19 cierra la revisión transversal. La 17 no bloquea ninguna entrega.
+
+**Reglas comunes de ejecución y aceptación:**
+- Revisar primero qué está resuelto y registrar los casos concretos que cambian, con su comportamiento anterior y esperado.
+- Conservar aislamiento entre personas, cifrado local, limpieza al cerrar sesión, MFA y semántica de la cola sin conexión. No guardar comercios, notas, montos o borradores en texto plano ni en URLs.
+- Cada fase se entrega por separado, con tareas implementadas, comprobaciones automatizadas pertinentes y aceptación manual registradas como estados distintos. No marcarla terminada solo por compilar.
+- Reutilizar E2E y componentes existentes. Añadir pruebas de comportamiento donde haya riesgo de pérdida de datos, navegación incorrecta, duplicados o regresiones de accesibilidad; evitar pruebas que solo reproduzcan el código.
+- Comprobar los recorridos afectados en escritorio y móvil, en claro y oscuro. Las verificaciones físicas que no pueda reproducir el navegador automatizado quedan explícitamente pendientes.
+- Las aceptaciones abiertas de las fases 10, 12 y 13 siguen vigentes; no impiden desarrollar estas mejoras ni se consideran cerradas por ellas.
+
+### Fase 14 — Registro y edición más ágiles (implementada y probada)
+
+**Objetivo:** crear y corregir un gasto con menos fricción y sin perder una edición por un cierre accidental.
+
+- [x] Levantar el recorrido de creación, edición y confirmación de «Por revisar»: foco inicial, tabulación, validación, guardado y retorno a la lista.
+- [x] Recordar la última cuenta usada al crear un gasto, por persona y dispositivo, usando el almacenamiento cifrado existente. Prioridad: cuenta explícita del contexto, última cuenta válida y primera cuenta elegible. Al editar, conservar siempre la del movimiento; ignorar preferencias de cuentas archivadas o fusionadas que ya no sean elegibles.
+- [x] Mejorar entrada y corrección del importe: conservar el texto mientras se escribe, aceptar los formatos ya soportados y enfocar el primer campo inválido sin borrar los demás.
+- [x] Detectar cambios sin guardar y ofrecer «Seguir editando» o «Descartar cambios» al cerrar por botón, fondo, Escape o navegación interna. No avisar si nada cambió o si el guardado terminó; al cerrar la pestaña, usar el aviso nativo cuando el navegador lo permita.
+- [x] Mantener el formulario durante errores y reautenticación; limpiar solo tras éxito confirmado o encolado seguro. No añadir persistencia de borradores entre recargas en esta fase.
+- [x] Unificar bloqueo de acciones mientras se guarda o borra y conservar la identidad de la operación en reintentos de respuesta incierta, reutilizando la capa idempotente existente.
+- **Validación:** doble clic/Enter, respuesta perdida tras guardar, error de validación, cancelación de step-up, cuenta recordada que deja de ser elegible, cierre con y sin cambios y cambio de persona en el mismo navegador. Verificar creación, edición y «Por revisar» con y sin conexión.
+- **Terminado cuando:** una edición sobrevive a un error recuperable, un cierre accidental permite seguir editando y repetir el envío no genera otro gasto. La cuenta recordada nunca procede de otra persona.
+- **Dependencia:** contexto y retorno definidos en la fase 15; los textos se armonizan después en la 16.
+
+### Fase 15 — Navegación y contexto persistentes (implementada y probada)
+
+**Objetivo:** abrir un movimiento, editarlo o visitar otra pantalla y volver al mismo contexto.
+
+- [x] Definir una política común para Movimientos, Plan y Reportes: URL explícita válida → estado de la vista en la sesión de esa persona → valores iniciales del calendario del usuario. Los estados de cada pantalla son independientes; Reportes conserva su comportamiento existente.
+- [x] Conservar mes, filtros, cantidad de movimientos cargados y posición de desplazamiento de Movimientos. Mantener búsqueda solo en memoria de la sesión autenticada, sin incluirla en la URL ni en almacenamiento persistente sin cifrar.
+- [x] Sincronizar mes y filtros no sensibles con la URL y validar parámetros. Sustituir la entrada del historial durante escritura o ajuste de filtros; crear entradas solo para navegación deliberada. No provocar una entrada por pulsación.
+- [x] Restaurar el contexto al usar Atrás/Adelante o volver de otra pantalla. Esperar a que estén los datos necesarios para restaurar el desplazamiento; si desapareció una fila, regresar a la posición válida más próxima.
+- [x] Conservar el mes de Plan y los filtros existentes de Reportes al navegar; ignorar referencias que ya no sean válidas sin bloquear la página.
+- [x] Definir el cierre de formularios: cerrar recupera el foco del elemento que los abrió; si ya no existe, usar un destino lógico de la lista. Una entrada directa sin historial vuelve a la pantalla correspondiente sin salir de Pulse.
+- [x] Borrar el contexto al cerrar sesión o cambiar de persona. Distinguir «Limpiar filtros» de «Volver al mes actual» para evitar reinicios inesperados.
+- **Validación:** filtrar → cargar más → desplazarse → editar → volver; navegar a Plan y regresar; Atrás/Adelante; enlace directo y recarga; parámetros inválidos; cuenta archivada/fusionada; sesión de otra persona. Comprobar también que una respuesta antigua no reemplace los resultados del filtro actual.
+- **Terminado cuando:** el recorrido anterior conserva periodo, filtros, filas cargadas y posición sin contaminar otras vistas ni otra sesión. La búsqueda no aparece en la URL.
+
+### Fase 16 — Mensajes y recuperación de errores (implementada y probada)
+
+**Objetivo:** explicar qué ocurrió, qué se guardó y qué acción permite continuar.
+
+- [x] Inventariar mensajes de formularios, cargas, importación, Gmail, respaldo y cola sin conexión; definir una tabla de textos y acciones por situación.
+- [x] Distinguir validación, falta de red, sesión vencida, reautenticación cancelada, conflicto, límite temporal y fallo del servidor. Mostrar una instrucción útil sin exponer detalles internos ni datos sensibles.
+- [x] Colocar errores de campo junto a su control y asociarlos de forma accesible; reservar el mensaje general para errores de la operación. Mantener los valores y evitar avisos repetidos de la misma causa.
+- [x] Añadir reintento donde falte para consultas recuperables, conservando filtros y datos ya visibles. Para escrituras, reutilizar el mecanismo idempotente; no repetir automáticamente acciones destructivas fuera de ese mecanismo.
+- [x] Unificar los estados «Guardado», «Pendiente de enviar», «Sincronizando» y «Requiere tu atención». Un cambio encolado nunca debe anunciarse como confirmado por el servidor.
+- [x] Presentar conflictos con sus opciones existentes en lenguaje consistente. Cancelar una confirmación o step-up no debe mostrarse como fallo técnico.
+- [x] Mostrar resultados parciales de importaciones de varios correos de forma legible y persistente mientras se revisan, sin depender de un aviso fugaz con todo el texto concatenado.
+- **Validación:** simular desconexión, 401, 409, 429 y 5xx en los recorridos afectados; comprobar valores conservados, foco, mensajes accesibles, reintento sin duplicación y distinción entre éxito parcial y total.
+- **Terminado cuando:** cada fallo recuperable ofrece una salida concreta y el estado mostrado corresponde a lo sucedido en el servidor o en la cola local.
+- **Dependencia:** reutiliza la protección de edición de la 14 y el contexto de la 15.
+
+### Fase 17 — Rediseño visual de escritorio y móvil (reservada; pospuesta)
+
+Se definirá más adelante con el usuario. Incluirá la revisión visual de la aplicación para ambos tamaños, su alcance y criterios de aprobación. No se fijan ahora paleta, distribución, navegación ni tareas de implementación. Las fases 14, 15, 16, 18 y 19 conservan el diseño vigente y solo ajustan lo necesario para sus objetivos de uso y accesibilidad.
+
+### Fase 18 — Rapidez y estabilidad visual (implementada y probada)
+
+**Objetivo:** reducir esperas evitables y saltos de contenido en los recorridos cotidianos.
+
+- [x] Registrar una línea base reproducible de Inicio, Movimientos, Plan y Reportes: duración de carga y cambio de filtro, peticiones y saltos de disposición. Usar datos ficticios de 0, 100 y 5 000 movimientos, misma compilación de producción y perfiles de red/equipo documentados.
+- [x] Revisar invalidaciones después de guardar, confirmar o borrar. Actualizar las vistas afectadas —incluido Reportes— y evitar consultas repetidas de datos que no cambiaron. Conservar recálculos necesarios del servidor y la superposición de cambios locales.
+- [x] Cancelar consultas obsoletas cuando la capa de lectura lo permita y agrupar la búsqueda mientras se escribe. Si una petición no se puede cancelar, impedir que sus resultados sustituyan los del contexto actual.
+- [x] Mantener datos previos al actualizar el mismo contexto, con indicador discreto de actualización; al cambiar de periodo o filtro, no mostrar cifras anteriores como si fueran las nuevas.
+- [x] Reservar espacio para indicadores, gráficas y estados de carga; evitar desmontar la página o reiniciar el desplazamiento durante una actualización.
+- [x] Optimizar renderizados y carga de recursos solo donde las mediciones identifiquen un coste; conservar teclado, tablas alternativas, foco y movimiento reducido.
+- [x] Comparar antes/después en las mismas condiciones. Fijar como presupuesto que las medianas de cinco ejecuciones por recorrido no empeoren más del 10 %; cualquier excepción debe quedar explicada. En el recorrido optimizado, demostrar la reducción concreta de tiempo, peticiones redundantes o saltos que motivó el cambio. Resultado: todos los casos cumplen; 3–4 lecturas API menos por carga y una consulta por búsqueda rápida. Tabla y límites de la medición en `docs/CALIDAD_DE_VIDA.md`.
+- **Validación:** recorridos medidos con red normal y lenta, cambio rápido de filtros, guardado seguido de apertura de Reportes y reconexión con pendientes. Comprobar cifras finales y ausencia de estados mezclados; no limitar la aceptación al tiempo de carga.
+- **Terminado cuando:** las mejoras tienen comparación reproducible, los datos permanecen correctos y las actualizaciones no desplazan ni vacían innecesariamente la vista.
+- **Dependencia:** medir tras 15, 14 y 16 para optimizar el comportamiento final.
+
+### Fase 19 — Consistencia y accesibilidad (implementada y probada; aceptación con lector pendiente)
+
+**Objetivo:** que las mismas acciones se entiendan y funcionen igual en toda la aplicación.
+
+- [x] Crear un inventario de términos y controles existentes: gasto/movimiento, cuenta/tarjeta, guardar/confirmar, cancelar/cerrar, borrar y estados de sincronización. Elegir cada término según la acción real y aplicarlo en las vistas afectadas.
+- [x] Unificar formato de importes, devoluciones, fechas y periodos usando las utilidades actuales y la zona horaria del usuario, sin cambiar la precisión ni la interpretación de los datos.
+- [x] Revisar nombres accesibles, etiquetas de formulario, ayuda y errores asociados, orden de tabulación, foco visible y su restauración al cerrar diálogos. Evitar que Escape descarte una edición protegida por la fase 14.
+- [x] Revisar contraste de texto y controles según WCAG 2.2 AA, estados que dependan solo del color, texto ampliado al 200 % y reflujo a 320 px; aplicar correcciones puntuales con el diseño vigente.
+- [x] Unificar confirmaciones destructivas con objeto y consecuencia explícitos; mantener la distinción entre borrar un gasto, quitar una repetición y separar cuentas.
+- [x] Comprobar anuncios de éxito/error sin interrupciones duplicadas, preferencias de movimiento reducido y alternativas por tabla/teclado de las gráficas existentes.
+- [ ] Ejecutar axe en las vistas afectadas y revisar manualmente los recorridos principales con teclado y un lector de pantalla. Registrar navegador, lector y resultado; axe por sí solo no acredita la aceptación.
+- **Validación:** crear/editar un gasto, filtrar y volver, confirmar «Por revisar», modificar el Plan y consultar Reportes, en ambos temas y tamaños. Completar las comprobaciones automáticas con lectura y foco manuales.
+- **Terminado cuando:** no quedan hallazgos de accesibilidad críticos o serios de axe en las vistas revisadas ni bloqueos manuales de teclado o lector; acciones equivalentes usan lenguaje y comportamiento consistentes.
+- **Dependencia:** revisión transversal después de 18. Los problemas de accesibilidad detectados en fases anteriores se corrigen en su entrega, sin esperar a esta fase.
 
 ---
 

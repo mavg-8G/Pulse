@@ -4,6 +4,7 @@ import { api, del, errorMessage, get } from '../lib/api'
 import type { GmailServerConfig } from '../lib/types'
 import { useConfirm } from './Confirm'
 import { useToast } from './Toast'
+import { QueryFeedback } from './QueryFeedback'
 
 const empty = { client_id: '', client_secret: '', pubsub_topic: '', pubsub_sa: '', gemini_key: '' }
 
@@ -49,7 +50,7 @@ export function GmailServerSettings() {
     run(() => del('/api/admin/gmail'), 'Credenciales borradas')
   }
 
-  if (!c) return cfg.error ? <p className="error" role="alert">{errorMessage(cfg.error)}</p> : null
+  if (!c) return cfg.error ? <QueryFeedback error={cfg.error} retry={cfg.refetch} /> : null
   const changedClient = c.client_secret_set && f.client_id.trim() !== c.client_id
 
   return (

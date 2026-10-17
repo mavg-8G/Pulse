@@ -3,6 +3,7 @@ import { useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { Sheet } from '../components/Sheet'
+import { QueryFeedback } from '../components/QueryFeedback'
 import { useToast } from '../components/Toast'
 import { del, errorMessage, patch, post } from '../lib/api'
 import { accountResolver, groupedOrder, linkedTo } from '../lib/accounts'
@@ -18,7 +19,7 @@ const typeText: Record<AccountType, string> = {
 }
 
 export function Accounts() {
-  const { data: accounts = [] } = useAccounts(true)
+  const { data: accounts = [], error, refetch, isFetching } = useAccounts(true)
   const [edit, setEdit] = useState<{ open: boolean; acc?: Account }>({ open: false })
   const main = accountResolver(accounts)
   return (
@@ -31,6 +32,7 @@ export function Accounts() {
       <p className="muted" style={{ marginBottom: 16 }}>
         Los últimos dígitos de cada tarjeta permitirán asignar automáticamente los gastos que lleguen por correo.
       </p>
+      <QueryFeedback error={error} retry={refetch} updating={isFetching} />
       <ul className="list account-collection">
         {groupedOrder(accounts).map((a) => (
           <li key={a.id} className={a.archived ? 'is-archived' : ''}>

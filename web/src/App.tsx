@@ -1,20 +1,21 @@
-import { useEffect } from 'react'
+import { lazy, Suspense, useEffect } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { AppShell } from './components/AppShell'
 import { StepUpHost } from './components/StepUp'
 import { useAuth } from './lib/auth'
 import { useMe } from './lib/queries'
 import { applyTheme } from './lib/theme'
-import { Accounts } from './pages/Accounts'
 import { EnrollPage, LoginPage, RegisterPage, VerifyPage } from './pages/AuthPages'
-import { Categories } from './pages/Categories'
 import { GmailCallback } from './pages/GmailCallback'
 import { Home } from './pages/Home'
 import { Landing } from './pages/Landing'
 import { Movements } from './pages/Movements'
 import { Plan } from './pages/Plan'
-import { Reports } from './pages/Reports'
-import { Settings } from './pages/Settings'
+
+const Reports = lazy(() => import('./pages/Reports').then((m) => ({ default: m.Reports })))
+const Accounts = lazy(() => import('./pages/Accounts').then((m) => ({ default: m.Accounts })))
+const Categories = lazy(() => import('./pages/Categories').then((m) => ({ default: m.Categories })))
+const Settings = lazy(() => import('./pages/Settings').then((m) => ({ default: m.Settings })))
 
 function Authenticated() {
   const { data: me } = useMe()
@@ -24,7 +25,7 @@ function Authenticated() {
   return (
     <AppShell>
       <StepUpHost />
-      <Routes>
+      <Suspense fallback={<div className="content-loading" role="status">Cargando vista…</div>}><Routes>
         <Route path="/" element={<Home />} />
         <Route path="/movimientos" element={<Movements />} />
         <Route path="/plan" element={<Plan />} />
@@ -35,13 +36,13 @@ function Authenticated() {
         <Route path="/ajustes/categorias" element={<Categories />} />
         <Route path="/ajustes/gmail" element={<GmailCallback />} />
         <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
+      </Routes></Suspense>
     </AppShell>
   )
 }
 
 export function App() {
-  const { state } = useAuth()
+  const { state, userId } = useAuth()
   if (state === 'loading') return <p className="loading">Cargando…</p>
   if (state === 'mfa') return <VerifyPage />
   if (state === 'enroll') return <EnrollPage />
@@ -54,5 +55,5 @@ export function App() {
         <Route path="*" element={<LoginPage />} />
       </Routes>
     )
-  return <Authenticated />
+  return <Authenticated key={userId ?? 'session'} />
 }

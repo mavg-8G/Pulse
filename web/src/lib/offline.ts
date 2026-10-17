@@ -1,10 +1,11 @@
 // Lectura sin conexión y cambios pendientes en las listas (fase 10).
 import { useSyncExternalStore } from 'react'
+import type { QueryClient } from '@tanstack/react-query'
 import { ApiError, get } from './api'
 import { monthOf } from './dates'
 import { snapshot, subscribe, type Op } from './outbox'
 import type { Recurring, Transaction, TxPage } from './types'
-import { getCache, putCache } from './vault'
+import { currentUser, getCache, putCache } from './vault'
 
 // Solo se guarda lo que hace falta para Inicio, Movimientos recientes y Plan.
 const CACHEABLE = [/^\/api\/me$/, /^\/api\/accounts(\?archived=1)?$/, /^\/api\/categories$/, /^\/api\/budgets$/, /^\/api\/budgets\/summary\?month=\d{4}-\d{2}$/, /^\/api\/budgets\/breakdown\?month=\d{4}-\d{2}$/,
@@ -40,13 +41,16 @@ export const useNetwork = () =>
   )
 
 /** GET que guarda la respuesta cifrada en el dispositivo y, sin red, devuelve la última guardada. */
-export async function cachedGet<T>(path: string): Promise<T> {
+export async function cachedGet<T>(path: string, signal?: AbortSignal): Promise<T> {
+  const owner = currentUser()
   try {
-    const v = await get<T>(path)
+    const v = await get<T>(path, signal)
+    if (owner !== currentUser()) throw new DOMException('La sesión cambió', 'AbortError')
     if (cacheable(path)) putCache(path, v).catch(() => {})
     if (net.offline) setNet({ offline: false, cachedAt: null })
     return v
   } catch (e) {
+    if (owner !== currentUser()) throw new DOMException('La sesión cambió', 'AbortError')
     if (e instanceof ApiError && e.status === 0 && cacheable(path)) {
       const c = await getCache<T>(path).catch(() => null)
       if (c) {
@@ -145,8 +149,15 @@ export function overlayRecurring(list: Recurring[], ops: Op[]): Recurring[] {
 }
 
 /** Al entrar con conexión se guarda lo básico (cuentas, categorías, gastos fijos) para poder registrar sin red. */
-export async function warmCache() {
-  for (const path of ['/api/me', '/api/accounts', '/api/accounts?archived=1', '/api/categories', '/api/recurring', '/api/budgets']) {
-    await cachedGet(path).catch(() => {})
+export async function warmCache(client?: QueryClient) {
+  const owner = currentUser()
+  const reads = [
+    [['me'], '/api/me'], [['accounts', false], '/api/accounts'], [['accounts', true], '/api/accounts?archived=1'],
+    [['categories'], '/api/categories'], [['recurring'], '/api/recurring'], [['budgets'], '/api/budgets'],
+  ] as const
+  for (const [queryKey, path] of reads) {
+    if (owner !== currentUser()) return
+    if (client) await client.fetchQuery({ queryKey, queryFn: ({ signal }) => cachedGet(path, signal), staleTime: 30_000 }).catch(() => {})
+    else await cachedGet(path).catch(() => {})
   }
 }

@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
-import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useViewScroll } from '../lib/viewState'
+import { QueryFeedback } from '../components/QueryFeedback'
 import { useSearchParams } from 'react-router-dom'
 import { MonthSwitch } from '../components/AppShell'
 import { useToast } from '../components/Toast'
@@ -38,10 +40,15 @@ export function Reports() {
   const range = stateRange(state, current)
   const query = apiQuery(state, current)
   const filterQuery = apiQuery(state, current, false)
-  const { data: r, isLoading, isFetching, error, refetch } = useQuery({ queryKey: ['reports', query], queryFn: () => get<ReportSummary>(`/api/reports/summary?${query}`), placeholderData: keepPreviousData })
-  const projection = useQuery({ queryKey: ['projection', filterQuery], queryFn: () => get<Projection>(`/api/reports/projection${filterQuery ? `?${filterQuery}` : ''}`) })
+  const { data: r, isLoading, isFetching, error, refetch } = useQuery({ queryKey: ['reports', query], queryFn: ({ signal }) => get<ReportSummary>(`/api/reports/summary?${query}`, signal) })
+  const projection = useQuery({ queryKey: ['projection', filterQuery], queryFn: ({ signal }) => get<Projection>(`/api/reports/projection${filterQuery ? `?${filterQuery}` : ''}`, signal) })
+  useViewScroll('reports', query, !!r)
   const { data: categories = [] } = useCategories()
   const { data: accounts = [] } = useAccounts(true)
+  useEffect(() => {
+    if (state.category && categories.length && !categories.some((c) => c.id === state.category && !c.parent_id)) update({ category: '' })
+    else if (state.account && accounts.length && !accounts.some((a) => a.id === state.account && !a.merged_into)) update({ account: accounts.find((a) => a.id === state.account)?.merged_into ?? '' })
+  }, [state.category, state.account, categories, accounts])
   const toast = useToast()
   const [busy, setBusy] = useState(false)
   const [filtersOpen, setFiltersOpen] = useState(false)
@@ -103,13 +110,13 @@ export function Reports() {
         </p>
       </section>
       <nav className="report-jump" aria-label="Secciones de Reportes">
-        {[['resumen', 'Resumen'], ['evolucion', 'Evolución'], ['categorias', 'Categorías'], ['cuentas', 'Cuentas'], ['proyecciones', 'Proyecciones'], ['habitos', 'Hábitos']].map(([id, label]) => <a key={id} href={`#${id}`} onClick={(e) => { e.preventDefault(); document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }}>{label}</a>)}
+        {[['resumen', 'Resumen'], ['evolucion', 'Evolución'], ['categorias', 'Categorías'], ['cuentas', 'Cuentas'], ['proyecciones', 'Proyecciones'], ['habitos', 'Hábitos']].map(([id, label]) => <a key={id} href={`#${id}`} onClick={(e) => { e.preventDefault(); document.getElementById(id)?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches || document.documentElement.dataset.motion === 'paused' ? 'instant' : 'smooth', block: 'start' }) }}>{label}</a>)}
       </nav>
       {isLoading && <ReportSkeleton />}
       {error && !r && (
         <div className="panel report-card report-error" role="alert"><h2>No se pudo cargar el reporte</h2><p className="muted">{errorMessage(error)}</p><button className="btn btn-sm" onClick={() => refetch()}>Reintentar</button></div>
       )}
-      {error && r && <p className="error small" role="alert">No se pudo actualizar: {errorMessage(error)}. Se muestra el último periodo cargado.</p>}
+      {error && r && <QueryFeedback error={error} retry={refetch} />}
       {r && (
         <div className={`report-body ${isFetching ? 'is-refreshing' : ''}`}>
           {r.purchase_count === 0 && r.refund_cents === 0 && (
@@ -126,6 +133,7 @@ export function Reports() {
             {r.months.length > 1 && <AccountEvolution report={r} accounts={accounts} />}
           </div>
           <ForecastSection projection={projection.data} projectionError={projection.error ? errorMessage(projection.error) : undefined} projectionLoading={projection.isLoading} forecast={r.forecast} categories={categories} scope={scope} />
+          {projection.error && <button className="btn btn-sm" onClick={() => projection.refetch()}>Reintentar proyección</button>}
           <div className="report-grid" id="habitos">
             <WeekdayChart report={r} />
             <SpendingHeatmap report={r} />
@@ -187,7 +195,7 @@ function AccountSpending({ report: r, accountName, account, category }: { report
 function ReconciliationCard({ current, accountName }: { current: string; accountName: (id: string) => string }) {
   const [month, setMonth] = useState(shiftMonth(current, -1))
   const qc = useQueryClient()
-  const { data } = useQuery({ queryKey: ['reconciliation', month], queryFn: () => get<Reconciliation>(`/api/reports/reconciliation?month=${month}`) })
+  const { data, error, refetch } = useQuery({ queryKey: ['reconciliation', month], queryFn: () => get<Reconciliation>(`/api/reports/reconciliation?month=${month}`) })
   return (
     <section className="panel report-card section" aria-labelledby="h-recon">
       <div className="section-head">
@@ -197,6 +205,7 @@ function ReconciliationCard({ current, accountName }: { current: string; account
       <ul className="list">
         {data?.accounts.map((a) => <ReconRow key={`${month}-${a.account_id}`} month={month} name={accountName(a.account_id)} row={a} onSaved={() => qc.invalidateQueries({ queryKey: ['reconciliation', month] })} />)}
       </ul>
+      {error && <QueryFeedback error={error} retry={refetch} />}
     </section>
   )
 }

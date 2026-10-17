@@ -4,6 +4,16 @@ Cambios relevantes de Pulse. Las entradas «Sin publicar» describen cambios pos
 
 La guía de uso y desarrollo está en [`README.md`](README.md); el roadmap y las aceptaciones pendientes, en [`PLAN.md`](PLAN.md).
 
+## Sin publicar — calidad de vida, fases 14, 15, 16, 18 y 19 (17 oct 2026)
+
+- Movimientos conserva contexto al volver: mes, filtros, búsqueda en memoria, filas cargadas y posición. Plan conserva su mes; las selecciones de cada vista se aíslan por persona y se limpian al cerrar sesión. Reportes recupera la posición y descarta filtros que ya no existen.
+- Formulario de gasto con errores junto a los controles, foco en el primer dato inválido, cuenta inicial recordada y cifrada, bloqueo de envíos simultáneos y protección de cambios al cerrar o usar Atrás. Una edición en conflicto permite cargar la versión actual tras confirmar el descarte.
+- Corregida la clave de idempotencia al encolar una escritura cuya respuesta se perdió: el reenvío usa la misma clave. Los resultados de importar varios correos y los rechazos de la cola permanecen disponibles mientras se revisan.
+- Mensajes comunes para desconexión, sesión vencida, conflictos, espera temporal y fallo del servidor; cancelar la reautenticación se distingue de un fallo técnico. Reintentos de lectura en las vistas principales y en Ajustes de Gmail y respaldos.
+- Búsqueda agrupada y consultas obsoletas cancelables; Reportes, proyecciones y conciliación se invalidan al cambiar gastos. «Mostrar más» pagina correctamente cuando supera las 200 filas. Reportes, Ajustes, Cuentas y Categorías se cargan como recursos separados.
+- Etiquetas accesibles, retorno de foco, reflujo de controles y respeto del movimiento reducido en los enlaces internos de Reportes. La fase 17 permanece reservada para el rediseño visual. Procedimiento y aceptaciones pendientes en [`docs/CALIDAD_DE_VIDA.md`](docs/CALIDAD_DE_VIDA.md).
+- Verificación: compilación correcta, 80 pruebas unitarias y 90 escenarios funcionales E2E verificados entre la suite y las repeticiones selectivas. La última revisión de calidad/diseño/Reportes/versión pasa 26 de 26, con axe en ambos temas y reflujo a 320 px con texto al 200 %. Medición local de 60 cargas con 0, 100 y 5 000 movimientos: todos los casos cumplen el presupuesto de tiempo y se reducen 3–4 lecturas API por carga. La preparación sin conexión comparte consultas con las vistas y una respuesta anterior a un cambio de persona no se guarda en su nuevo almacén. La aceptación con lector de pantalla real sigue pendiente.
+
 ## Sin publicar — Reportes en iPhone (17 oct 2026)
 
 - El selector de periodo y los botones Filtros y Exportar CSV ya no se salen de su tarjeta en pantallas angostas: en móvil los periodos usan etiquetas cortas (Mes, 3 m, 6 m, 12 m, Elegir; el nombre accesible sigue siendo el completo) y pasan a otra fila si el texto está ampliado.

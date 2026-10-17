@@ -110,7 +110,7 @@ function createBody(d: 'tx' | 'rec', body: Record<string, unknown>): Record<stri
  * Agrega un cambio y lo combina con lo pendiente del mismo registro: crear+editar es un solo crear,
  * crear+borrar se anula, editar+editar es una sola edición con la versión original, editar+borrar es borrar.
  */
-export async function enqueue(input: Omit<Op, 'id' | 'seq' | 'at' | 'state'>): Promise<void> {
+export async function enqueue(input: Omit<Op, 'id' | 'seq' | 'at' | 'state'>, requestId = crypto.randomUUID()): Promise<void> {
   if (!loaded) await loadOutbox()
   const now = Date.now()
   const d = domain(input.kind)
@@ -141,7 +141,7 @@ export async function enqueue(input: Omit<Op, 'id' | 'seq' | 'at' | 'state'>): P
       return emit()
     }
   }
-  const op: Op = { ...input, id: crypto.randomUUID(), seq: Math.max(now, (ops.at(-1)?.seq ?? 0) + 1), at: now, state: 'pending' }
+  const op: Op = { ...input, id: requestId, seq: Math.max(now, (ops.at(-1)?.seq ?? 0) + 1), at: now, state: 'pending' }
   await save(op)
   ops.push(op)
   emit()
@@ -269,18 +269,19 @@ export function __reset() {
  * Guarda un cambio: lo envía ya si hay conexión y no queda nada pendiente de ese registro; si no hay red (o el registro
  * tiene cambios en cola, para respetar el orden), lo deja en la cola cifrada. Un conflicto en línea se lanza como error.
  */
-export async function sendOrQueue(input: Omit<Op, 'id' | 'seq' | 'at' | 'state'>): Promise<'sent' | 'queued'> {
+export async function sendOrQueue(input: Omit<Op, 'id' | 'seq' | 'at' | 'state'>, requestId = crypto.randomUUID()): Promise<'sent' | 'queued'> {
   if (!loaded) await loadOutbox().catch(() => {})
   const waiting = ops.some((o) => o.entity === input.entity && domain(o.kind) === domain(input.kind))
   if (!waiting) {
     try {
-      await request({ ...input, id: crypto.randomUUID(), seq: 0, at: Date.now(), state: 'pending' })
+      await request({ ...input, id: requestId, seq: 0, at: Date.now(), state: 'pending' })
       return 'sent'
     } catch (e) {
       if (!(e instanceof ApiError) || e.status !== 0) throw e
     }
   }
-  await enqueue(input)
+  // Tras perder la respuesta, el reenvío debe llevar la MISMA clave que llegó al servidor.
+  await enqueue(input, requestId)
   flush().catch(() => {})
   return 'queued'
 }

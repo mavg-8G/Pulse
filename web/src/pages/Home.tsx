@@ -5,6 +5,7 @@ import { IconArrow, IconList, IconPlan, IconPlus, IconTag, IconWallet } from '..
 import { TxGroups } from '../components/TxList'
 import { monthLabel, monthOf } from '../lib/dates'
 import { money } from '../lib/money'
+import { QueryFeedback } from '../components/QueryFeedback'
 import { useAccounts, useCategories, useDashboard, useMe } from '../lib/queries'
 import type { Alert, Dashboard } from '../lib/types'
 
@@ -19,7 +20,7 @@ export function Home() {
   const tz = me?.timezone ?? 'America/Guayaquil'
   const current = monthOf(new Date(), tz)
   const [month, setMonth] = useState(current)
-  const { data: d, isLoading, error } = useDashboard(month)
+  const { data: d, isLoading, isFetching, error, refetch } = useDashboard(month)
   const { data: categories = [] } = useCategories()
   const { data: accounts = [] } = useAccounts(true)
   const openTx = useTxSheet()
@@ -38,7 +39,7 @@ export function Home() {
         <MonthSwitch month={month} onChange={setMonth} label={label} />
       </div>
       {isLoading && <div className="dashboard-skeleton" role="status" aria-label="Cargando resumen"><div /><div /><div /></div>}
-      {error && <p className="error" role="alert">No se pudo cargar el resumen. Revisa tu conexión.</p>}
+      <QueryFeedback error={error} retry={refetch} updating={isFetching && !isLoading} />
       {d && (
         <div className="dashboard" key={month}>
           <div className="dashboard-lead">

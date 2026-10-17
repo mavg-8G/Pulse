@@ -3,6 +3,8 @@ import { useState, type FormEvent } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { MonthSwitch } from '../components/AppShell'
 import { Sheet } from '../components/Sheet'
+import { QueryFeedback } from '../components/QueryFeedback'
+import { useViewMonth, useViewScroll } from '../lib/viewState'
 import { useToast } from '../components/Toast'
 import { api, del, errorMessage, patch, post } from '../lib/api'
 import { monthLabel, monthOf, shiftMonth } from '../lib/dates'
@@ -21,8 +23,9 @@ export function Plan() {
   const { data: me } = useMe()
   const tz = me?.timezone ?? 'America/Guayaquil'
   const current = monthOf(new Date(), tz)
-  const [month, setMonth] = useState(current)
-  const { data: s, isLoading } = useSummary(month)
+  const [month, setMonth] = useViewMonth('plan', current)
+  const { data: s, isLoading, isFetching, error, refetch } = useSummary(month)
+  useViewScroll('plan', month, !!s)
   const [edit, setEdit] = useState<{ open: boolean; line?: BudgetLine }>({ open: false })
   const isCurrent = month === current
   const categoryLines = s?.lines.filter((l) => l.kind !== 'account') ?? []
@@ -51,6 +54,7 @@ export function Plan() {
         </div>
       </div>
       {isLoading && <p className="loading">Cargando…</p>}
+      <QueryFeedback error={error} retry={refetch} updating={isFetching && !isLoading} />
       {s && s.lines.length === 0 && (
         <div className="panel empty">
           <h3>Define cuánto quieres gastar</h3>
@@ -99,7 +103,7 @@ export function Plan() {
 
 /** En qué se gastó cada categoría del mes: subcategorías, comercios que más suman, devoluciones y pendientes. */
 function SpendingBreakdown({ month, lines, isCurrent }: { month: string; lines: BudgetLine[]; isCurrent: boolean }) {
-  const { data, isLoading } = useBreakdown(month)
+  const { data, isLoading, error, refetch } = useBreakdown(month)
   const { data: categories = [] } = useCategories()
   const cats = new Map(categories.map((c) => [c.id, c]))
   const rows = data?.categories ?? []
@@ -108,6 +112,7 @@ function SpendingBreakdown({ month, lines, isCurrent }: { month: string; lines: 
   return (
     <section className="section" aria-labelledby="h-breakdown">
       <div className="section-head"><div><h2 id="h-breakdown">En qué se gastó</h2><p className="small muted">{monthLabel(month)}{isCurrent ? ' hasta hoy' : ''} · toca una categoría para ver el detalle</p></div></div>
+      {error && <QueryFeedback error={error} retry={refetch} />}
       {isLoading && <p className="loading">Cargando…</p>}
       {data && rows.length === 0 && <p className="hint">No hay movimientos en {monthLabel(month).toLowerCase()}.</p>}
       <div className="breakdown-list">
@@ -336,11 +341,11 @@ function RecurringList({ tz }: { tz: string }) {
   const ask = useConfirm()
   const qc = useQueryClient()
   const toast = useToast()
-  const { data: list = [] } = useRecurring()
+  const { data: list = [], error, refetch } = useRecurring()
   const { data: categories = [] } = useCategories()
   const { data: accounts = [] } = useAccounts(true)
   const [editing, setEditing] = useState<Recurring | null>(null)
-  if (list.length === 0) return null
+  if (list.length === 0) return error ? <section className="section" aria-label="Gastos fijos"><h2>Gastos fijos</h2><QueryFeedback error={error} retry={refetch} /></section> : null
   const cat = (id: string) => categories.find((c) => c.id === id)
   const name = (r: Recurring) => r.merchant || cat(r.category_id)?.name || 'Gasto fijo'
   async function remove(r: Recurring) {
