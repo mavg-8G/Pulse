@@ -6,6 +6,8 @@ La guía de uso y desarrollo está en [`README.md`](README.md); el roadmap y las
 
 ## Sin publicar — calidad de vida, fases 14, 15, 16, 18 y 19 (17 oct 2026)
 
+- Ajustada la protección de cambios para consultar el estado del formulario antes de pintar, sin esperar a que se vuelva a registrar el bloqueo de navegación. El aviso de cierre se activa solo mientras hay cambios o un guardado en curso.
+- Estabilizadas las pruebas E2E: recargan las cuentas creadas por API, esperan la lectura que actualiza el total tras editar y la finalización de las rutas antes de usar Atrás. La prueba de notificaciones admite los parámetros que conservan el mes de Plan.
 - Movimientos conserva contexto al volver: mes, filtros, búsqueda en memoria, filas cargadas y posición. Plan conserva su mes; las selecciones de cada vista se aíslan por persona y se limpian al cerrar sesión. Reportes recupera la posición y descarta filtros que ya no existen.
 - Formulario de gasto con errores junto a los controles, foco en el primer dato inválido, cuenta inicial recordada y cifrada, bloqueo de envíos simultáneos y protección de cambios al cerrar o usar Atrás. Una edición en conflicto permite cargar la versión actual tras confirmar el descarte.
 - Corregida la clave de idempotencia al encolar una escritura cuya respuesta se perdió: el reenvío usa la misma clave. Los resultados de importar varios correos y los rechazos de la cola permanecen disponibles mientras se revisan.

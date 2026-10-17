@@ -68,7 +68,7 @@ La referencia `before` se tomó antes de cambiar las vistas y dividir sus recurs
 
 - Compilación TypeScript/Vite y generación del service worker correctas; `git diff --check` sin errores.
 - 80 pruebas unitarias correctas. Incluyen la cuenta recordada tras rotar la caché, rechazo de una respuesta de la persona anterior, preparación sin conexión sin lecturas duplicadas, cancelación, mensajes y paginación sobre 200 filas.
-- 90 escenarios funcionales E2E verificados en escritorio y móvil entre la suite completa y las repeticiones selectivas que confirmaron las correcciones. La última revisión de calidad, diseño, Reportes y pie pasó 26 de 26. Se verificó aparte acceso y sincronización, incluida la última preparación compartida de consultas.
+- 90 escenarios funcionales E2E verificados en escritorio y móvil. La revisión posterior al fallo de CI ejecutó la suite completa sin reintentos: 89 correctos y una expectativa antigua de la URL de Plan, corregida y repetida con éxito en escritorio; en móvil ya pasó con la corrección. Las dos mediciones optativas se omitieron. Los escenarios de gastos y protección al usar Atrás pasaron en ambos tamaños.
 - Axe sin hallazgos críticos o serios en las vistas revisadas, en ambos temas. Reflujo comprobado a 320 px con texto al 200 %, sin desbordamiento del documento ni del diálogo; capturas inspeccionadas y conservadas localmente en `artifacts/quality/`. La comprobación usa el ancho real de 320 px, ya que en emulación móvil `innerWidth` puede crecer al desbordarse la página.
 - La búsqueda rápida de «supermercado» produce una sola consulta tras la escritura. Una respuesta perdida de una edición se reenvía con la misma clave y no crea un conflicto ni incrementa la versión dos veces.
 

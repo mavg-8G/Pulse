@@ -1,5 +1,5 @@
 import { useConfirm } from './Confirm'
-import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { ApiError, errorMessage } from '../lib/api'
 import { getPreference, putPreference } from '../lib/vault'
@@ -42,7 +42,13 @@ export function TxForm({ tx, onDone, defaultAccountId, onStateChange, onReplace 
   const deletion = useRef(crypto.randomUUID())
   const initial = useRef(JSON.stringify({ amount, kind, categoryId, accountId, when, merchant, notes, learn, repeat }))
   const dirty = initial.current !== JSON.stringify({ amount, kind, categoryId, accountId, when, merchant, notes, learn, repeat })
-  useEffect(() => { onStateChange?.({ dirty, busy }) }, [dirty, busy, onStateChange])
+  useLayoutEffect(() => {
+    onStateChange?.({ dirty, busy })
+    if (!dirty && !busy) return
+    const beforeUnload = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = '' }
+    window.addEventListener('beforeunload', beforeUnload)
+    return () => window.removeEventListener('beforeunload', beforeUnload)
+  }, [dirty, busy, onStateChange])
   useEffect(() => {
     let active = true
     getPreference<string>('last-account').then((id) => { if (active && id) setRemembered(id) }).catch(() => {})

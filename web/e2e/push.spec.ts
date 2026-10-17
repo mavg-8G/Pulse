@@ -84,7 +84,7 @@ test('el service worker recibe push, abre el plan y rechaza otra cuenta', async 
     sw.dispatchEvent(event)
     await pending
   })
-  await expect(page).toHaveURL(/\/plan$/)
+  await expect(page).toHaveURL((url) => url.pathname === '/plan')
   await expect(page.getByRole('heading', { name: 'Plan de gastos' })).toBeVisible()
   await deliver('another-user', 'wrong-user')
   expect((await notifications()).map((n) => n.tag)).not.toContain('wrong-user')

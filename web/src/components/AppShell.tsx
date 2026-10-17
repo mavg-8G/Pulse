@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, NavLink, useBlocker, useLocation, useSearchParams } from 'react-router-dom'
 import { useConfirm } from './Confirm'
 import { monthLabel, monthOf, shiftMonth } from '../lib/dates'
@@ -32,19 +32,25 @@ export function AppShell({ children }: { children: ReactNode }) {
   const { data: accounts = [] } = useAccounts(true)
   const { data: categories = [] } = useCategories()
   const [sheet, setSheet] = useState<{ open: boolean; tx?: Transaction }>({ open: false })
-  const [formState, setFormState] = useState({ dirty: false, busy: false })
+  // El bloqueo consulta el último formulario ya renderizado, sin esperar otra
+  // renderización del shell ni volver a registrar el blocker después de teclear.
+  const formState = useRef({ open: false, dirty: false, busy: false })
+  const setFormState = useCallback((state: { dirty: boolean; busy: boolean }) => { formState.current = { ...formState.current, ...state } }, [])
   const confirming = useRef(false)
-  const finish = () => { setFormState({ dirty: false, busy: false }); setSheet({ open: false }) }
-  const open = (tx?: Transaction) => { setFormState({ dirty: false, busy: false }); setSheet({ open: true, tx }) }
+  const finish = () => { formState.current = { open: false, dirty: false, busy: false }; setSheet({ open: false }) }
+  const open = (tx?: Transaction) => { formState.current = { open: true, dirty: false, busy: false }; setSheet({ open: true, tx }) }
   const mayDiscard = async () => {
-    if (formState.busy || confirming.current) return false
-    if (!formState.dirty) return true
+    if (formState.current.busy || confirming.current) return false
+    if (!formState.current.dirty) return true
     confirming.current = true
     try { return await ask({ title: '¿Descartar los cambios?', body: 'Los cambios de este formulario todavía no se han guardado.', cancel: 'Seguir editando', confirm: 'Descartar cambios', danger: true }) }
     finally { confirming.current = false }
   }
   const close = async () => { if (await mayDiscard()) finish() }
-  const blocker = useBlocker(sheet.open && (formState.dirty || formState.busy))
+  const blocker = useBlocker(useCallback(() => {
+    const state = formState.current
+    return state.open && (state.dirty || state.busy)
+  }, []))
   const blockedNavigation = useRef(false)
   const latestBlocker = useRef(blocker)
   latestBlocker.current = blocker
@@ -58,12 +64,6 @@ export function AppShell({ children }: { children: ReactNode }) {
       if (yes) { finish(); pending.proceed() } else pending.reset()
     })
   }, [blocker])
-  useEffect(() => {
-    if (!sheet.open || (!formState.dirty && !formState.busy)) return
-    const beforeUnload = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = '' }
-    window.addEventListener('beforeunload', beforeUnload)
-    return () => window.removeEventListener('beforeunload', beforeUnload)
-  }, [sheet.open, formState.dirty, formState.busy])
   const [params, setParams] = useSearchParams()
   const location = useLocation()
   const [motion, setMotion] = useState(() => {
@@ -116,7 +116,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </main>
         <nav className="tabbar" aria-label="Principal">{nav.map((n) => <NavLink key={n.to} to={n.to} end={n.end} className="tab">{n.icon}{n.label}</NavLink>)}</nav>
       </div>
-      <Sheet open={sheet.open} title={sheet.tx ? 'Editar gasto' : 'Nuevo gasto'} onClose={close}><TxForm key={sheet.tx ? `${sheet.tx.id}:${sheet.tx.version}` : 'new'} tx={sheet.tx} defaultAccountId={location.pathname === '/movimientos' ? params.get('account') ?? undefined : undefined} onStateChange={setFormState} onDone={finish} onReplace={(tx) => { setFormState({ dirty: false, busy: false }); setSheet({ open: true, tx }) }} /></Sheet>
+      <Sheet open={sheet.open} title={sheet.tx ? 'Editar gasto' : 'Nuevo gasto'} onClose={close}><TxForm key={sheet.tx ? `${sheet.tx.id}:${sheet.tx.version}` : 'new'} tx={sheet.tx} defaultAccountId={location.pathname === '/movimientos' ? params.get('account') ?? undefined : undefined} onStateChange={setFormState} onDone={finish} onReplace={open} /></Sheet>
     </TxSheetCtx.Provider>
     </MotionCtx.Provider>
   )

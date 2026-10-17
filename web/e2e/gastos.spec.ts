@@ -3,6 +3,8 @@ import { apiGet, apiPost, expect, register, test } from './helpers'
 test('registrar, editar, buscar y borrar un gasto', async ({ page }) => {
   await register(page)
   await apiPost(page, '/api/accounts', { name: 'Visa Pichincha', type: 'credit_card', card_suffix: '989', institution: 'Banco Pichincha' })
+  // La preparación por API no invalida la caché de consultas del navegador.
+  await page.reload()
 
   // Nuevo gasto desde el botón principal (tab bar en móvil, barra lateral en escritorio)
   await page.getByRole('button', { name: 'Nuevo gasto' }).first().click()
@@ -36,7 +38,9 @@ test('registrar, editar, buscar y borrar un gasto', async ({ page }) => {
   await page.getByText("Carl's Jr Albán Borja").click()
   const edit = page.getByRole('dialog', { name: 'Editar gasto' })
   await edit.getByLabel('Monto').fill('20')
+  const refreshed = page.waitForResponse((r) => r.request().method() === 'GET' && new URL(r.url()).pathname === '/api/transactions' && r.ok())
   await edit.getByRole('button', { name: 'Guardar cambios' }).click()
+  await refreshed
   await expect(page.getByTestId('list-sum')).toHaveText(/20,00/)
 
   // Borrar: pide confirmación en un diálogo propio; Cancelar no borra nada.
