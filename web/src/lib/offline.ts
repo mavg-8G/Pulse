@@ -41,10 +41,10 @@ export const useNetwork = () =>
   )
 
 /** GET que guarda la respuesta cifrada en el dispositivo y, sin red, devuelve la última guardada. */
-export async function cachedGet<T>(path: string, signal?: AbortSignal): Promise<T> {
+export async function cachedGet<T>(path: string, signal?: AbortSignal, load = () => get<T>(path, signal)): Promise<T> {
   const owner = currentUser()
   try {
-    const v = await get<T>(path, signal)
+    const v = await load()
     if (owner !== currentUser()) throw new DOMException('La sesión cambió', 'AbortError')
     if (cacheable(path)) putCache(path, v).catch(() => {})
     if (net.offline) setNet({ offline: false, cachedAt: null })

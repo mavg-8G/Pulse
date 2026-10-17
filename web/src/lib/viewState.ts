@@ -67,7 +67,7 @@ export function useMovementView(current: string) {
     // No consumir el parámetro de apertura de AppShell antes de que se procese.
     if (!params.has('nuevo') && params.toString() !== canonical) setParams(canonical, { replace: true })
   }, [canonical, params, setParams])
-  return { ...value, q, update, setQ: (text: string) => { searches.set(keyFor('search'), text); setQ(text); update({ limit: 50 }) } }
+  return { ...value, q, update, setQ: (text: string) => { searches.set(keyFor('search'), text); setQ(text); if (value.limit !== 50) update({ limit: 50 }) } }
 }
 
 export function useViewMonth(view: string, current: string): [string, (month: string) => void] {
