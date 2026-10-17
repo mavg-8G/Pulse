@@ -1,27 +1,95 @@
-# dependencias y compilados
+# ── Dependencias, compilados y caches ─────────────────────────
 web/node_modules/
+node_modules/
+web/dist/
+internal/webui/dist/*
+!internal/webui/dist/.gitkeep
+*.tsbuildinfo
+.vite/
+.cache/
+/pulse
+/bin/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*~
+
+# ── Pruebas, cobertura y resultados de Playwright ─────────────
+/cover
+/cover.out
+*.coverprofile
+coverage/
 web/.e2e/
 web/test-results/
 web/playwright-report/
-internal/webui/dist/*
-!internal/webui/dist/.gitkeep
-/pulse
-/bin/
-/.tools/
-/.dev/
-/cover.out
-/cover
-/_to_delete/
-/artifacts/ui/
+web/blob-report/
+docs/.eval.md
 
-# datos y secretos: NUNCA al repositorio
+# ── Carpetas locales de trabajo (nunca al repositorio) ────────
+/.dev/
+/.tools/
+/.entrega/
+/_to_delete/
+/artifacts/
+*.bundle
+*.tar.gz
+*.tgz
+*.zip
+
+# ── Datos financieros, bases y respaldos: NUNCA ───────────────
 data/
-secrets/
-deploy/secrets/
 deploy/data/
+backups/
 *.db
 *.db-shm
 *.db-wal
+*.db-journal
+*.sqlite
+*.sqlite3
+*.sqlite-*
+*.dump
+*.sql.gz
+*.csv
+*.ofx
+*.qif
+*.xlsx
+# los datos de prueba ficticios sí se versionan
+!**/testdata/**
+
+# ── Secretos y claves: NUNCA ─────────────────────────────────
+secrets/
+deploy/secrets/
 .env
-*.tsbuildinfo
-docs/.eval.md
+.env.*
+!deploy/.env.example
+*_kek
+*kek*.txt
+vapid_private
+*.age
+*.key
+*.pem
+*.p12
+*.pfx
+*.agekey
+id_rsa*
+id_ed25519*
+*-key
+*-key.pub
+client_secret*.json
+credentials*.json
+token*.json
+*.token
+gdrive*.json
+service-account*.json
+.netrc
+
+# ── Sistema operativo y editores ─────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/
+*.swp
+*.log
