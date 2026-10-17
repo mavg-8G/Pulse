@@ -13,12 +13,13 @@ import { useAccounts, useCategories, useMe } from '../lib/queries'
 import { apiQuery, defaultState, readState, saveState, stateParams, stateRange, type Preset, type ReportState } from '../lib/reports'
 import type { Account, Category, Projection, Reconciliation, ReportSummary } from '../lib/types'
 
-const presets: { id: Preset; label: string }[] = [
-  { id: '1', label: 'Este mes' },
-  { id: '3', label: '3 meses' },
-  { id: '6', label: '6 meses' },
-  { id: '12', label: '12 meses' },
-  { id: 'custom', label: 'Elegir' },
+// short: lo que se ve en pantallas angostas; el nombre accesible siempre es el completo.
+const presets: { id: Preset; label: string; short: string }[] = [
+  { id: '1', label: 'Este mes', short: 'Mes' },
+  { id: '3', label: '3 meses', short: '3 m' },
+  { id: '6', label: '6 meses', short: '6 m' },
+  { id: '12', label: '12 meses', short: '12 m' },
+  { id: 'custom', label: 'Elegir', short: 'Elegir' },
 ]
 
 export function Reports() {
@@ -76,7 +77,7 @@ export function Reports() {
       <section className="panel report-toolbar" aria-label="Periodo y filtros">
         <div className="report-toolbar-main">
           <div className="seg report-presets" role="group" aria-label="Periodo">
-            {presets.map((p) => <button key={p.id} aria-pressed={state.preset === p.id} onClick={() => update(p.id === 'custom' ? { preset: 'custom', from: range.from, to: range.to } : { preset: p.id })}>{p.label}</button>)}
+            {presets.map((p) => <button key={p.id} aria-pressed={state.preset === p.id} aria-label={p.label} onClick={() => update(p.id === 'custom' ? { preset: 'custom', from: range.from, to: range.to } : { preset: p.id })}><span className="preset-long" aria-hidden="true">{p.label}</span><span className="preset-short" aria-hidden="true">{p.short}</span></button>)}
           </div>
           <div className="report-toolbar-actions">
             <button type="button" className="btn btn-sm report-filters-toggle" aria-expanded={filtersOpen} aria-controls="report-filters" onClick={() => setFiltersOpen((v) => !v)}>Filtros{active ? ` (${active})` : ''}</button>

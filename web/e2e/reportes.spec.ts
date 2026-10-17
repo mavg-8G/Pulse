@@ -178,3 +178,24 @@ test('proyección de fin de mes, comparación, día de la semana, mapa de calor 
   await expectAccessible(page, 'Reportes con proyección (oscuro)')
   await page.screenshot({ path: testInfo.outputPath('reportes-proyeccion-oscuro.png'), fullPage: true })
 })
+
+test('en anchos de iPhone el periodo y los filtros no se salen de su tarjeta', async ({ page }) => {
+  await register(page)
+  for (const [width, height, zoom] of [[390, 844, 1], [375, 667, 1], [320, 568, 1], [390, 844, 1.25]] as const) {
+    await page.setViewportSize({ width, height })
+    await page.goto('/reportes')
+    // zoom > 1 imita el texto ampliado de iOS: todo el texto crece y nada debe salirse.
+    await page.evaluate((z) => { document.documentElement.style.fontSize = `${z * 100}%` }, zoom)
+    const toolbar = page.getByRole('region', { name: 'Periodo y filtros' })
+    await expect(toolbar.getByRole('button', { name: 'Elegir' })).toBeVisible()
+    const outside = await toolbar.evaluate((el) => {
+      const box = el.getBoundingClientRect()
+      return [...el.querySelectorAll('button, .seg')].filter((b) => {
+        const r = b.getBoundingClientRect()
+        return r.width > 0 && (r.right > box.right + 0.5 || r.left < box.left - 0.5)
+      }).map((b) => b.textContent)
+    })
+    expect(outside, `${width}px ×${zoom}`).toEqual([])
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+  }
+})

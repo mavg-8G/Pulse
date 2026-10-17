@@ -336,11 +336,13 @@ dialog.sheet::backdrop { background: rgb(15 32 48 / 40%); backdrop-filter: blur(
 }
 
 /* ---------- Reportes (rediseño): petróleo para lo real, azul grisáceo para comparar, lavanda para lo estimado ---------- */
-.report-toolbar { padding: 16px 18px; margin-bottom: 14px; display: grid; gap: 12px; }
+.report-toolbar { padding: 16px 18px; margin-bottom: 14px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
 .report-toolbar-main { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
-.report-toolbar-actions { display: flex; gap: 8px; }
+.report-toolbar-main > * { min-width: 0; }
+.report-toolbar-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .report-presets { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
 .report-presets button { white-space: nowrap; }
+.report-presets .preset-short { display: none; }
 .report-filter-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px 14px; }
 .field-inline { display: grid; gap: 5px; font-size: 0.76rem; color: var(--ink-2); font-weight: 550; min-width: 150px; }
 .field-inline .input { min-height: 40px; }
@@ -446,12 +448,18 @@ dialog.sheet::backdrop { background: rgb(15 32 48 / 40%); backdrop-filter: blur(
   .report-filter-row.is-open { display: grid; grid-template-columns: 1fr 1fr; }
   .field-inline { min-width: 0; }
   .report-toolbar-main { flex-direction: column; align-items: stretch; }
-  .report-toolbar-actions > .btn { flex: 1; }
-  .report-presets button { flex: 1; padding-inline: 9px; }
+  .report-toolbar-actions > .btn { flex: 1 1 auto; min-width: 0; }
+  /* Los periodos se reparten el ancho y, si el texto es grande (iPhone con texto ampliado), pasan a otra fila en vez de salirse. */
+  .report-presets { display: flex; flex-wrap: wrap; overflow: visible; }
+  .report-presets button { flex: 1 1 auto; padding-inline: 8px; }
   .report-forecast-tabs { width: 100%; }
   .report-forecast-tabs button { flex: 1; padding-inline: 6px; }
   .report-chart-tip { display: none; }
   .panel.report-card { padding: 18px 16px; }
+}
+@media (max-width: 480px) {
+  .report-presets .preset-long { display: none; }
+  .report-presets .preset-short { display: inline; }
 }
 @media (max-width: 420px) {
   .report-filter-row.is-open { grid-template-columns: 1fr; }

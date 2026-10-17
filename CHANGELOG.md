@@ -4,6 +4,11 @@ Cambios relevantes de Pulse. Las entradas «Sin publicar» describen cambios pos
 
 La guía de uso y desarrollo está en [`README.md`](README.md); el roadmap y las aceptaciones pendientes, en [`PLAN.md`](PLAN.md).
 
+## Sin publicar — Reportes en iPhone (17 oct 2026)
+
+- El selector de periodo y los botones Filtros y Exportar CSV ya no se salen de su tarjeta en pantallas angostas: en móvil los periodos usan etiquetas cortas (Mes, 3 m, 6 m, 12 m, Elegir; el nombre accesible sigue siendo el completo) y pasan a otra fila si el texto está ampliado.
+- Nueva prueba E2E a 390, 375 y 320 px y con texto al 125 %: ningún control de la tarjeta queda fuera de ella y la página no se desplaza a lo ancho. Falla sin el arreglo; con él, Reportes y diseño 14 de 14 y 69 pruebas Vitest.
+
 ## Sin publicar — rediseño de Reportes y predicción de gastos (16 oct 2026)
 
 - **Reportes** se reordena en Resumen, Conclusiones, Evolución, Categorías, Comercios, Cuentas y Proyecciones, con navegación entre secciones, esqueleto de carga, error con reintento y estado vacío.
