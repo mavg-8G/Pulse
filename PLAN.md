@@ -4,7 +4,7 @@ Registro de gastos personales multiusuario: categorías, cuentas (origen), fecha
 
 **Estado (16 oct 2026): fases 0–8 terminadas y probadas, incluidas sus aceptaciones en producción (despliegue, monitores, push en un teléfono físico y consumo real por Gmail); fases 10–13 implementadas con sus pruebas, a falta de las aceptaciones con datos reales; la 9 sigue en curso**. Están listos el rediseño de todas las vistas, las estadísticas y gráficas de líneas de Reportes, las proyecciones de la próxima semana/mes por categoría y total, CSV, gastos fijos, gastos sin conexión y métricas del modo sombra. Quedan pendientes las capturas de referencia de la fase 3 y las tareas de la fase 9. Ver §0 para los cambios respecto al plan original y [`CHANGELOG.md`](CHANGELOG.md) para la verificación de cada entrega.
 
-**Ampliación (17 oct 2026):** fases 14, 15, 16, 18 y 19 implementadas para mejorar la comodidad de uso de las funciones existentes, con 80 pruebas unitarias, 90 escenarios funcionales E2E verificados entre la suite y sus repeticiones, y comparación local de rendimiento completada. La fase 19 conserva la aceptación pendiente con un lector de pantalla real. La fase 17 queda reservada para un futuro rediseño visual de escritorio y móvil, pendiente de definir. Alcance y resultados en [`docs/CALIDAD_DE_VIDA.md`](docs/CALIDAD_DE_VIDA.md).
+**Ampliación (17 oct 2026):** fases 14, 15, 16, 18 y 19 implementadas para mejorar la comodidad de uso de las funciones existentes, con 80 pruebas unitarias, 90 escenarios funcionales E2E verificados entre la suite y sus repeticiones, y comparación local de rendimiento completada. La fase 19 conserva la aceptación pendiente con un lector de pantalla real. La fase 17 (rediseño visual) se implementó el mismo día; queda su revisión en dispositivos físicos. Alcance y resultados en [`docs/CALIDAD_DE_VIDA.md`](docs/CALIDAD_DE_VIDA.md).
 
 ### Próximos pasos
 
@@ -12,7 +12,7 @@ Registro de gastos personales multiusuario: categorías, cuentas (origen), fecha
 2. Incorporar nuevos bancos; establecer imágenes de referencia para detectar cambios visuales automáticamente.
 3. Aceptaciones de las fases 10–13 (§12): probar el modo avión en tu teléfono, configurar el destino del respaldo externo y restaurarlo en una máquina limpia, y comprobar en unos meses que el error de la proyección elegida no supera al del ritmo actual.
 
-4. Mejoras de calidad de vida: completar la aceptación con lector de pantalla (§12). La fase 17 se abordará más adelante como proyecto de rediseño visual.
+4. Mejoras de calidad de vida: completar la aceptación con lector de pantalla (§12) y revisar el rediseño de la fase 17 en un iPhone y un Android reales.
 
 Principios rectores:
 1. **Backend mínimo** — un binario Go que sirve API + frontend, SQLite en un archivo, un contenedor detrás de Caddy en `pulse.espectro.uk`.
@@ -723,9 +723,16 @@ Decisión (16 oct 2026): copia cifrada antes de salir del servidor. Servicio den
 - **Terminado cuando:** cada fallo recuperable ofrece una salida concreta y el estado mostrado corresponde a lo sucedido en el servidor o en la cola local.
 - **Dependencia:** reutiliza la protección de edición de la 14 y el contexto de la 15.
 
-### Fase 17 — Rediseño visual de escritorio y móvil (reservada; pospuesta)
+### Fase 17 — Rediseño visual de escritorio y móvil (implementada; aceptación en dispositivos físicos pendiente)
 
-Se definirá más adelante con el usuario. Incluirá la revisión visual de la aplicación para ambos tamaños, su alcance y criterios de aprobación. No se fijan ahora paleta, distribución, navegación ni tareas de implementación. Las fases 14, 15, 16, 18 y 19 conservan el diseño vigente y solo ajustan lo necesario para sus objetivos de uso y accesibilidad.
+Dirección aprobada en el lienzo de diseño (17 oct 2026) y aplicada a la app. Detalle en [`docs/FASE_17_REDISENO.md`](docs/FASE_17_REDISENO.md).
+
+- [x] Tokens nuevos para claro y oscuro: fondo, superficies, texto, línea, acento verde señal y estados (dentro, cerca, excedido) con contraste AA; `theme-color`, manifiesto e íconos de la PWA alineados.
+- [x] Tipografía Hanken Grotesk (interfaz) y JetBrains Mono (importes, tabular), servidas desde el propio origen; Vite ya no las incrusta como `data:` para respetar la CSP.
+- [x] Navegación: barra superior con todas las secciones en escritorio (≥ 1024 px); en tablet y móvil, barra inferior con botón central «Nuevo gasto» y áreas seguras de iPhone/Android.
+- [x] Superficies planas sin degradados pastel; tarjetas, listas, formularios (16 px para evitar el zoom de iOS), hojas, avisos y Reportes con un mismo sistema de radios, bordes y sombras.
+- [x] Movimiento: trazo de bienvenida en la barra superior, entrada escalonada, barras que crecen, gráficas que se revelan, contador animado del gasto del mes, esqueletos con destello, hover y presión en tarjetas y botones. Todo se apaga con «reducir movimiento» o la pausa de Ajustes.
+- [ ] **Tú**: revisar en un iPhone y un Android reales (instalada como app y en el navegador), en ambos temas.
 
 ### Fase 18 — Rapidez y estabilidad visual (implementada y probada)
 

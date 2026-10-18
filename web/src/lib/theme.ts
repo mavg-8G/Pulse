@@ -19,6 +19,6 @@ export function syncThemeColor() {
   const forced = document.documentElement.dataset.theme
   metas.forEach((m) => {
     if (!m.dataset.original) m.dataset.original = m.content
-    m.content = forced === 'dark' ? '#121c27' : forced === 'light' ? '#f3f5f8' : m.dataset.original
+    m.content = forced === 'dark' ? '#0a0e13' : forced === 'light' ? '#f3f5f7' : m.dataset.original
   })
 }

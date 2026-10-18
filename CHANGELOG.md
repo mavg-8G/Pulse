@@ -4,6 +4,14 @@ Cambios relevantes de Pulse. Las entradas «Sin publicar» describen cambios pos
 
 La guía de uso y desarrollo está en [`README.md`](README.md); el roadmap y las aceptaciones pendientes, en [`PLAN.md`](PLAN.md).
 
+## Sin publicar — rediseño visual, fase 17 (17 oct 2026)
+
+- Nueva identidad en modo oscuro y claro: fondos `#0A0E13` / `#F3F5F7`, acento verde señal (`#3DDC97` / `#0B7A53`) y estados con contraste AA. Tipografía Hanken Grotesk para la interfaz y JetBrains Mono para los importes, servidas desde el propio origen.
+- Navegación superior en escritorio (Inicio, Movimientos, Plan, Reportes, Cuentas, Categorías, Ajustes y Mi cuenta) y barra inferior en tablet y móvil con botón central «Nuevo gasto». Las áreas seguras de iPhone y Android se respetan arriba y abajo. Se retiran la barra lateral y la ruta de migas.
+- Superficies planas sin degradados pastel; tarjetas, listas, formularios, hojas, avisos y Reportes comparten radios, bordes y sombras. Los campos usan 16 px para que iOS no amplíe la página al enfocarlos.
+- Movimiento: trazo de bienvenida bajo la barra superior, entrada escalonada, barras que crecen, gráficas que se revelan, contador animado del gasto del mes, esqueletos con destello y respuesta al pasar el cursor y al presionar. Todo se apaga con «reducir movimiento» o con la pausa de Ajustes.
+- Vite ya no incrusta las fuentes como `data:` (lo bloqueaba la CSP). El manifiesto, `theme-color` y los íconos de la PWA usan la paleta nueva.
+
 ## Sin publicar — calidad de vida, fases 14, 15, 16, 18 y 19 (17 oct 2026)
 
 - Ajustada la protección de cambios para consultar el estado del formulario antes de pintar, sin esperar a que se vuelva a registrar el bloqueo de navegación. El aviso de cierre se activa solo mientras hay cambios o un guardado en curso.

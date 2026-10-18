@@ -1,29 +1,31 @@
 /* Pulse: panel financiero, navegación directa y movimiento con control del usuario. */
 
 :root {
-  --bg: #f3f5f8;
+  --bg: #f3f5f7;
   --surface: #ffffff;
-  --surface-2: #edf1f5;
-  --ink: #243748;
-  --ink-2: #566879;
-  --ink-3: #566879;
-  --line: #dce4ec;
-  --accent: #356c78;
-  --accent-soft: #e5eff1;
+  --surface-2: #ebeef2;
+  --ink: #0c1218;
+  --ink-2: #4a5665;
+  --ink-3: #5b6776;
+  --line: #dde2e8;
+  --accent: #0b7a53;
+  --accent-soft: #e2f3eb;
   --accent-ink: #ffffff;
-  --ok: #3d7561;
-  --warn: #8b6328;
-  --over: #aa4d59;
-  --focus: #356c78;
-  --shadow: 0 4px 22px -12px rgb(22 43 62 / 14%);
+  --ok: #0b7a53;
+  --warn: #8f5f08;
+  --over: #b3303f;
+  --focus: #0b7a53;
+  --shadow: 0 1px 2px rgb(12 18 24 / 5%), 0 10px 28px -18px rgb(12 18 24 / 22%);
+  --overlay: rgb(8 12 16 / 45%);
 
-  --font-ui: 'Public Sans Variable', system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --font-display: 'Bricolage Grotesque Variable', 'Public Sans Variable', system-ui, sans-serif;
+  --font-ui: 'Hanken Grotesk Variable', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-display: 'Hanken Grotesk Variable', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-num: 'JetBrains Mono Variable', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
 
   --r-s: 8px;
-  --r-m: 14px;
-  --r-l: 22px;
-  --nav-w: 250px;
+  --r-m: 12px;
+  --r-l: 16px;
+  --topbar-h: 64px;
   --tabbar-h: 68px;
 
   /* Movimiento: una sola familia de curvas y duraciones en toda la app. */
@@ -38,40 +40,42 @@
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
-    --bg: #121c27;
-    --surface: #1b2835;
-    --surface-2: #243442;
-    --ink: #e7edf3;
-    --ink-2: #b6c4d1;
-    --ink-3: #a4b5c5;
-    --line: #354655;
-    --accent: #99c9d0;
-    --accent-soft: #263f4a;
-    --accent-ink: #1b2835;
-    --ok: #98c6ae;
-    --warn: #d7ba86;
-    --over: #e4a0aa;
-    --focus: #b9dce1;
-    --shadow: 0 1px 0 rgba(0, 0, 0, 0.3), 0 12px 28px -14px rgba(0, 0, 0, 0.7);
+    --bg: #0a0e13;
+    --surface: #10161d;
+    --surface-2: #171f28;
+    --ink: #eef2f6;
+    --ink-2: #a3afbc;
+    --ink-3: #8f9cab;
+    --line: #222c37;
+    --accent: #3ddc97;
+    --accent-soft: #11291f;
+    --accent-ink: #04231a;
+    --ok: #3ddc97;
+    --warn: #f2b84b;
+    --over: #ff7a86;
+    --focus: #7ce8b9;
+    --shadow: 0 1px 0 rgb(0 0 0 / 35%), 0 14px 32px -18px rgb(0 0 0 / 80%);
+    --overlay: rgb(0 0 0 / 62%);
     color-scheme: dark;
   }
 }
 :root[data-theme='dark'] {
-  --bg: #121c27;
-  --surface: #1b2835;
-  --surface-2: #243442;
-  --ink: #e7edf3;
-  --ink-2: #b6c4d1;
-  --ink-3: #a4b5c5;
-  --line: #354655;
-  --accent: #99c9d0;
-  --accent-soft: #263f4a;
-  --accent-ink: #1b2835;
-  --ok: #98c6ae;
-  --warn: #d7ba86;
-  --over: #e4a0aa;
-  --focus: #b9dce1;
-  --shadow: 0 1px 0 rgba(0, 0, 0, 0.3), 0 12px 28px -14px rgba(0, 0, 0, 0.7);
+  --bg: #0a0e13;
+  --surface: #10161d;
+  --surface-2: #171f28;
+  --ink: #eef2f6;
+  --ink-2: #a3afbc;
+  --ink-3: #8f9cab;
+  --line: #222c37;
+  --accent: #3ddc97;
+  --accent-soft: #11291f;
+  --accent-ink: #04231a;
+  --ok: #3ddc97;
+  --warn: #f2b84b;
+  --over: #ff7a86;
+  --focus: #7ce8b9;
+  --shadow: 0 1px 0 rgb(0 0 0 / 35%), 0 14px 32px -18px rgb(0 0 0 / 80%);
+  --overlay: rgb(0 0 0 / 62%);
   color-scheme: dark;
 }
 
@@ -165,9 +169,6 @@ textarea {
 .shell {
   min-height: 100dvh;
 }
-.sidebar {
-  display: none;
-}
 .main {
   padding: 20px 16px calc(var(--tabbar-h) + 28px + env(safe-area-inset-bottom));
   max-width: 880px;
@@ -234,31 +235,6 @@ textarea {
   height: 26px;
 }
 
-@media (min-width: 900px) {
-  .shell {
-    display: grid;
-    grid-template-columns: var(--nav-w) 1fr;
-  }
-  .tabbar {
-    display: none;
-  }
-  .sidebar {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    position: sticky;
-    top: 0;
-    height: 100dvh;
-    padding: 24px 16px;
-    border-right: 1px solid var(--line);
-    background: var(--surface);
-  }
-  .main {
-    padding: 36px 40px 64px;
-    margin: 0;
-    width: 100%;
-  }
-}
 .brand {
   display: flex;
   align-items: center;
@@ -275,39 +251,6 @@ textarea {
   width: 30px;
   height: 30px;
 }
-.side-link {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 9px 12px;
-  border-radius: 10px;
-  color: var(--ink-2);
-  text-decoration: none;
-  font-weight: 550;
-}
-.side-link svg {
-  width: 20px;
-  height: 20px;
-}
-.side-link:hover {
-  background: var(--surface-2);
-  color: var(--ink);
-}
-.side-link[aria-current='page'] {
-  background: var(--accent-soft);
-  color: var(--accent);
-}
-.side-add {
-  margin: 16px 0 8px;
-}
-.side-foot {
-  margin-top: auto;
-  font-size: 0.82rem;
-  color: var(--ink-3);
-  padding: 0 12px;
-  overflow-wrap: anywhere;
-}
-
 .page-head {
   display: flex;
   align-items: center;
@@ -1036,15 +979,6 @@ details.more summary {
 .page-content { animation: page-enter var(--t-base) var(--ease-out) both; }
 .skip-link { position: fixed; left: 12px; top: -100px; z-index: 100; padding: 10px 16px; background: var(--surface); border: 1px solid var(--accent); border-radius: 10px; }
 .skip-link:focus { top: 12px; }
-.workspace-topbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-bottom: 14px; margin-bottom: 22px; border-bottom: 1px solid var(--line); min-height: 48px; }
-.workspace-label { display: none; align-items: center; gap: 14px; font-size: 0.82rem; color: var(--ink-3); }
-.workspace-label strong { color: var(--ink); font-weight: 550; }
-.breadcrumb-divider { color: var(--ink-3); }
-.workspace-tools { display: flex; align-items: center; gap: 12px; }
-.workspace-date { display: none; color: var(--ink-2); font-size: 0.8rem; }
-.workspace-date::first-letter { text-transform: uppercase; }
-.mobile-brand { display: flex; align-items: center; gap: 10px; color: var(--ink); text-decoration: none; font-family: var(--font-display); font-size: 1.35rem; }
-.mobile-brand svg { width: 32px; height: 32px; }
 .avatar { display: grid; place-items: center; flex: none; width: 36px; height: 36px; background: var(--accent-soft); border: 1px solid color-mix(in srgb, var(--accent) 15%, var(--line)); border-radius: 12px; color: var(--accent); font-size: 0.9rem; font-weight: 700; text-decoration: none; }
 .workspace-footer { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding-top: 22px; margin-top: 26px; color: var(--ink-3); font-size: 0.75rem; }
 .workspace-footer > span:first-child { display: flex; align-items: center; gap: 6px; font-weight: 600; }
@@ -1067,36 +1001,6 @@ details.more summary {
 .text-link { display: inline-flex; align-items: center; gap: 6px; text-decoration: none; font-size: 0.8rem; font-weight: 600; }
 .text-link svg { width: 15px; height: 15px; }
 .text-link:hover { text-decoration: underline; }
-
-/* ---------- barra lateral ---------- */
-.brand { gap: 12px; margin: 0 4px 0; font-size: 1.5rem; }
-.brand svg { width: 40px; height: 40px; flex: none; }
-.brand > span { line-height: 1.2; }
-.brand small { display: block; margin-top: 4px; color: var(--ink-3); font: 400 0.72rem var(--font-ui); letter-spacing: 0; }
-.side-add { position: relative; justify-content: flex-start; min-height: 46px; margin: 28px 0 22px; padding-left: 17px; font-size: 0.88rem; border-radius: 12px; }
-.side-add-dot { width: 5px; height: 5px; background: var(--accent-ink); border-radius: 50%; opacity: 0.65; margin-left: auto; }
-.nav-section-label { margin: 0 12px 9px; color: var(--ink-3); font-size: 0.75rem; font-weight: 600; }
-.side-nav-group { display: grid; gap: 4px; margin-bottom: 25px; }
-.side-link { padding: 12px; font-size: 0.84rem; transition: background var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out); }
-.side-link > span:first-of-type { flex: 1; }
-.side-link svg { width: 19px; height: 19px; flex: none; }
-.side-link[aria-current='page'] { box-shadow: inset 3px 0 0 var(--accent); font-weight: 650; }
-.nav-count { font-size: 0.72rem; min-width: 21px; padding: 1px 5px; text-align: center; border-radius: 6px; background: var(--surface-2); color: var(--ink-3); }
-.sidebar-insight { margin-top: auto; color: var(--ink); text-decoration: none; border-radius: 16px; padding: 16px; background: linear-gradient(130deg, var(--surface-2), color-mix(in srgb, var(--accent) 5%, var(--surface))); border: 1px solid var(--line); transition: border-color var(--t-fast) var(--ease-out); }
-.sidebar-insight:hover { border-color: color-mix(in srgb, var(--accent) 35%, var(--line)); }
-.sidebar-insight > div { display: flex; align-items: center; justify-content: space-between; }
-.sidebar-insight > strong { display: block; font-family: var(--font-display); font-size: 1.7rem; line-height: 1.2; margin-top: 8px; letter-spacing: -0.035em; }
-.sidebar-insight > p { margin-top: 6px; font-size: 0.72rem; line-height: 1.6; color: var(--ink-2); }
-.sidebar-wave { width: 100%; height: 44px; margin: 12px 0 4px; overflow: visible; }
-.wave-base { fill: none; stroke: var(--line); stroke-width: 1; }
-.wave-line { fill: none; stroke: var(--accent); stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
-.sidebar-insight-link { display: flex; align-items: center; justify-content: space-between; font-size: 0.72rem; color: var(--ink-2); }
-.sidebar-insight-link svg { width: 15px; height: 15px; }
-.side-profile { display: flex; align-items: center; gap: 10px; color: var(--ink); text-decoration: none; padding: 18px 2px 0; margin-top: 20px; border-top: 1px solid var(--line); }
-.side-profile > span:nth-child(2) { min-width: 0; flex: 1; }
-.side-profile strong { display: block; font-size: 0.8rem; font-weight: 600; }
-.side-profile small { display: block; color: var(--ink-3); font-size: 0.72rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 147px; margin-top: 2px; }
-.side-profile > svg { width: 16px; height: 16px; color: var(--ink-3); }
 
 /* ---------- panel de inicio ---------- */
 .dashboard { display: grid; gap: 20px; animation: page-enter var(--t-base) var(--ease-out) both; }
@@ -1216,17 +1120,11 @@ details.more summary {
 
 /* ---------- escalas de escritorio, tablet y móvil ---------- */
 @media (min-width: 600px) {
-  .workspace-date { display: inline-block; }
   .quick-actions { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .quick-caption { grid-column: 1 / -1; }
 }
 @media (min-width: 900px) {
-  .shell { grid-template-columns: var(--nav-w) minmax(0, 1fr); }
-  .sidebar { padding: 28px 18px 20px; gap: 0; overflow-y: auto; }
   .main { padding: 20px 30px 28px; margin: 0; max-width: none; }
-  .workspace-label { display: flex; }
-  .mobile-brand { display: none; }
-  .workspace-topbar { margin-bottom: 22px; }
   .dashboard-lower { grid-template-columns: minmax(0, 1.35fr) minmax(270px, 1fr); }
 }
 @media (min-width: 1200px) {
@@ -1246,7 +1144,6 @@ details.more summary {
   .dashboard .panel { padding: 20px; }
 }
 @media (max-width: 599px) {
-  .workspace-topbar { margin-bottom: 22px; padding-bottom: 14px; }
   .home-heading { gap: 18px; }
   .home-heading .month-switch { width: 100%; justify-content: space-between; }
   .home-heading .month-switch strong { flex: 1; }
@@ -1681,8 +1578,6 @@ dialog.sheet.confirm {
 .tab svg { transition: transform var(--t-base) var(--ease-out); }
 .tab[aria-current='page'] svg { transform: translateY(-2px); }
 .tab[aria-current='page']::after { content: ''; position: absolute; bottom: 2px; width: 4px; height: 4px; border-radius: 50%; background: currentColor; animation: pop 300ms var(--ease-out) both; }
-.side-link svg { transition: transform var(--t-base) var(--ease-out); }
-.side-link:hover svg { transform: translateX(2px); }
 /* Casillas de Ajustes como interruptores: siguen siendo checkbox nativos (teclado y lector de pantalla intactos). */
 .settings-row input[type='checkbox'] { appearance: none; flex: none; width: 40px; height: 24px; margin: 0; border-radius: 99px; background: color-mix(in srgb, var(--ink) 22%, var(--surface)); position: relative; cursor: pointer; transition: background var(--t-base) var(--ease-out); }
 .settings-row input[type='checkbox']::after { content: ''; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: var(--surface); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25); transition: transform var(--t-base) var(--ease-out); }
@@ -1798,11 +1693,6 @@ dialog.sheet.confirm {
 }
 .panel.conflict {
   border-left: 3px solid var(--warn);
-}
-@media (max-width: 520px) {
-  .workspace-date {
-    display: none;
-  }
 }
 
 /* ---------- reportes (fase 13) ---------- */

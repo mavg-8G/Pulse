@@ -6,6 +6,7 @@ import { TxGroups } from '../components/TxList'
 import { monthLabel, monthOf } from '../lib/dates'
 import { money } from '../lib/money'
 import { QueryFeedback } from '../components/QueryFeedback'
+import { CountUp } from '../components/CountUp'
 import { useAccounts, useCategories, useDashboard, useMe } from '../lib/queries'
 import type { Alert, Dashboard } from '../lib/types'
 
@@ -96,7 +97,7 @@ function SpendingCard({ dashboard: d, label, average, today, days, current }: { 
         <h2 id="h-spent" className="eyebrow">Gastado en {label.toLowerCase()}</h2>
         {d.has_budgets && <span className={`status-chip st-${b.status}`}><span className={`dot bg-${b.status}`} aria-hidden="true" />{statusText[b.status]}</span>}
       </div>
-      <p className="hero-amount num" data-testid="month-total">{money(d.spent_cents)}</p>
+      <p className="hero-amount num" data-testid="month-total"><CountUp value={d.spent_cents} format={(v) => money(Math.round(v))} /></p>
       {d.has_budgets ? (
         <>
           <p className="hero-sub">de <strong className="num">{money(b.budget_cents)}</strong> de presupuesto</p>

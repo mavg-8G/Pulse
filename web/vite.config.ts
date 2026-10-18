@@ -32,6 +32,8 @@ export default defineConfig({
     outDir: '../internal/webui/dist',
     emptyOutDir: true,
     sourcemap: false,
+    // La CSP solo permite fuentes de 'self': nunca incrustarlas como data: URI.
+    assetsInlineLimit: (file) => (file.endsWith('.woff2') ? false : undefined),
   },
   server: {
     port: 5173,

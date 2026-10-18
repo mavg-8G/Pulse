@@ -72,7 +72,7 @@ function AccountForm({ acc, accounts, onDone }: { acc?: Account; accounts: Accou
     type: acc?.type ?? ('credit_card' as AccountType),
     institution: acc?.institution ?? '',
     card_suffix: acc?.card_suffix ?? '',
-    color: acc?.color ?? '#356c78',
+    color: acc?.color ?? '#0b7a53',
     icon: acc?.icon ?? '💳',
   })
   const [error, setError] = useState('')
