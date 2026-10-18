@@ -9,7 +9,7 @@ import { TxGroups } from '../components/TxList'
 import { monthLabel, monthOf } from '../lib/dates'
 import { money } from '../lib/money'
 import { pickable } from '../lib/accounts'
-import { useAccounts, useCategories, useMe, useTransactions } from '../lib/queries'
+import { useAccounts, useCategories, useDashboard, useMe, useTransactions } from '../lib/queries'
 
 const PAGE = 50
 
@@ -33,6 +33,7 @@ export function Movements() {
     }
   }, [category, account, cats.data, accs.data])
   const openTx = useTxSheet()
+  const { data: month_ } = useDashboard(month)
   const fileRef = useRef<HTMLInputElement>(null)
   const qc = useQueryClient()
   const [importResults, setImportResults] = useState<string[]>([])
@@ -93,36 +94,57 @@ export function Movements() {
       </div>
       {filtered && <button className="btn btn-sm" onClick={() => { setQ(''); update({ category: '', account: '', limit: PAGE }) }}>Limpiar filtros</button>}
       {importResults.length > 0 && <section className="panel import-results" aria-labelledby="import-results"><h2 id="import-results" tabIndex={-1}>Resultado de la importación</h2><p className="small">{importResults.length} {importResults.length === 1 ? 'archivo procesado' : 'archivos procesados'}. Revisa el resultado de cada uno.</p><ul>{importResults.map((r, i) => <li key={i}>{r}</li>)}</ul><button className="btn btn-sm" onClick={() => setImportResults([])}>Cerrar resultados</button></section>}
-      {data && data.total > 0 && (
-        <p className="totals-line">
-          <span>{data.total} {data.total === 1 ? 'movimiento' : 'movimientos'}</span>
-          <strong className="num" data-testid="list-sum">{money(data.sum_cents)}</strong>
-        </p>
-      )}
-      {isLoading && <div className="list-skeleton" role="status" aria-label="Cargando movimientos"><div /><div /><div /></div>}
-      <QueryFeedback error={error} retry={refetch} updating={isFetching || search !== q.trim()} />
-      {data && data.total === 0 && search === q.trim() && !isFetching && (
-        <div className="panel empty" style={{ marginTop: 16 }}>
-          {filtered ? (
-            <>
-              <h3>Nada coincide con esos filtros</h3>
-              <p>Prueba con otra palabra u otro mes.</p>
-            </>
-          ) : (
-            <>
-              <h3>Sin movimientos en {monthLabel(month).toLowerCase()}</h3>
-              <button className="btn btn-primary" onClick={() => openTx()}>Registrar gasto</button>
-            </>
+      <div className="mv-layout">
+        <aside className="mv-side" aria-label="Resumen de la lista">
+          <div className="mv-kpis">
+            <div className="mv-kpi"><span>Movimientos</span><strong className="num">{data ? data.total : '—'}</strong></div>
+            <div className="mv-kpi"><span>{filtered ? 'Total filtrado' : 'Total del mes'}</span><strong className="num" data-testid="list-sum">{data ? money(data.sum_cents) : '—'}</strong></div>
+            <div className="mv-kpi"><span>Promedio por gasto</span><strong className="num">{data && data.total > 0 ? money(Math.round(data.sum_cents / data.total)) : '—'}</strong></div>
+          </div>
+          {month_ && month_.by_category.some((c) => c.spent_cents > 0) && (
+            <section className="mv-cats" aria-labelledby="mv-cats-h">
+              <h2 id="mv-cats-h">Por categoría en {monthLabel(month).toLowerCase()}</h2>
+              <ul>{month_.by_category.filter((c) => c.spent_cents > 0).slice(0, 6).map((c) => (
+                <li key={c.category_id}>
+                  <button type="button" className={category === c.category_id ? 'is-active' : ''} aria-pressed={category === c.category_id} onClick={() => update({ category: category === c.category_id ? '' : c.category_id, limit: PAGE })}>
+                    <span className="mv-cat-top"><span>{c.icon} {c.name}</span><strong className="num">{money(c.spent_cents)}</strong></span>
+                    <span className="mv-cat-bar" aria-hidden="true"><i style={{ width: `${Math.max(2, Math.round((c.spent_cents / Math.max(1, month_.spent_cents)) * 100))}%`, background: c.color }} /></span>
+                  </button>
+                </li>
+              ))}</ul>
+            </section>
           )}
+        </aside>
+        <div className="mv-main">
+          {isLoading && <div className="list-skeleton" role="status" aria-label="Cargando movimientos"><div /><div /><div /></div>}
+          <QueryFeedback error={error} retry={refetch} updating={isFetching || search !== q.trim()} />
+          {data && data.total > 0 && (
+            <div className="mv-table-head" aria-hidden="true"><span /><span>Comercio</span><span>Categoría</span><span>Cuenta</span><span>Hora</span><span>Importe</span></div>
+          )}
+          {data && data.total === 0 && search === q.trim() && !isFetching && (
+            <div className="panel empty" style={{ marginTop: 16 }}>
+              {filtered ? (
+                <>
+                  <h3>Nada coincide con esos filtros</h3>
+                  <p>Prueba con otra palabra u otro mes.</p>
+                </>
+              ) : (
+                <>
+                  <h3>Sin movimientos en {monthLabel(month).toLowerCase()}</h3>
+                  <button className="btn btn-primary" onClick={() => openTx()}>Registrar gasto</button>
+                </>
+              )}
+            </div>
+          )}
+          {data && <TxGroups items={data.items} categories={categories} accounts={accounts} tz={tz} />}
+          {data && data.items.length < data.total && limit < 5000 && (
+            <button className="btn btn-block" style={{ marginTop: 16 }} disabled={isFetching || search !== q.trim()} onClick={() => update({ limit: Math.min(5000, limit + PAGE) })}>
+              Mostrar más
+            </button>
+          )}
+          {data && limit >= 5000 && data.items.length < data.total && <p className="hint">Hay más movimientos. Acota los filtros para encontrarlos.</p>}
         </div>
-      )}
-      {data && <TxGroups items={data.items} categories={categories} accounts={accounts} tz={tz} />}
-      {data && data.items.length < data.total && limit < 5000 && (
-        <button className="btn btn-block" style={{ marginTop: 16 }} disabled={isFetching || search !== q.trim()} onClick={() => update({ limit: Math.min(5000, limit + PAGE) })}>
-          Mostrar más
-        </button>
-      )}
-      {data && limit >= 5000 && data.items.length < data.total && <p className="hint">Hay más movimientos. Acota los filtros para encontrarlos.</p>}
+      </div>
     </>
   )
 }

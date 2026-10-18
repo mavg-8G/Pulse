@@ -252,6 +252,14 @@ export function Settings({ view = 'prefs' }: { view?: 'prefs' | 'account' }) {
       <div className="page-head">
         <div><p className="page-kicker">Hecho a tu medida</p><h1>Ajustes</h1><p className="page-description">Personaliza tu espacio y conecta lo que necesitas.</p></div>
       </div>
+      <nav className="settings-index" aria-label="Secciones de ajustes">
+        <a href="#h-look">Apariencia</a>
+        <a href="#h-data">Tus datos</a>
+        <a href="#h-gmail">Correo del banco</a>
+        <a href="#h-notifications">Notificaciones</a>
+        {me?.role === 'admin' && <a href="#h-backup">Respaldo</a>}
+        <a href="#h-legal">Privacidad</a>
+      </nav>
 
       <section aria-labelledby="h-look">
         <div className="section-head"><h2 id="h-look">Apariencia</h2></div>

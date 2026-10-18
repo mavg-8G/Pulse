@@ -2,6 +2,8 @@ import { useConfirm } from '../components/Confirm'
 import { useState, type FormEvent } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { MonthSwitch } from '../components/AppShell'
+import { Ring } from '../components/Charts'
+import { CountUp } from '../components/CountUp'
 import { Sheet } from '../components/Sheet'
 import { QueryFeedback } from '../components/QueryFeedback'
 import { useViewMonth, useViewScroll } from '../lib/viewState'
@@ -65,19 +67,19 @@ export function Plan() {
       {s && s.lines.length > 0 && (
         <>
           {categoryLines.length > 0 && (
-            <div className="panel budget plan-total" aria-label="Total del plan">
-              <div className="budget-top">
-                <span className="muted">Total del plan</span>
-                <span className="num">
-                  <strong>{money(s.totals.spent_cents)}</strong> de {money(s.totals.budget_cents)}
-                </span>
+            <div className="plan-overview">
+              <div className="tile plan-total" aria-label="Total del plan">
+                <Ring percent={Math.min(100, s.totals.percent)} tone={s.totals.status} size={150}><strong className="num">{s.totals.percent}%</strong><span>del plan</span></Ring>
+                <div className="plan-total-figures">
+                  <p className="plan-total-main"><span className="muted">Total del plan</span><span className="num"><strong><CountUp value={s.totals.spent_cents} format={(v) => money(Math.round(v))} /></strong> de {money(s.totals.budget_cents)}</span></p>
+                  <Bar p={s.totals} showProjection={isCurrent} />
+                  <dl className="plan-total-stats">
+                    <div><dt>{s.totals.remaining_cents >= 0 ? 'Quedan' : 'Excedido por'}</dt><dd className={`num ${s.totals.remaining_cents >= 0 ? 'st-ok' : 'st-over'}`}>{money(Math.abs(s.totals.remaining_cents))}</dd></div>
+                    {isCurrent && <div><dt>Cierre estimado</dt><dd className={`num ${s.totals.projected_cents > s.totals.budget_cents ? 'st-over' : ''}`}>{money(s.totals.projected_cents)}</dd></div>}
+                    <div><dt>Fuera del plan</dt><dd className="num">{money(s.unbudgeted_cents)}</dd></div>
+                  </dl>
+                </div>
               </div>
-              <Bar p={s.totals} showProjection={isCurrent} />
-              <div className="budget-foot">
-                <span>{s.totals.remaining_cents >= 0 ? `Quedan ${money(s.totals.remaining_cents)}` : `Excedido por ${money(-s.totals.remaining_cents)}`}</span>
-                {isCurrent && <span>Cierre estimado: {money(s.totals.projected_cents)}</span>}
-              </div>
-              {s.unbudgeted_cents > 0 && <p className="small faint" style={{ marginTop: 8 }}>Fuera del plan este mes: {money(s.unbudgeted_cents)}</p>}
             </div>
           )}
           <BudgetGrid lines={categoryLines} isCurrent={isCurrent} onEdit={(l) => setEdit({ open: true, line: l })} />
@@ -162,7 +164,7 @@ function BudgetGrid({ lines, isCurrent, onEdit }: { lines: BudgetLine[]; isCurre
           <button className="tx budget" style={{ display: 'block' }} onClick={() => onEdit(l)} aria-label={`${l.name}: ${l.percent}% usado. Editar presupuesto`}>
             <div className="budget-top">
               <span className="budget-name">
-                <span aria-hidden="true">{l.icon}</span>
+                <Ring percent={Math.min(100, l.percent)} tone={l.status} size={52}><span className="budget-ring-icon" aria-hidden="true">{l.icon}</span></Ring>
                 {l.name}
                 {l.month_cap && <span className="badge">Tope de este mes</span>}
               </span>

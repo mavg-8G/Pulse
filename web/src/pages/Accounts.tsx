@@ -1,5 +1,5 @@
 import { useConfirm } from '../components/Confirm'
-import { useState, type FormEvent } from 'react'
+import { useState, type CSSProperties, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { Sheet } from '../components/Sheet'
@@ -35,7 +35,7 @@ export function Accounts() {
       <QueryFeedback error={error} retry={refetch} updating={isFetching} />
       <ul className="list account-collection">
         {groupedOrder(accounts).map((a) => (
-          <li key={a.id} className={a.archived ? 'is-archived' : ''}>
+          <li key={a.id} className={a.archived ? 'is-archived' : ''} style={{ '--acc': a.color } as CSSProperties}>
             <button className="tx" onClick={() => setEdit({ open: true, acc: a })}>
               <span className="tx-icon" style={{ background: `color-mix(in srgb, ${a.color} 20%, transparent)` }} aria-hidden="true">{a.icon || '💳'}</span>
               <span className="tx-main">
@@ -52,6 +52,7 @@ export function Accounts() {
                 </span>
               </span>
               <span className="faint">›</span>
+              {a.card_suffix && <span className="acc-number num" aria-hidden="true">•••• {a.card_suffix}</span>}
             </button>
           </li>
         ))}

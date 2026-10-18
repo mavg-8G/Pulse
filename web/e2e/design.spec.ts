@@ -38,7 +38,7 @@ test('todas las vistas privadas conservan legibilidad, navegación y formularios
   }
   const views = [
     ['/', 'Inicio', 'inicio', '.dashboard'],
-    ['/movimientos', 'Movimientos', 'movimientos', '.totals-line'],
+    ['/movimientos', 'Movimientos', 'movimientos', '.mv-kpis'],
     ['/plan', 'Plan de gastos', 'plan', '.plan-total'],
     ['/reportes', 'Reportes', 'reportes', '.report-metrics'],
     ['/ajustes/cuentas', 'Cuentas y tarjetas', 'cuentas', '.account-collection .tx'],

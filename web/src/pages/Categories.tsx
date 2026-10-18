@@ -1,5 +1,5 @@
 import { useConfirm } from '../components/Confirm'
-import { useState, type FormEvent } from 'react'
+import { useState, type FormEvent, type CSSProperties } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { get } from '../lib/api'
 import { Link } from 'react-router-dom'
@@ -25,7 +25,7 @@ export function Categories() {
       <QueryFeedback error={error} retry={refetch} updating={isFetching} />
       <ul className="list category-collection">
         {tops.map((c) => (
-          <li key={c.id}>
+          <li key={c.id} style={{ '--cat': c.color } as CSSProperties}>
             <button className="tx" onClick={() => setEdit({ open: true, cat: c })}>
               <span className="tx-icon" style={{ background: `color-mix(in srgb, ${c.color} 20%, transparent)` }} aria-hidden="true">{c.icon}</span>
               <span className="tx-main">

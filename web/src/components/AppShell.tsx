@@ -84,7 +84,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   }, [params, setParams])
   const initial = me?.email.slice(0, 1).toUpperCase() ?? 'P'
   const pending = dashboard?.pending_review ?? 0
-  const count = pending > 0 ? <span className="nav-count"><span aria-hidden="true">{pending}</span><span className="sr-only">, {pending} por revisar</span></span> : null
+  const count = pending > 0 ? <span className="nav-count"><span aria-hidden="true">{pending}</span><span className="sr-only">, {pending} sin confirmar</span></span> : null
 
   return (
     <MotionCtx.Provider value={{ motion, toggleMotion: () => setMotion((v) => !v) }}>
@@ -95,8 +95,8 @@ export function AppShell({ children }: { children: ReactNode }) {
           <div className="topbar-inner">
             <Link to="/" className="brand" aria-label="Pulse, inicio"><PulseMark /><span translate="no">Pulse</span></Link>
             <nav className="topnav" aria-label="Principal">
-              {nav.map((n) => <NavLink key={n.to} to={n.to} end={n.end} className="topnav-link">{n.label}{n.to === '/movimientos' && count}</NavLink>)}
-              {manage.map((n) => <NavLink key={n.to} to={n.to} className="topnav-link">{n.label}</NavLink>)}
+              {nav.map((n) => <NavLink key={n.to} to={n.to} end={n.end} className="topnav-link" viewTransition>{n.label}{n.to === '/movimientos' && count}</NavLink>)}
+              {manage.map((n) => <NavLink key={n.to} to={n.to} className="topnav-link" viewTransition>{n.label}</NavLink>)}
             </nav>
             <div className="topbar-tools">
               <SyncStatus tz={tz} />
@@ -112,9 +112,9 @@ export function AppShell({ children }: { children: ReactNode }) {
           <footer className="workspace-footer"><span><IconPulse /> <span translate="no">Pulse</span></span><span className="workspace-signoff">Un gasto a la vez. <BuildVersion tz={tz} /></span></footer>
         </main>
         <nav className="tabbar" aria-label="Principal">
-          {nav.slice(0, 2).map((n) => <NavLink key={n.to} to={n.to} end={n.end} className="tab">{n.icon}<span>{n.label}</span>{n.to === '/movimientos' && pending > 0 && <><span className="tab-dot" aria-hidden="true" /><span className="sr-only">, {pending} por revisar</span></>}</NavLink>)}
+          {nav.slice(0, 2).map((n) => <NavLink key={n.to} to={n.to} end={n.end} className="tab" viewTransition>{n.icon}<span>{n.label}</span>{n.to === '/movimientos' && pending > 0 && <><span className="tab-dot" aria-hidden="true" /><span className="sr-only">, {pending} sin confirmar</span></>}</NavLink>)}
           <button className="tab-add" onClick={() => open()} aria-label="Nuevo gasto"><IconPlus /></button>
-          {nav.slice(2).map((n) => <NavLink key={n.to} to={n.to} end={n.end} className="tab">{n.icon}<span>{n.label}</span></NavLink>)}
+          {nav.slice(2).map((n) => <NavLink key={n.to} to={n.to} end={n.end} className="tab" viewTransition>{n.icon}<span>{n.label}</span></NavLink>)}
         </nav>
       </div>
       <Sheet open={sheet.open} title={sheet.tx ? 'Editar gasto' : 'Nuevo gasto'} onClose={close}><TxForm key={sheet.tx ? `${sheet.tx.id}:${sheet.tx.version}` : 'new'} tx={sheet.tx} defaultAccountId={location.pathname === '/movimientos' ? params.get('account') ?? undefined : undefined} onStateChange={setFormState} onDone={finish} onReplace={open} /></Sheet>

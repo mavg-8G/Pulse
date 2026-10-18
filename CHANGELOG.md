@@ -11,6 +11,12 @@ La guía de uso y desarrollo está en [`README.md`](README.md); el roadmap y las
 - Superficies planas sin degradados pastel; tarjetas, listas, formularios, hojas, avisos y Reportes comparten radios, bordes y sombras. Los campos usan 16 px para que iOS no amplíe la página al enfocarlos.
 - Movimiento: trazo de bienvenida bajo la barra superior, entrada escalonada, barras que crecen, gráficas que se revelan, contador animado del gasto del mes, esqueletos con destello y respuesta al pasar el cursor y al presionar. Todo se apaga con «reducir movimiento» o con la pausa de Ajustes.
 - Vite ya no incrusta las fuentes como `data:` (lo bloqueaba la CSP). El manifiesto, `theme-color` y los íconos de la PWA usan la paleta nueva.
+- Nueva estructura de las vistas («centro de mando»):
+  - **Inicio:** mosaico con el gasto del mes y su área acumulada (incluye el mes anterior y el tope), la comparación con el mes anterior a la misma fecha, el anillo de presupuesto con el ritmo del mes, una dona por categoría, el cierre estimado, «Por revisar», la actividad reciente y los próximos gastos fijos.
+  - **Movimientos:** tabla con columnas en escritorio, encabezados de día fijos y panel lateral con totales y gasto por categoría, que también filtra.
+  - **Plan:** anillos en el total y en cada presupuesto.
+  - **Cuentas, Categorías y Ajustes:** tarjetas por cuenta con su color y últimos dígitos, mosaico de categorías y un índice lateral en Ajustes.
+- Movimiento expresivo: transiciones entre páginas (View Transitions), tarjetas que entran escalonadas y se iluminan con el cursor, y anillos, donas y gráficas que se dibujan.
 
 ## Sin publicar — calidad de vida, fases 14, 15, 16, 18 y 19 (17 oct 2026)
 

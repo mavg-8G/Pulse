@@ -22,6 +22,9 @@ export function TxRow({ tx, cat, acc, tz }: { tx: Transaction; cat?: Category; a
           {acc ? ` en ${acc.name}` : ''} a las {timeLabel(tx.occurred_at, tz)}
         </span>
       </span>
+      <span className="tx-col tx-col-cat">{cat ? <><i style={{ background: cat.color }} aria-hidden="true" />{cat.name}</> : '—'}</span>
+      <span className="tx-col tx-col-acc">{acc?.name ?? '—'}</span>
+      <span className="tx-col tx-col-time num">{timeLabel(tx.occurred_at, tz)}</span>
       <span className={`tx-amount ${tx.kind === 'refund' ? 'refund' : ''}`}>
         {tx.kind === 'refund' ? '+' : ''}
         {money(tx.amount_cents)}

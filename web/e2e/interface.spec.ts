@@ -10,7 +10,7 @@ test('inicio aprovecha el espacio, permite pausar el pulso y muestra datos reale
   await register(page)
   await expect(page.locator('.dashboard')).toBeVisible()
   if (desktop) {
-    const box = await page.locator('.dashboard-lead').boundingBox()
+    const box = await page.locator('.dashboard').boundingBox()
     expect(box!.width).toBeGreaterThan(1400)
     await page.getByRole('navigation', { name: 'Principal' }).getByRole('link', { name: 'Categorías', exact: true }).click()
     await expect(page.getByRole('heading', { name: 'Categorías', exact: true })).toBeVisible()
