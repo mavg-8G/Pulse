@@ -383,6 +383,22 @@ dialog.sheet.confirm { border-radius: var(--r-l); }
 .report-section { margin-bottom: 20px; scroll-margin-top: calc(var(--topbar-h) + 16px); }
 .report-card, #cuentas, #habitos { margin-bottom: 20px; scroll-margin-top: calc(var(--topbar-h) + 16px); }
 .report-section-title { font-size: 1.1rem; margin: 0 0 12px; }
+/* Una sola columna que nunca crece con su contenido: sin esto, un texto largo ensancha la columna y la gráfica
+   (que mide su contenedor) la sigue, sacando ambas tarjetas de la pantalla en móvil. */
+@media (max-width: 899.98px) { .report-grid { grid-template-columns: minmax(0, 1fr); } }
+.report-grid > * { min-width: 0; }
+/* Solo el monto va en cifras monoespaciadas; el porcentaje y la comparación usan la letra normal y pueden partirse. */
+.breakdown-amount > :not(strong) { font-family: var(--font-ui); font-variant-numeric: tabular-nums; }
+.account-spend .breakdown-amount { min-width: 0; max-width: 48%; white-space: normal; text-align: right; }
+.account-spend .grow > strong { overflow-wrap: anywhere; }
+@media (max-width: 480px) {
+  /* En pantallas angostas el monto pasa debajo del nombre para que este no se parta en varias líneas. */
+  .account-spend > summary { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; column-gap: 12px; row-gap: 8px; }
+  .account-spend > summary > .category-symbol { grid-column: 1; grid-row: 1 / span 2; align-self: center; }
+  .account-spend > summary > .grow { grid-column: 2; grid-row: 1; }
+  .account-spend > summary::after { grid-column: 3; grid-row: 1 / span 2; align-self: center; }
+  .account-spend .breakdown-amount { grid-column: 2; grid-row: 2; max-width: none; flex-direction: row; flex-wrap: wrap; align-items: baseline; column-gap: 10px; text-align: left; }
+}
 .report-metrics { gap: 14px; margin-bottom: 10px; }
 .report-metric { border: 1px solid var(--line); background: var(--surface); border-radius: var(--r-l); padding: 20px; }
 .report-metric dt { font-size: 0.78rem; color: var(--ink-2); }

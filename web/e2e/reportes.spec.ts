@@ -199,3 +199,44 @@ test('en anchos de iPhone el periodo y los filtros no se salen de su tarjeta', a
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
   }
 })
+
+test('en anchos de iPhone las tarjetas por cuenta no se salen de la pantalla', async ({ page }) => {
+  await register(page)
+  const cats = await apiGet(page, '/api/categories')
+  const comida = cats.find((c: any) => c.name === 'Comida').id
+  const servicios = cats.find((c: any) => c.name === 'Servicios').id
+  // Nombres largos como los de tarjetas reales, con gasto en varios meses.
+  const names = ['Titanium (Diners Club) ...666', 'Produbanco ...7828', 'Banco Pichincha ...989']
+  const ids: string[] = []
+  for (const name of names) ids.push((await apiPost(page, '/api/accounts', { name, type: 'credit_card' })).id)
+  const day = (monthsAgo: number) => {
+    const d = new Date()
+    d.setUTCDate(10)
+    d.setUTCMonth(d.getUTCMonth() - monthsAgo)
+    return d.toISOString().slice(0, 16)
+  }
+  for (const [i, id] of ids.entries()) {
+    await apiPost(page, '/api/transactions', { account_id: id, category_id: comida, amount_cents: 24039 - i * 5000, occurred_at: day(1), merchant: 'Supermaxi' })
+    await apiPost(page, '/api/transactions', { account_id: id, category_id: servicios, amount_cents: 3436 + i * 100, occurred_at: day(2), merchant: 'Claro' })
+  }
+  for (const [width, height, zoom] of [[390, 844, 1], [375, 667, 1], [320, 568, 1], [390, 844, 1.25]] as const) {
+    await page.setViewportSize({ width, height })
+    await page.goto('/reportes?periodo=6')
+    await page.evaluate((z) => { document.documentElement.style.fontSize = `${z * 100}%` }, zoom)
+    for (const name of ['Por cuenta', 'Evolución por cuenta']) {
+      const card = page.getByRole('region', { name, exact: true })
+      await expect(card).toBeVisible()
+      const outside = await card.evaluate((el) => {
+        const limit = document.documentElement.clientWidth
+        // Las tablas tienen su propio scroll horizontal; lo que cuenta es su contenedor.
+        return [el, ...el.querySelectorAll('*')].filter((n) => {
+          if (n.parentElement?.closest('.report-table-scroll')) return false
+          const r = n.getBoundingClientRect()
+          return r.width > 0 && r.right > limit + 0.5
+        }).map((n) => `${n.tagName.toLowerCase()}.${n.getAttribute('class') ?? ''}`)
+      })
+      expect(outside, `${name} a ${width}px ×${zoom}`).toEqual([])
+    }
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+  }
+})
