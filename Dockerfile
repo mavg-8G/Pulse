@@ -3,7 +3,7 @@
 
 # CI pasa estos valores desde .node-version y go.mod. Los defaults permiten construir localmente.
 ARG NODE_VERSION=24.22.0
-ARG GO_VERSION=1.27.2
+ARG GO_VERSION=1.27.3
 
 # 1) Frontend (React + Vite) → internal/webui/dist
 FROM node:${NODE_VERSION}-alpine3.24 AS web

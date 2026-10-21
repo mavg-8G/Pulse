@@ -149,7 +149,7 @@ deploy/              docker-compose, Caddy, smoke test, guía de despliegue
 
 ## Desarrollo
 
-Requisitos: Go 1.27.2+ con un compilador C (SQLite usa CGO), Node 24.22.0 LTS (ver `.node-version`). CI y Docker toman las versiones de `go.mod` y `.node-version`.
+Requisitos: Go 1.27.3+ con un compilador C (SQLite usa CGO), Node 24.22.0 LTS (ver `.node-version`). CI y Docker toman las versiones de `go.mod` y `.node-version`.
 
 El frontend usa React 19, React Router 7, TypeScript 7, Vite 8 y Vitest 5; las versiones resueltas se fijan en `web/package-lock.json`. Las dependencias Go y sus sumas están en `go.mod` y `go.sum`.
 

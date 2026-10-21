@@ -34,6 +34,8 @@ jobs:
           test -z "$(gofmt -l $(git ls-files '*.go'))" && go vet ./...
       - name: Tests con detector de carreras
         run: go test -race -coverprofile=cover.out ./... && go tool cover -func=cover.out | tail -1
+      - name: Vulnerabilidades conocidas alcanzables (bloquea el despliegue)
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
       - name: Fuzzing
         run: |
           T=${{ github.event_name == 'schedule' && '10m' || '30s' }}
@@ -45,8 +47,6 @@ jobs:
           go test ./internal/mailparse -run=^$ -fuzz=FuzzEML -fuzztime=$T
           go test ./internal/gmail -run=^$ -fuzz=FuzzVerifyJWT -fuzztime=$T
           go test ./internal/gmail -run=^$ -fuzz=FuzzCheckState -fuzztime=$T
-      - name: Vulnerabilidades conocidas alcanzables (bloquea el despliegue)
-        run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
 
   # gosec informa en la pestaña Security (Code scanning) sin bloquear: sus hallazgos se revisan a mano.
   gosec:

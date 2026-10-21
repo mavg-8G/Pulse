@@ -4,6 +4,12 @@ Cambios relevantes de Pulse. Las entradas «Sin publicar» describen cambios pos
 
 La guía de uso y desarrollo está en [`README.md`](README.md); el roadmap y las aceptaciones pendientes, en [`PLAN.md`](PLAN.md).
 
+## Sin publicar — parche de seguridad de Go y CI diaria (21 oct 2026)
+
+- Go 1.27.3 en los módulos, Docker y requisitos de desarrollo para corregir GO-2026-6809 en `crypto/x509`, detectada por la ejecución diaria con Go 1.27.2.
+- El chequeo de vulnerabilidades se ejecuta antes del fuzzing para detectar estos fallos sin esperar los ocho bloques nocturnos de diez minutos. Conserva el bloqueo ante vulnerabilidades alcanzables.
+- Verificación con Go 1.27.3: `govulncheck` sin vulnerabilidades alcanzables, `go vet` y `actionlint` correctos. La suite Go local pasa salvo `TestLocalGuardaYRota`, que exige permisos POSIX 0600 en Windows; también se informó un bloqueo al eliminar un ejecutable temporal de prueba. Pendiente validar la ejecución completa en CI/Linux.
+
 ## Sin publicar — rediseño visual, fase 17 (17 oct 2026)
 
 - Nueva identidad en modo oscuro y claro: fondos `#0A0E13` / `#F3F5F7`, acento verde señal (`#3DDC97` / `#0B7A53`) y estados con contraste AA. Tipografía Hanken Grotesk para la interfaz y JetBrains Mono para los importes, servidas desde el propio origen.
