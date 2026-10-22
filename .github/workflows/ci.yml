@@ -1,7 +1,8 @@
 name: CI/CD
 
 # push a main → pruebas → imagen en GHCR (firmada) → despliegue en el VPS.
-# Otras ramas y PR: solo pruebas. Cada noche: fuzzing largo (sin desplegar).
+# Otras ramas y PR: solo pruebas. Cada noche (mismo commit ya probado): fuzzing largo en paralelo
+# y vulnerabilidades nuevas en dependencias y en la imagen publicada, sin desplegar.
 on:
   push:
   pull_request:
@@ -23,6 +24,7 @@ env:
 jobs:
   go:
     runs-on: ubuntu-latest
+    if: github.event_name != 'schedule'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with: { persist-credentials: false }
@@ -36,9 +38,9 @@ jobs:
         run: go test -race -coverprofile=cover.out ./... && go tool cover -func=cover.out | tail -1
       - name: Vulnerabilidades conocidas alcanzables (bloquea el despliegue)
         run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
-      - name: Fuzzing
+      - name: Fuzzing corto (el largo va en el job fuzz, cada noche)
         run: |
-          T=${{ github.event_name == 'schedule' && '10m' || '30s' }}
+          T=30s
           go test ./internal/crypto -run=^$ -fuzz=FuzzOpen -fuzztime=$T
           go test ./internal/passkey -run=^$ -fuzz=FuzzCOSEyAuthData -fuzztime=$T
           go test ./internal/budget -run=^$ -fuzz=FuzzCompute -fuzztime=$T
@@ -48,10 +50,68 @@ jobs:
           go test ./internal/gmail -run=^$ -fuzz=FuzzVerifyJWT -fuzztime=$T
           go test ./internal/gmail -run=^$ -fuzz=FuzzCheckState -fuzztime=$T
 
+  # Cada noche: 10 min por fuzzer, un runner por fuzzer (~12 min en total en vez de ~80 en serie).
+  fuzz:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { pkg: crypto, fn: FuzzOpen }
+          - { pkg: passkey, fn: FuzzCOSEyAuthData }
+          - { pkg: budget, fn: FuzzCompute }
+          - { pkg: mailparse, fn: FuzzParseAmount }
+          - { pkg: mailparse, fn: FuzzParseDate }
+          - { pkg: mailparse, fn: FuzzEML }
+          - { pkg: gmail, fn: FuzzVerifyJWT }
+          - { pkg: gmail, fn: FuzzCheckState }
+    name: fuzz ${{ matrix.fn }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { persist-credentials: false }
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with: { go-version-file: go.mod }
+      - run: |
+          mkdir -p internal/webui/dist && touch internal/webui/dist/.gitkeep
+          go test ./internal/${{ matrix.pkg }} -run=^$ -fuzz=^${{ matrix.fn }}$ -fuzztime=10m
+      # La entrada que rompe queda en testdata/fuzz: se guarda para reproducirla en local.
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: failure()
+        with: { name: 'fuzz-${{ matrix.fn }}', path: 'internal/${{ matrix.pkg }}/testdata/fuzz', retention-days: 30 }
+
+  # Cada noche: CVE publicadas hoy en los módulos Go o en la imagen que corre en producción.
+  vulns:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule'
+    permissions: { contents: read, packages: read }
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { persist-credentials: false }
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with: { go-version-file: go.mod }
+      - name: Vulnerabilidades alcanzables en Go
+        run: |
+          mkdir -p internal/webui/dist && touch internal/webui/dist/.gitkeep
+          go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with: { registry: ghcr.io, username: '${{ github.actor }}', password: '${{ secrets.GITHUB_TOKEN }}' }
+      - name: Instalar Trivy (release verificada, con reintentos)
+        timeout-minutes: 10
+        run: bash scripts/install-trivy.sh
+      - name: Escaneo de la imagen publicada (Trivy)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          skip-setup-trivy: true
+          image-ref: '${{ env.IMAGE }}:main'
+          severity: CRITICAL,HIGH
+          exit-code: '1'
+          ignore-unfixed: true
+
   # gosec informa en la pestaña Security (Code scanning) sin bloquear: sus hallazgos se revisan a mano.
   gosec:
     runs-on: ubuntu-latest
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)
     permissions: { contents: read, security-events: write }
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -66,6 +126,7 @@ jobs:
 
   web:
     runs-on: ubuntu-latest
+    if: github.event_name != 'schedule'
     defaults: { run: { working-directory: web } }
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
