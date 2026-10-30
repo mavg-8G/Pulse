@@ -2,7 +2,7 @@
 # Pulse: imagen final ≈ 12 MB (binario estático + distroless, sin shell).
 
 # CI pasa estos valores desde .node-version y go.mod. Los defaults permiten construir localmente.
-ARG NODE_VERSION=24.22.0
+ARG NODE_VERSION=26.13.0
 ARG GO_VERSION=1.27.3
 
 # 1) Frontend (React + Vite) → internal/webui/dist

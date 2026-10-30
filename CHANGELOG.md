@@ -4,6 +4,14 @@ Cambios relevantes de Pulse. Las entradas «Sin publicar» describen cambios pos
 
 La guía de uso y desarrollo está en [`README.md`](README.md); el roadmap y las aceptaciones pendientes, en [`PLAN.md`](PLAN.md).
 
+## Sin publicar — dependencias y versiones (30 oct 2026)
+
+- Node 26.13.0 LTS en `.node-version`, Docker y las guías de desarrollo y despliegue. Go se mantiene en 1.27.3; sus dependencias directas ya están actualizadas.
+- Actualizados React Query 5.105.0, React Router 7.18.5, axe Playwright 4.14.0, fake-indexeddb 6.2.7, jsdom 30.1.3, Vite 8.3.5 y Vitest 5.0.5, junto con las dependencias transitivas compatibles del archivo de instalación.
+- CI usa Docker Login 4.7.0 y CodeQL Action 4.39.1 con commits oficiales fijados, gosec 2.30.0, Cosign 3.1.4 y Trivy 0.76.1 con SHA-256 comprobado contra el archivo descargado.
+- Compilación, 80 pruebas unitarias y 26 escenarios E2E del frontend correctos (acceso, gastos, diseño/accesibilidad, PWA y versión en escritorio y móvil); `go vet`, `actionlint` y `govulncheck` correctos. La suite Go conserva el fallo conocido de `TestLocalGuardaYRota`, que exige permisos POSIX 0600 en Windows. La imagen de Node está disponible; la construcción Docker completa queda pendiente porque Docker no está instalado en este entorno.
+- Auditoría npm: cero vulnerabilidades de producción; cuatro alertas bajas en la cadena de compilación PWA por `deepmerge`, sin versión corregida publicada. No se aplica la degradación de `vite-plugin-pwa` que propone `npm audit --force`.
+
 ## Sin publicar — parche de seguridad de Go y CI diaria (21 oct 2026)
 
 - Go 1.27.3 en los módulos, Docker y requisitos de desarrollo para corregir GO-2026-6809 en `crypto/x509`, detectada por la ejecución diaria con Go 1.27.2.
