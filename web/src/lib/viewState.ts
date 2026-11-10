@@ -17,10 +17,14 @@ function stored(view: string): URLSearchParams {
 function save(view: string, p: URLSearchParams) {
   try { sessionStorage.setItem(keyFor(view), p.toString()) } catch { /* preferencia opcional */ }
 }
-export function clearViewContext() {
+/** Descarta solo el contexto en memoria cuando todavía no se pudo verificar la sesión. */
+export function clearViewMemory() {
   sessionOwner = null
   searches.clear()
   positions.clear()
+}
+export function clearViewContext() {
+  clearViewMemory()
   try {
     Object.keys(sessionStorage).filter((k) => k.startsWith(prefix) || k === 'pulse.reportes').forEach((k) => sessionStorage.removeItem(k))
   } catch { /* almacenamiento bloqueado */ }

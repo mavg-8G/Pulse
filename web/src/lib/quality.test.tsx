@@ -1,14 +1,58 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render, screen, act, fireEvent } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
-import { clearViewContext, movementView, setViewOwner, useDebounced, useMovementView } from './viewState'
+import { clearViewContext, clearViewMemory, movementView, setViewOwner, useDebounced, useMovementView } from './viewState'
 import { ApiError, errorMessage, get, onStepUpRequired, post } from './api'
 import { fetchTransactions } from './queries'
-import { QueryClient } from '@tanstack/react-query'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { warmCache } from './offline'
+import { AuthProvider, useAuth } from './auth'
+import { readState, saveState } from './reports'
 
 afterEach(() => { cleanup(); clearViewContext(); onStepUpRequired(null); vi.unstubAllGlobals(); vi.useRealTimers() })
 describe('contexto de navegación', () => {
+  it('una verificación inicial interrumpida no borra los filtros de la misma persona', async () => {
+    const state = readState(new URLSearchParams('periodo=3&categoria=comida&cuenta=banco'), '2026-11')
+    setViewOwner('ana')
+    saveState(state)
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('navigation interrupted')))
+    const client = new QueryClient()
+    function AuthProbe() { return <output>{useAuth().state}</output> }
+    const view = render(<QueryClientProvider client={client}><AuthProvider><AuthProbe /></AuthProvider></QueryClientProvider>)
+    await screen.findByText('none')
+    view.unmount()
+    client.clear()
+    setViewOwner('ana')
+    expect(readState(new URLSearchParams(), '2026-11')).toEqual(state)
+    setViewOwner('beto')
+    expect(readState(new URLSearchParams(), '2026-11')).toMatchObject({ category: '', account: '' })
+  })
+  it('limpiar memoria descarta búsquedas privadas pero conserva preferencias hasta conocer al dueño', () => {
+    function Probe() { const v = useMovementView('2026-11'); return <input aria-label="Buscar" value={v.q} onChange={(e) => v.setQ(e.target.value)} /> }
+    setViewOwner('ana')
+    saveState(readState(new URLSearchParams('categoria=comida'), '2026-11'))
+    const first = render(<MemoryRouter><Probe /></MemoryRouter>)
+    fireEvent.change(screen.getByLabelText('Buscar'), { target: { value: 'comercio privado' } })
+    first.unmount()
+    clearViewMemory()
+    setViewOwner('ana')
+    render(<MemoryRouter><Probe /></MemoryRouter>)
+    expect(screen.getByLabelText<HTMLInputElement>('Buscar').value).toBe('')
+    expect(readState(new URLSearchParams(), '2026-11').category).toBe('comida')
+  })
+  it('una sesión confirmada como cerrada sigue borrando las preferencias anteriores', async () => {
+    setViewOwner('ana')
+    saveState(readState(new URLSearchParams('categoria=comida'), '2026-11'))
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ state: 'none' }), { status: 200 })))
+    const client = new QueryClient()
+    function AuthProbe() { return <output>{useAuth().state}</output> }
+    const view = render(<QueryClientProvider client={client}><AuthProvider><AuthProbe /></AuthProvider></QueryClientProvider>)
+    await screen.findByText('none')
+    expect(readState(new URLSearchParams(), '2026-11').category).toBe('')
+    expect(sessionStorage.getItem('pulse.view.owner')).toBeNull()
+    view.unmount()
+    client.clear()
+  })
   it('una respuesta interrumpida conserva la clasificación de fallo de red', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => ({ status: 200, text: async () => { throw new TypeError('connection lost') } })))
     await expect(get('/api/me')).rejects.toMatchObject({ status: 0, code: 'network' })

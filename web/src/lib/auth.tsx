@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { clearViewContext, setViewOwner } from './viewState'
+import { clearViewContext, clearViewMemory, setViewOwner } from './viewState'
 import { ApiError, get, onUnauthorized } from './api'
 import type { AuthState, Me } from './types'
 import { clearBrowserPush } from './push'
@@ -73,7 +73,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Solo una pestaña ya desbloqueada puede seguir offline. Nunca abrir por un id en disco.
       const uid = e instanceof ApiError && e.status === 0 && identity.current === currentUser() ? currentUser() : null
       if (uid) { setViewOwner(uid); setInfo({ state: 'offline', userId: uid, offline: true }) }
-      else { identity.current = null; qc.clear(); resetOutbox(); closeVault(); clearViewContext(); setInfo({ state: 'none', offline: e instanceof ApiError && e.status === 0 }) }
+      else {
+        identity.current = null
+        qc.clear()
+        resetOutbox()
+        closeVault()
+        // Una petición cancelada durante navegación no demuestra cierre de sesión.
+        // Se elimina la memoria, pero las preferencias siguen ligadas a su dueño;
+        // setViewOwner las borrará si la siguiente sesión es de otra persona.
+        clearViewMemory()
+        setInfo({ state: 'none', offline: e instanceof ApiError && e.status === 0 })
+      }
     }
   }, [qc])
   useEffect(() => {
