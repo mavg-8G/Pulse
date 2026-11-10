@@ -174,6 +174,10 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with: { persist-credentials: false }
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with: { node-version-file: .node-version }
+      - name: Pruebas de publicación y verificación de imagen
+        run: node --test scripts/publish-image.test.mjs
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
       - name: Versiones de construcción
         id: versions
@@ -265,22 +269,7 @@ jobs:
         if: env.PUBLISH == 'true'
         env:
           RELEASE_TAGS: ${{ steps.meta.outputs.tags }}
-        run: |
-          set -euo pipefail
-          TESTED_ID="$(docker inspect --format '{{.Id}}' pulse:ci)"
-          while IFS= read -r tag; do
-            [[ -n "$tag" ]] || continue
-            docker tag pulse:ci "$tag"
-            docker push "$tag"
-          done <<< "$RELEASE_TAGS"
-          REF="$IMAGE:${GITHUB_SHA}"
-          PINNED="$(docker inspect --format '{{index .RepoDigests 0}}' "$REF")"
-          DIGEST="${PINNED##*@}"
-          [[ "$DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]]
-          # La configuración incluye las capas y debe ser exactamente la probada.
-          REMOTE_ID="$(docker buildx imagetools inspect --raw "$IMAGE@$DIGEST" | jq -er '.config.digest')"
-          [[ "$REMOTE_ID" == "$TESTED_ID" ]]
-          echo "digest=$DIGEST" >> "$GITHUB_OUTPUT"
+        run: node scripts/publish-image.mjs
       - name: SBOM del artefacto probado
         if: env.PUBLISH == 'true'
         run: trivy image --format cyclonedx --output sbom.json pulse:ci

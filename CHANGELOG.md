@@ -6,6 +6,7 @@ La guía de uso y desarrollo está en [`README.md`](README.md); el roadmap y las
 
 ## Sin publicar — endurecimiento de seguridad (10 nov 2026)
 
+- Corregida la verificación de publicación en GHCR: compara el SHA-256 de los bytes de configuración exportados de la imagen probada con el manifiesto remoto. No presupone que `.Id` de Docker sea el hash de configuración; admite los archivos exportados por el almacén clásico y containerd/OCI. Añadidas pruebas de publicación, rechazo de sustitución y fallo cerrado antes de firma/despliegue.
 - Passkeys con verificación local obligatoria, contador actualizado de forma condicional y límites globales de trabajo de contraseñas. Límites de concurrencia, tiempo y filas para consultas financieras remotas.
 - El almacén offline ya no persiste una clave utilizable: se desbloquea con una sesión verificada y conserva la clave solo en memoria. Migración de caché/cola sin perder cambios, bloqueo por inactividad y coordinación del cierre entre pestañas. Recargar sin conexión requiere reconectar.
 - Correos siempre pendientes de revisión; se desactiva la autoconfirmación basada solo en remitente, parser o historial de aciertos.
