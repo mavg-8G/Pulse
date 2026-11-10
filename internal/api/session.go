@@ -178,7 +178,11 @@ func (s *Server) authed(states []string, fn handler) http.HandlerFunc {
 func (s *Server) full(fn handler) http.HandlerFunc { return s.authed([]string{"full"}, fn) }
 
 func (s *Server) stepUpValid(id *identity) bool {
-	return id.sess.StepUpAt != nil && s.clock.Now().Sub(*id.sess.StepUpAt) < stepUpTTL
+	if id.sess.StepUpAt == nil {
+		return false
+	}
+	age := s.clock.Now().Sub(*id.sess.StepUpAt)
+	return age >= 0 && age < stepUpTTL
 }
 
 // withStepUp exige re-autenticación reciente (passkey o TOTP en los últimos 5 min).
@@ -186,6 +190,10 @@ func (s *Server) withStepUp(fn handler) http.HandlerFunc {
 	return s.full(func(w http.ResponseWriter, r *http.Request) error {
 		if !s.stepUpValid(ident(r)) {
 			return errStepUp
+		}
+		// No ejecutar operaciones sensibles sin evidencia durable de acceso autorizado.
+		if err := s.audit(r, ident(r).user.ID, "sensitive_access", map[string]string{"route": r.Pattern}); err != nil {
+			return errf(503, "audit_unavailable", "No se pudo registrar la operación de seguridad. Inténtalo más tarde.")
 		}
 		return fn(w, r)
 	})
@@ -199,10 +207,13 @@ func (s *Server) enrollOrStepUp(fn handler) http.HandlerFunc {
 		if id.sess.State == "full" && !s.stepUpValid(id) {
 			return errStepUp
 		}
+		if err := s.audit(r, id.user.ID, "factor_enrollment_started", map[string]string{"route": r.Pattern}); err != nil {
+			return errf(503, "audit_unavailable", "No se pudo registrar la operación de seguridad. Inténtalo más tarde.")
+		}
 		return fn(w, r)
 	})
 }
 
-func (s *Server) audit(r *http.Request, userID, event string, meta map[string]string) {
-	s.store.Audit(r.Context(), userID, event, clientIP(r), truncate(r.UserAgent(), 200), meta)
+func (s *Server) audit(r *http.Request, userID, event string, meta map[string]string) error {
+	return s.store.Audit(r.Context(), userID, event, clientIP(r), truncate(r.UserAgent(), 200), meta)
 }

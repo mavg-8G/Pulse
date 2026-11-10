@@ -22,6 +22,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"syscall"
 	"text/tabwriter"
@@ -61,6 +62,8 @@ func main() {
 		err = userCmd(os.Args[2:])
 	case "genkeys":
 		err = genkeys(os.Args[2:])
+	case "rotate-keys":
+		err = rotateKeysCmd(os.Args[2:])
 	case "backup":
 		err = backupCmd(os.Args[2:])
 	case "restore":
@@ -93,6 +96,8 @@ func usage() {
   user export <email> <archivo.json>          (derecho de acceso/portabilidad)
   user delete <email> --confirmar <email>     (derecho de supresión)
   genkeys --out <directorio>
+  rotate-keys --out-db <copia.db> --out-key <llavero.json>
+                           prepara una copia con nuevas claves (no activa ni reemplaza producción)
   vapid --out <directorio>
   backup [--keep N] <archivo.db>  respaldo en caliente (VACUUM INTO)
   restore [--identity clave.txt] [--sha256 huella] <archivo.db|archivo.db.age>
@@ -127,7 +132,11 @@ func withApp(fn func(*app) error) error {
 	if err := db.Migrate(context.Background(), d); err != nil {
 		return err
 	}
-	return fn(&app{cfg: cfg, store: &store.Store{DB: d, Clock: clock.Real{}}, keys: keys})
+	st := &store.Store{DB: d, Clock: clock.Real{}}
+	if err := st.MigrateRowEncryption(context.Background(), keys); err != nil {
+		return err
+	}
+	return fn(&app{cfg: cfg, store: st, keys: keys})
 }
 
 func serve() error {
@@ -395,8 +404,12 @@ func healthcheck() error {
 	if err != nil {
 		return fmt.Errorf("PULSE_LISTEN inválido: %w", err)
 	}
-	c := &http.Client{Timeout: 3 * time.Second}
-	resp, err := c.Get("http://127.0.0.1:" + port + "/healthz")
+	n, err := strconv.Atoi(port)
+	if err != nil || n < 1 || n > 65535 {
+		return errors.New("puerto de healthcheck inválido")
+	}
+	c := &http.Client{Timeout: 3 * time.Second, Transport: &http.Transport{Proxy: nil}, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	resp, err := c.Get("http://127.0.0.1:" + strconv.Itoa(n) + "/healthz") // #nosec G704 -- IP loopback fija, puerto numérico validado, sin proxy ni redirecciones.
 	if err != nil {
 		return err
 	}
@@ -520,7 +533,7 @@ func backupService(a *app, log *slog.Logger) (*backup.Service, error) {
 }
 
 func readSecret(path string) (string, error) {
-	b, err := os.ReadFile(path)
+	b, err := os.ReadFile(path) // #nosec G703 -- Ruta de secreto configurada por el operador de la CLI; no procede de HTTP.
 	if err != nil {
 		return "", err
 	}

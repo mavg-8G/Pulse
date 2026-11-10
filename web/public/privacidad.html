@@ -197,8 +197,7 @@
         en esa caché. Para que la app funcione sin red, la última versión de Inicio, Movimientos recientes, Plan, cuentas,
         categorías y gastos fijos, y los cambios hechos sin conexión que aún no se enviaron, se guardan en IndexedDB en ese
         navegador, <strong>cifrados</strong> (AES-256-GCM) con una clave propia de tu cuenta que el navegador no permite exportar.
-        Cada persona tiene su propio almacén; todo se borra al cerrar sesión, y sin conexión solo se muestra lo guardado durante
-        7 días como máximo.
+        La clave solo permanece en memoria tras verificar la sesión con el servidor. Cada persona tiene su propio almacén; todo se borra al cerrar sesión. Una pestaña desbloqueada puede seguir sin red, pero recargar requiere conexión. Tras 15 minutos sin interacción se bloquea el acceso; los cambios pendientes se conservan cifrados.
         No hay cookies de terceros, publicidad ni analítica, por lo que no necesitamos un banner de consentimiento.</p>
 
       <h2 id="menores">9. Menores de edad</h2>

@@ -22,8 +22,9 @@ type Authenticator struct {
 	CredID       []byte
 	Count        uint32
 	// Para pruebas negativas:
-	NoUserPresence bool
-	BadOrigin      string
+	NoUserPresence     bool
+	NoUserVerification bool
+	BadOrigin          string
 }
 
 func New(rpID, origin string) *Authenticator {
@@ -99,6 +100,9 @@ func (a *Authenticator) authData(withCred bool) []byte {
 	flags := byte(0x01 | 0x04)
 	if a.NoUserPresence {
 		flags = 0x04
+	}
+	if a.NoUserVerification {
+		flags &^= 0x04
 	}
 	if withCred {
 		flags |= 0x40

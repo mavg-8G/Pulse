@@ -4,6 +4,17 @@ Cambios relevantes de Pulse. Las entradas «Sin publicar» describen cambios pos
 
 La guía de uso y desarrollo está en [`README.md`](README.md); el roadmap y las aceptaciones pendientes, en [`PLAN.md`](PLAN.md).
 
+## Sin publicar — endurecimiento de seguridad (10 nov 2026)
+
+- Passkeys con verificación local obligatoria, contador actualizado de forma condicional y límites globales de trabajo de contraseñas. Límites de concurrencia, tiempo y filas para consultas financieras remotas.
+- El almacén offline ya no persiste una clave utilizable: se desbloquea con una sesión verificada y conserva la clave solo en memoria. Migración de caché/cola sin perder cambios, bloqueo por inactividad y coordinación del cierre entre pestañas. Recargar sin conexión requiere reconectar.
+- Correos siempre pendientes de revisión; se desactiva la autoconfirmación basada solo en remitente, parser o historial de aciertos.
+- Auditoría con errores observables, contexto acotado independiente y rechazo de operaciones sensibles si no se puede registrar su acceso autorizado.
+- Cifrado v2 ligado al registro para movimientos, recurrentes y alertas; migración 0015 reanudable. El retorno a versiones anteriores requiere restaurar el respaldo previo.
+- CLI `rotate-keys` prepara una copia y llavero nuevo para rotación de envoltura/ajustes, sin sustituir automáticamente la instalación; revoca las sesiones en la copia. No se presenta como recuperación completa de una clave comprometida.
+- Gosec bloquea hallazgos altos; npm audit incluye herramientas y chequeo nocturno. glob/minimatch corregidos, imágenes base/ZAP fijadas por digest, publicación del artefacto probado y SBOM firmado. Se bloquean actualizaciones de instalaciones existentes no sanas.
+- [Resultados y alcance de verificación](docs/SEGURIDAD-CORRECCIONES.md) y [compatibilidad y pasos del VPS](deploy/HARDENING.md). La red, claves y permisos de producción no se modificaron desde esta sesión.
+
 ## Sin publicar — dependencias y versiones (30 oct 2026)
 
 - Node 26.13.0 LTS en `.node-version`, Docker y las guías de desarrollo y despliegue. Go se mantiene en 1.27.3; sus dependencias directas ya están actualizadas.

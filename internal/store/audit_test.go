@@ -1,8 +1,11 @@
 package store_test
 
 import (
+	"bytes"
 	"context"
+	"log/slog"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -10,6 +13,45 @@ import (
 	"pulse/internal/db"
 	"pulse/internal/store"
 )
+
+func TestAuditFailureIsObservableAndDoesNotLogSecrets(t *testing.T) {
+	d, err := db.Open(filepath.Join(t.TempDir(), "audit.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	d.Close()
+	var log bytes.Buffer
+	st := &store.Store{DB: d, Clock: clock.Real{}, Log: slog.New(slog.NewJSONHandler(&log, nil))}
+	before := store.AuditFailures.Load()
+	st.Audit(context.Background(), "u", "password_changed", "private-ip", "private-agent", map[string]string{"secret": "must-not-appear"})
+	if store.AuditFailures.Load() != before+1 || !strings.Contains(log.String(), "audit_write_failed") {
+		t.Fatal("fallo de auditoría invisible")
+	}
+	for _, secret := range []string{"private-ip", "private-agent", "must-not-appear"} {
+		if strings.Contains(log.String(), secret) {
+			t.Fatal("secreto en logs")
+		}
+	}
+}
+
+func TestAuditSurvivesClientCancellation(t *testing.T) {
+	d, err := db.Open(filepath.Join(t.TempDir(), "audit.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	if err := db.Migrate(context.Background(), d); err != nil {
+		t.Fatal(err)
+	}
+	st := &store.Store{DB: d, Clock: clock.Real{}}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	st.Audit(ctx, "", "cancelled_request", "", "", nil)
+	var count int
+	if err := d.QueryRow(`SELECT COUNT(*) FROM audit_log WHERE event = 'cancelled_request'`).Scan(&count); err != nil || count != 1 {
+		t.Fatal(count, err)
+	}
+}
 
 func TestRetencionAuditoria(t *testing.T) {
 	ctx := context.Background()

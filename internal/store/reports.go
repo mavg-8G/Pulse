@@ -62,9 +62,10 @@ type TemplateAlert struct {
 
 // AddTemplateAlert registra un correo no entendido; false si ese mensaje ya estaba registrado.
 func (s *Store) AddTemplateAlert(ctx context.Context, userID string, sl *crypto.Sealer, parser, subject string, msgHash []byte) (bool, error) {
+	id := auth.NewID()
 	res, err := s.DB.ExecContext(ctx, `INSERT INTO template_alerts (id, user_id, parser, subject_enc, msg_hash, created_at)
 		VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT (user_id, msg_hash) DO NOTHING`,
-		auth.NewID(), userID, parser, sl.Seal("template.subject", subject), msgHash, TS(s.Clock.Now()))
+		id, userID, parser, sl.SealRecord(id, "template.subject", subject), msgHash, TS(s.Clock.Now()))
 	if err != nil {
 		return false, err
 	}
@@ -73,7 +74,7 @@ func (s *Store) AddTemplateAlert(ctx context.Context, userID string, sl *crypto.
 }
 
 func (s *Store) TemplateAlerts(ctx context.Context, userID string, sl *crypto.Sealer, since time.Time) ([]TemplateAlert, error) {
-	rows, err := s.DB.QueryContext(ctx, `SELECT parser, subject_enc, created_at FROM template_alerts
+	rows, err := s.DB.QueryContext(ctx, `SELECT id, parser, subject_enc, created_at FROM template_alerts
 		WHERE user_id = ? AND created_at >= ? ORDER BY created_at DESC, id`, userID, TS(since))
 	if err != nil {
 		return nil, err
@@ -83,11 +84,12 @@ func (s *Store) TemplateAlerts(ctx context.Context, userID string, sl *crypto.Se
 	for rows.Next() {
 		var a TemplateAlert
 		var subj []byte
+		var id string
 		var c string
-		if err := rows.Scan(&a.Parser, &subj, &c); err != nil {
+		if err := rows.Scan(&id, &a.Parser, &subj, &c); err != nil {
 			return nil, err
 		}
-		if a.Subject, err = sl.Open("template.subject", subj); err != nil {
+		if a.Subject, err = sl.OpenRecord(id, "template.subject", subj); err != nil {
 			return nil, err
 		}
 		a.CreatedAt = ParseTS(c)
@@ -219,7 +221,7 @@ type Recurring struct {
 func (s *Store) CreateRecurring(ctx context.Context, userID string, sl *crypto.Sealer, r *Recurring) error {
 	r.Version = 1
 	_, err := s.DB.ExecContext(ctx, `INSERT INTO recurring (id, user_id, account_id, category_id, amount_cents, merchant_enc, day, next_date, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, r.ID, userID, r.AccountID, r.CategoryID, r.AmountCents, sl.Seal("recurring.merchant", r.Merchant),
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, r.ID, userID, r.AccountID, r.CategoryID, r.AmountCents, sl.SealRecord(r.ID, "recurring.merchant", r.Merchant),
 		r.Day, r.NextDate, TS(s.Clock.Now()))
 	if isFK(err) {
 		return ErrNotFound
@@ -242,7 +244,7 @@ func scanRecurring(row interface{ Scan(...any) error }, sl *crypto.Sealer) (*Rec
 	if err != nil {
 		return nil, err
 	}
-	if r.Merchant, err = sl.Open("recurring.merchant", m); err != nil {
+	if r.Merchant, err = sl.OpenRecord(r.ID, "recurring.merchant", m); err != nil {
 		return nil, err
 	}
 	return &r, nil
@@ -280,7 +282,7 @@ func (s *Store) Recurrings(ctx context.Context, userID string, sl *crypto.Sealer
 func (s *Store) UpdateRecurring(ctx context.Context, userID string, sl *crypto.Sealer, r *Recurring, expect int64, op string) error {
 	res, err := s.DB.ExecContext(ctx, `UPDATE recurring SET account_id = ?, category_id = ?, amount_cents = ?, merchant_enc = ?, day = ?, next_date = ?,
 		version = version + 1, last_op = ? WHERE id = ? AND user_id = ? AND (? = 0 OR version = ?)`,
-		r.AccountID, r.CategoryID, r.AmountCents, sl.Seal("recurring.merchant", r.Merchant), r.Day, r.NextDate, op, r.ID, userID, expect, expect)
+		r.AccountID, r.CategoryID, r.AmountCents, sl.SealRecord(r.ID, "recurring.merchant", r.Merchant), r.Day, r.NextDate, op, r.ID, userID, expect, expect)
 	if isFK(err) {
 		return ErrNotFound
 	}

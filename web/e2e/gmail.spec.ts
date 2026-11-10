@@ -1,7 +1,10 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { apiGet, expect, expectAccessible, freshCode, register, test } from './helpers'
+import { apiGet, expect as baseExpect, expectAccessible, freshCode, register, test } from './helpers'
+
+// OAuth/sync tienen plazos de servidor de hasta 25 s; esperar su resultado real.
+const expect = baseExpect.configure({ timeout: 30_000 })
 
 const DIR = process.env.PULSE_E2E_DIR || fileURLToPath(new URL('../.e2e/', import.meta.url))
 // Las mismas credenciales que acepta el Google falso (fake-google.mjs).
@@ -45,7 +48,13 @@ test('conectar Gmail con step-up, sincronizar un consumo y desconectar', async (
   await page.request.get(`${google()}/__deliver?to=${encodeURIComponent(gmailAddress)}&fixture=produbanco-promocion`)
   await page.request.get(`${google()}/__deliver?to=${encodeURIComponent(gmailAddress)}&fixture=diners-pago`)
   await page.request.get(`${google()}/__deliver?to=${encodeURIComponent(gmailAddress)}&fixture=pichincha-plantilla-nueva`)
+  const synced = page.waitForResponse((r) => r.url().endsWith('/api/gmail/sync') && r.request().method() === 'POST', { timeout: 30_000 })
+  const refreshedStatus = page.waitForResponse((r) => r.url().endsWith('/api/gmail') && r.request().method() === 'GET' && r.ok(), { timeout: 45_000 })
   await section.getByRole('button', { name: 'Sincronizar ahora' }).click()
+  const syncResponse = await synced
+  expect(syncResponse.ok()).toBeTruthy()
+  expect((await syncResponse.json()).created).toBe(1)
+  await (await refreshedStatus).finished()
   await expect(page.getByText('1 gasto nuevo. Revísalos en Movimientos. 1 correo sigue sin reconocer; consulta los pendientes abajo.')).toBeVisible()
   await expect(section.getByTestId('gmail-sync-info')).toContainText('1 importado')
   await expect(section.getByRole('list', { name: 'Correos no reconocidos' }).getByRole('listitem')).toHaveCount(1)

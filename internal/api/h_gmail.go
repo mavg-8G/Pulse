@@ -114,7 +114,7 @@ func (s *Server) gmailStatus(w http.ResponseWriter, r *http.Request) error {
 		next := c.NextSyncAt
 		out.NextSyncAt = &next
 	}
-	out.Shadow, out.Gemini, out.Imported = c.Shadow, c.Gemini, c.Imported
+	out.Shadow, out.Gemini, out.Imported = true, c.Gemini, c.Imported
 	writeJSON(w, 200, out)
 	return nil
 }
@@ -214,6 +214,9 @@ func (s *Server) gmailOptions(w http.ResponseWriter, r *http.Request) error {
 	}
 	if err := decode(w, r, &in); err != nil {
 		return err
+	}
+	if in.Shadow != nil && !*in.Shadow {
+		return badRequest("Los correos necesitan revisión manual hasta verificar su autenticidad.")
 	}
 	id := ident(r)
 	if err := s.store.SetGmailOptions(r.Context(), id.user.ID, in.Shadow, nil); err != nil {

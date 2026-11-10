@@ -14,6 +14,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -35,7 +36,8 @@ func TestLocalGuardaYRota(t *testing.T) {
 	if len(files) != 2 || !strings.HasSuffix(files[0], "pulse-20261012T000000Z-v13.db.age") {
 		t.Fatalf("debían quedar los 2 más nuevos: %v", files)
 	}
-	if st, _ := os.Stat(files[1]); st.Mode().Perm() != 0o600 {
+	// Windows representa permisos mediante ACL; los bits Unix se verifican en CI Linux.
+	if st, _ := os.Stat(files[1]); runtime.GOOS != "windows" && st.Mode().Perm() != 0o600 {
 		t.Errorf("permisos %v", st.Mode().Perm())
 	}
 	if err := l.Put(context.Background(), "../fuera.age", bytes.NewReader(nil), 0, sumOf(nil)); err == nil {

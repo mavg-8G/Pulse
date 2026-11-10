@@ -3,7 +3,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cachedGet, localInputToISO, overlayRecurring, overlayTransactions } from './offline'
 import { __reset, enqueue, flush, loadOutbox, resetOutbox, resolve, sendOrQueue, snapshot, withDay } from './outbox'
 import type { Transaction, TxPage } from './types'
-import { OFFLINE_DAYS, allRecords, closeVault, getCache, getPreference, lastUser, openVault, putCache, putPreference, rememberUser, wipeVaults } from './vault'
+import { OFFLINE_DAYS, allRecords, closeVault, getCache, getPreference, lastUser, openVault as unlockVault, putCache, putPreference, rememberUser, wipeVaults } from './vault'
+
+const secret = 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'
+const openVault = (uid: string) => unlockVault(uid, secret)
 
 type Call = { method: string; url: string; headers: Record<string, string>; body: any }
 let calls: Call[] = []
@@ -35,6 +38,52 @@ const tx = (over: Partial<Transaction> = {}): Transaction => ({
 })
 
 describe('almacén cifrado por persona', () => {
+
+  it('migra la clave antigua sin perder operaciones y rechaza claves incorrectas', async () => {
+    const uid = 'legacy'
+    const key = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt'])
+    const iv = crypto.getRandomValues(new Uint8Array(12))
+    const body = { kind: 'tx.create', label: 'pendiente', amount: 123 }
+    const data = await crypto.subtle.encrypt({ name: 'AES-GCM', iv, additionalData: new TextEncoder().encode('pulse|legacy|ops|old-op') }, key, new TextEncoder().encode(JSON.stringify(body)))
+    const r = indexedDB.open('pulse-u-' + uid, 1)
+    r.onupgradeneeded = () => {
+      r.result.createObjectStore('meta')
+      r.result.createObjectStore('cache', { keyPath: 'k' })
+      r.result.createObjectStore('ops', { keyPath: 'k' })
+    }
+    await new Promise<void>((resolve) => {
+      r.onsuccess = () => {
+        const tx = r.result.transaction(['meta', 'ops'], 'readwrite')
+        tx.objectStore('meta').put(key, 'key')
+        tx.objectStore('ops').put({ k: 'old-op', iv, data, at: Date.now() })
+        tx.oncomplete = () => { r.result.close(); resolve() }
+      }
+    })
+    expect(await unlockVault(uid)).toBe(false)
+    expect(await openVault(uid)).toBe(true)
+    expect(await allRecords()).toEqual([body])
+    closeVault()
+    expect(await unlockVault(uid, 'BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB')).toBe(false)
+    expect(await openVault(uid)).toBe(true)
+    expect(await allRecords()).toEqual([body])
+  })
+
+  it('sin la clave autenticada no reabre datos tras cerrar la memoria', async () => {
+    await putCache('/api/me', { email: 'ana@example.com' })
+    closeVault()
+    expect(await unlockVault('ana')).toBe(false)
+    expect(await getCache('/api/me')).toBeNull()
+    expect(await openVault('ana')).toBe(true)
+    expect((await getCache<{ email: string }>('/api/me'))?.value.email).toBe('ana@example.com')
+    const r = indexedDB.open('pulse-u-ana', 2)
+    const stored = await new Promise<unknown>((resolve) => {
+      r.onsuccess = () => {
+        const g = r.result.transaction('meta').objectStore('meta').get('key')
+        g.onsuccess = () => { resolve(g.result); r.result.close() }
+      }
+    })
+    expect(stored).toBeUndefined()
+  })
   it('una respuesta antigua no se guarda en el almacén de quien entró después', async () => {
     let finish!: (r: Response) => void
     respond = () => new Promise<Response>((resolve) => { finish = resolve })
@@ -80,7 +129,7 @@ describe('almacén cifrado por persona', () => {
 
     // Lo guardado no está en claro en IndexedDB.
     const raw = await new Promise<any>((ok) => {
-      const r = indexedDB.open('pulse-u-ana')
+      const r = indexedDB.open('pulse-u-ana', 2)
       r.onsuccess = () => {
         const g = r.result.transaction('cache').objectStore('cache').get('/api/me')
         g.onsuccess = () => {
@@ -95,7 +144,7 @@ describe('almacén cifrado por persona', () => {
     expect(await getCache('/api/me')).toBeNull()
     // Copiar la entrada cifrada de Ana a la base de Beto no sirve: otra clave y otros datos asociados.
     await new Promise<void>((ok) => {
-      const r = indexedDB.open('pulse-u-beto')
+      const r = indexedDB.open('pulse-u-beto', 2)
       r.onsuccess = () => {
         const t = r.result.transaction('cache', 'readwrite')
         t.objectStore('cache').put(raw)

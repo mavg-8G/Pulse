@@ -275,7 +275,7 @@ func horizon(in Input, from, to time.Time, methods []string) *HorizonResult {
 	if res.HistoryDays < HorizonMinDays || h <= 0 || lead < 1 {
 		return res
 	}
-	rng := rand.New(rand.NewPCG(20261016, uint64(h)))
+	rng := rand.New(rand.NewPCG(20261016, uint64(h))) // #nosec G404 -- Simulación estadística reproducible, no genera claves ni tokens.
 	at := func(o int) []int {
 		d := make([]int, h)
 		for j := range d {

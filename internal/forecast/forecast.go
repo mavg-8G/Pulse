@@ -634,7 +634,7 @@ func project(in Input, methods []string) *Result {
 			rest = append(rest, j)
 		}
 		known := float64(res.SpentCents + res.UpcomingCents)
-		rng := rand.New(rand.NewPCG(20261016, uint64(m.k)))
+		rng := rand.New(rand.NewPCG(20261016, uint64(m.k))) // #nosec G404 G115 -- Simulación estadística reproducible, no secretos; k es un día del mes (0..31).
 		if sims := e.simulate(res.Method, e.n, rest, float64(res.ProjectedCents)-known, horizonSims, rng); sims != nil {
 			lo, _, hi := percentiles(sims, len(rest)-1)
 			res.LowCents, res.HighCents = ptr(min(int64(math.Round(known+lo)), res.ProjectedCents)), ptr(max(int64(math.Round(known+hi)), res.ProjectedCents))

@@ -53,12 +53,15 @@ type Server struct {
 	backup  *backup.Service
 	limPush *auth.Limiter
 
-	limLogin    *auth.Limiter
-	limRegister *auth.Limiter
-	limImport   *auth.Limiter
-	limGmail    *auth.Limiter
-	limWebhook  *auth.Limiter
-	limMFA      *auth.Limiter
+	limLogin     *auth.Limiter
+	limRegister  *auth.Limiter
+	limImport    *auth.Limiter
+	limGmail     *auth.Limiter
+	limWebhook   *auth.Limiter
+	limMFA       *auth.Limiter
+	limPassword  *auth.Limiter
+	passwordWork chan struct{}
+	financeWork  chan struct{}
 
 	googleEnv *GoogleSettings
 	googleEP  gmail.Endpoints
@@ -71,19 +74,22 @@ type Server struct {
 func New(d Deps) *Server {
 	s := &Server{
 		cfg: d.Config, store: d.Store, keys: d.Keys, hasher: d.Hasher, clock: d.Clock, log: d.Log, static: d.Static,
-		push:        d.Push,
-		backup:      d.Backup,
-		limPush:     auth.NewLimiter(d.Clock, 1, 1, time.Minute),
-		rp:          passkey.RP{ID: d.Config.RPID(), Origin: d.Config.Origin(), Name: "Pulse"},
-		secure:      d.Config.BaseURL.Scheme == "https",
-		limLogin:    auth.NewLimiter(d.Clock, 10, 10, 15*time.Minute),
-		limRegister: auth.NewLimiter(d.Clock, d.Config.RegisterPerHour, d.Config.RegisterPerHour, time.Hour),
-		limImport:   auth.NewLimiter(d.Clock, 30, 30, time.Hour),
-		limGmail:    auth.NewLimiter(d.Clock, 3, 3, time.Minute),
-		limWebhook:  auth.NewLimiter(d.Clock, 120, 120, time.Minute),
-		limMFA:      auth.NewLimiter(d.Clock, 6, 6, 5*time.Minute),
-		googleEnv:   d.Google,
-		googleEP:    gmail.GoogleEndpoints(),
+		push:         d.Push,
+		backup:       d.Backup,
+		limPush:      auth.NewLimiter(d.Clock, 1, 1, time.Minute),
+		rp:           passkey.RP{ID: d.Config.RPID(), Origin: d.Config.Origin(), Name: "Pulse"},
+		secure:       d.Config.BaseURL.Scheme == "https",
+		limLogin:     auth.NewLimiter(d.Clock, 10, 10, 15*time.Minute),
+		limRegister:  auth.NewLimiter(d.Clock, d.Config.RegisterPerHour, d.Config.RegisterPerHour, time.Hour),
+		limImport:    auth.NewLimiter(d.Clock, 30, 30, time.Hour),
+		limGmail:     auth.NewLimiter(d.Clock, 3, 3, time.Minute),
+		limWebhook:   auth.NewLimiter(d.Clock, 120, 120, time.Minute),
+		limMFA:       auth.NewLimiter(d.Clock, 6, 6, 5*time.Minute),
+		limPassword:  auth.NewLimiter(d.Clock, 5, 5, 15*time.Minute),
+		passwordWork: make(chan struct{}, 2),
+		financeWork:  make(chan struct{}, 2),
+		googleEnv:    d.Google,
+		googleEP:     gmail.GoogleEndpoints(),
 	}
 	if s.log == nil {
 		s.log = slog.Default()
@@ -133,6 +139,7 @@ func (s *Server) Handler() http.Handler {
 
 	// Cuenta y seguridad
 	mux.HandleFunc("GET /api/me", s.full(s.me))
+	mux.HandleFunc("GET /api/security/vault-key", s.full(s.vaultKey))
 	mux.HandleFunc("PATCH /api/me", s.full(s.updateMe))
 	mux.HandleFunc("POST /api/me/password", s.withStepUp(s.changePassword))
 	mux.HandleFunc("GET /api/security/sessions", s.full(s.listSessions))
@@ -219,7 +226,7 @@ func (s *Server) Handler() http.Handler {
 			s.static.ServeHTTP(w, r)
 		})
 	}
-	return s.realIP(s.logRequests(s.securityHeaders(s.csrf(mux))))
+	return s.realIP(s.logRequests(s.securityHeaders(s.csrf(s.limitFinanceWork(mux)))))
 }
 
 // healthz lo consultan Docker, Uptime Kuma y deploy/smoke.sh. Falla si la base no responde
@@ -228,6 +235,10 @@ func (s *Server) healthz(w http.ResponseWriter, r *http.Request) {
 	v, err := db.Version(r.Context(), s.store.DB)
 	latest, lerr := db.Latest()
 	out := map[string]any{"status": "ok", "schema": v, "gmail": s.gm() != nil, "push": s.push != nil, "backup": "off"}
+	out["audit"] = "ok"
+	if store.AuditFailures.Load() > 0 {
+		out["audit"] = "failing"
+	}
 	// Solo el estado (off|pending|ok|stale|failing): ni destino ni fechas. Un respaldo viejo no tumba el servicio
 	// (Docker lo reiniciaría sin arreglar nada); se vigila con una palabra clave en Uptime Kuma.
 	if st, err := s.backup.Status(r.Context()); err == nil {

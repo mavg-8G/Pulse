@@ -95,6 +95,8 @@ func (s *Server) fail(w http.ResponseWriter, r *http.Request, err error) {
 		ae = versionConflict(nil)
 	case errors.Is(err, store.ErrNotFound):
 		ae = errNotFound
+	case errors.Is(err, store.ErrQueryLimit):
+		ae = errf(422, "query_limit", "Hay demasiados movimientos. Reduce el periodo o añade filtros.")
 	case errors.As(err, &ce):
 		ae = errf(409, "conflict", ce.Msg)
 	default:

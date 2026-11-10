@@ -45,7 +45,13 @@ func hotp(secret []byte, counter uint64) string {
 
 func TOTPStep(t time.Time) int64 { return t.Unix() / totpPeriod }
 
-func TOTPCode(secret []byte, t time.Time) string { return hotp(secret, uint64(TOTPStep(t))) }
+func TOTPCode(secret []byte, t time.Time) string {
+	step := TOTPStep(t)
+	if step < 0 {
+		return ""
+	}
+	return hotp(secret, uint64(step))
+}
 
 // ValidateTOTP acepta el paso actual ±1 (deriva de reloj) y solo pasos mayores a
 // lastStep, para que un código interceptado no pueda reutilizarse.
@@ -56,7 +62,7 @@ func ValidateTOTP(secret []byte, code string, now time.Time, lastStep int64) (st
 	}
 	cur := TOTPStep(now)
 	for _, s := range []int64{cur - 1, cur, cur + 1} {
-		if s <= lastStep {
+		if s < 0 || s <= lastStep {
 			continue
 		}
 		if hmac.Equal([]byte(hotp(secret, uint64(s))), []byte(code)) {

@@ -304,8 +304,8 @@ func TestGmailGeminiExigeStepUp(t *testing.T) {
 	if st := a.must(200, "GET", "/api/gmail", nil); st.Body["gemini"] != true || st.Body["gemini_available"] != true {
 		t.Fatalf("%s", st.Raw)
 	}
-	a.must(204, "PATCH", "/api/gmail", map[string]any{"shadow": false})
-	if st := a.must(200, "GET", "/api/gmail", nil); st.Body["shadow"] != false {
+	a.must(400, "PATCH", "/api/gmail", map[string]any{"shadow": false})
+	if st := a.must(200, "GET", "/api/gmail", nil); st.Body["shadow"] != true {
 		t.Fatalf("%s", st.Raw)
 	}
 	a.must(400, "PATCH", "/api/gmail", map[string]any{"otra": true})

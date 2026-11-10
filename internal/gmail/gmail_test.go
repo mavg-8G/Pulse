@@ -465,7 +465,7 @@ func TestConnectValidaPermisosYPKCE(t *testing.T) {
 	}
 }
 
-func TestModoSombraApagadoConfirmaSoloLoSeguro(t *testing.T) {
+func TestCorreoSinAutenticidadSiempreRequiereRevision(t *testing.T) {
 	e := newEnv(t)
 	u := e.user()
 	e.connect(u, "a@gmail.com")
@@ -482,10 +482,10 @@ func TestModoSombraApagadoConfirmaSoloLoSeguro(t *testing.T) {
 	e.g.Deliver("a@gmail.com", fixture(t, "produbanco-consumo")) // con regla → se confirma
 	e.g.Deliver("a@gmail.com", fixture(t, "pichincha-consumo"))  // sin regla → se revisa
 	r, err := e.s.SyncUser(ctx, u.ID)
-	if err != nil || r.Created != 2 || r.Confirmed != 1 {
+	if err != nil || r.Created != 2 || r.Confirmed != 0 {
 		t.Fatalf("%+v %v", r, err)
 	}
-	if _, pending := e.txCount(u.ID); pending != 1 {
+	if _, pending := e.txCount(u.ID); pending != 2 {
 		t.Fatalf("pendientes: %d", pending)
 	}
 }
@@ -748,7 +748,7 @@ func TestReintentarPendientesRecuperaConsumosSinDuplicar(t *testing.T) {
 	}
 }
 
-func TestBancoConfiableSeConfirmaSinRegla(t *testing.T) {
+func TestHistorialDeAciertosNoAutenticaUnCorreo(t *testing.T) {
 	e := newEnv(t)
 	u := e.user()
 	e.connect(u, "a@gmail.com")
@@ -773,7 +773,7 @@ func TestBancoConfiableSeConfirmaSinRegla(t *testing.T) {
 	e.st.SetGmailOptions(ctx, u.ID, &off, nil)
 	e.g.Deliver("a@gmail.com", fixture(t, "pichincha-consumo")) // sin regla de comercio, pero el banco es confiable
 	r, err := e.s.SyncUser(ctx, u.ID)
-	if err != nil || r.Created != 1 || r.Confirmed != 1 {
+	if err != nil || r.Created != 1 || r.Confirmed != 0 {
 		t.Fatalf("%+v %v", r, err)
 	}
 }

@@ -137,7 +137,7 @@ func (rp RP) CreationOptions(challenge, userHandle []byte, name string, exclude 
 	o.User.ID, o.User.Name, o.User.DisplayName = userHandle, name, name
 	o.PubKeyCredParams = []CredParam{{"public-key", AlgES256}, {"public-key", AlgEdDSA}, {"public-key", AlgRS256}}
 	o.AuthenticatorSelection.ResidentKey = "preferred"
-	o.AuthenticatorSelection.UserVerification = "preferred"
+	o.AuthenticatorSelection.UserVerification = "required"
 	o.ExcludeCredentials = []CredDescriptor{}
 	for _, id := range exclude {
 		o.ExcludeCredentials = append(o.ExcludeCredentials, CredDescriptor{"public-key", id})
@@ -146,7 +146,7 @@ func (rp RP) CreationOptions(challenge, userHandle []byte, name string, exclude 
 }
 
 func (rp RP) RequestOptions(challenge []byte, allow [][]byte) RequestOptions {
-	o := RequestOptions{Challenge: challenge, RPID: rp.ID, Timeout: 120000, UserVerification: "preferred", AllowCredentials: []CredDescriptor{}}
+	o := RequestOptions{Challenge: challenge, RPID: rp.ID, Timeout: 120000, UserVerification: "required", AllowCredentials: []CredDescriptor{}}
 	for _, id := range allow {
 		o.AllowCredentials = append(o.AllowCredentials, CredDescriptor{"public-key", id})
 	}
@@ -196,8 +196,8 @@ func (rp RP) parseAuthData(b []byte, wantCred bool) (*authData, error) {
 		return nil, ErrAuthData
 	}
 	ad := &authData{flags: b[32], signCount: binary.BigEndian.Uint32(b[33:37])}
-	if ad.flags&flagUP == 0 {
-		return nil, ErrAuthData // el usuario debe estar presente
+	if ad.flags&flagUP == 0 || ad.flags&flagUV == 0 {
+		return nil, ErrAuthData // presencia y verificación local (PIN/biometría) obligatorias
 	}
 	rest := b[37:]
 	if wantCred {

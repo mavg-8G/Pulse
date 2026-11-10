@@ -23,7 +23,10 @@ export function onUnauthorized(h: (() => void) | null) {
 }
 
 async function raw<T>(method: string, path: string, body?: unknown, headers: Record<string, string> = {}, signal?: AbortSignal): Promise<T> {
-  const init: RequestInit = { method, credentials: 'same-origin', headers: { ...headers }, signal }
+  // El arranque/autenticación no puede quedar esperando indefinidamente al SW o la red.
+  const timeout = AbortSignal.timeout(['/api/auth/state', '/api/me', '/api/security/vault-key'].includes(path) ? 10_000 : 30_000)
+  const requestSignal = signal ? AbortSignal.any([signal, timeout]) : timeout
+  const init: RequestInit = { method, credentials: 'same-origin', headers: { ...headers }, signal: requestSignal }
   if (body !== undefined) {
     init.body = JSON.stringify(body)
     ;(init.headers as Record<string, string>)['Content-Type'] = 'application/json'
@@ -36,7 +39,13 @@ async function raw<T>(method: string, path: string, body?: unknown, headers: Rec
     throw new ApiError(0, 'network', 'Sin conexión. Revisa tu internet e inténtalo de nuevo.')
   }
   if (res.status === 204) return undefined as T
-  const text = await res.text()
+  let text: string
+  try {
+    text = await res.text()
+  } catch {
+    if (signal?.aborted) throw new DOMException('Consulta cancelada', 'AbortError')
+    throw new ApiError(0, 'network', 'Sin conexión. Revisa tu internet e inténtalo de nuevo.')
+  }
   let data: any = undefined
   try {
     data = text ? JSON.parse(text) : undefined
@@ -73,7 +82,7 @@ export async function api<T>(method: string, path: string, body?: unknown, heade
 export async function getBlob(path: string, retried = false): Promise<Blob> {
   let res: Response
   try {
-    res = await fetch(path, { credentials: 'same-origin' })
+    res = await fetch(path, { credentials: 'same-origin', signal: AbortSignal.timeout(30_000) })
   } catch {
     throw new ApiError(0, 'network', 'Sin conexión. Revisa tu internet e inténtalo de nuevo.')
   }

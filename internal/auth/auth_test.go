@@ -3,6 +3,7 @@ package auth
 import (
 	"bytes"
 	"encoding/hex"
+	"fmt"
 	"regexp"
 	"strings"
 	"testing"
@@ -162,6 +163,23 @@ func TestLimiter(t *testing.T) {
 	}
 	if l.Allow("ip") {
 		t.Fatal("solo una ficha recuperada")
+	}
+}
+
+func TestLimiterBoundedWithoutEvictingActiveKeys(t *testing.T) {
+	c := clock.NewFake(time.Unix(0, 0))
+	l := NewLimiter(c, 1, 1, time.Minute)
+	for i := range maxBuckets {
+		if !l.Allow(fmt.Sprint(i)) {
+			t.Fatal("capacidad prematura")
+		}
+	}
+	if l.Allow("overflow") || l.Allow("0") {
+		t.Fatal("el límite se evade al saturar el mapa")
+	}
+	c.Advance(11 * time.Minute)
+	if !l.Allow("overflow") {
+		t.Fatal("no se recuperó tras expirar los buckets")
 	}
 }
 

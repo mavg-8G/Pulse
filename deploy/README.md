@@ -36,6 +36,8 @@ Antes de desplegar con este workflow, actualiza también Cosign en el VPS siguie
 
 ---
 
+Antes de esta actualización, revisar [HARDENING.md](HARDENING.md): compatibilidad de passkeys, migración del cifrado, rotación de claves y reducción de privilegios de deploy. Las instrucciones originales de abajo conservan el despliegue anterior; para instalaciones nuevas, preferir la red exclusiva y sudo restringido de esa guía.
+
 ## Primera vez
 
 ### 1. DNS

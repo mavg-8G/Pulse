@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"math"
 	"strings"
 	"sync"
 	"time"
@@ -384,17 +383,8 @@ func (s *Syncer) process(ctx context.Context, u *store.User, conn *store.GmailCo
 		if out.Parser == "gemini" {
 			res.Gemini++
 		}
-		// Modo sombra apagado: lo que el parser lee con seguridad y tiene categoría conocida
-		// se confirma solo. Lo dudoso (Gemini, sin tarjeta, categoría por defecto) sigue por revisar.
-		// También si ese banco ya demostró ≥ 98 % de aciertos en tus revisiones y la categoría salió del diccionario.
-		if !conn.Shadow && out.Transaction.Confidence != nil && math.Round(*out.Transaction.Confidence*100) >= 90 && // 0.95−0.05 no debe quedar en 0.8999…
-			(out.CategoryBy == "rule" || out.CategoryBy == "builtin" && s.trusted(ctx, u.ID, out.Parser)) {
-			if err := s.Store.ConfirmImported(ctx, u.ID, out.Transaction.ID); err != nil {
-				return err
-			}
-			out.Transaction.Status = "confirmed"
-			res.Confirmed++
-		}
+		// Parser confidence and From do not authenticate a bank. Until verified
+		// provenance is available, every imported message needs human review.
 		if s.OnImported != nil {
 			s.OnImported(ctx, u, out)
 		}

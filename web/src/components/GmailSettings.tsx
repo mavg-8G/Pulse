@@ -2,7 +2,7 @@ import { useConfirm } from './Confirm'
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { QueryFeedback } from './QueryFeedback'
-import { api, del, errorMessage, get, patch, post } from '../lib/api'
+import { api, del, errorMessage, get, post } from '../lib/api'
 import { dateTimeLabel } from '../lib/dates'
 import { financeKeys } from '../lib/queries'
 import type { GmailStatus, GmailSyncResult } from '../lib/types'
@@ -71,10 +71,6 @@ export function GmailSettings({ tz }: { tz: string }) {
       return 'Gmail desconectado'
     })
   }
-  const setShadow = (shadow: boolean) =>
-    run(async () => {
-      await patch('/api/gmail', { shadow })
-    })
   const setGemini = async (enabled: boolean) => {
     if (enabled && !(await ask({ title: '¿Activar Gemini?', body: 'Los correos del banco que Pulse no sepa leer se enviarán a Gemini (Google) sin tu nombre, emails ni números largos.', confirm: 'Activar Gemini' }))) return
     run(async () => {
@@ -137,9 +133,9 @@ export function GmailSettings({ tz }: { tz: string }) {
             <span className="grow">
               Modo sombra
               <br />
-              <span className="small faint">Todo lo que llega por correo queda “Por revisar”. Desactívalo para que se confirmen solos los gastos de comercios con regla y, con la categoría clara, los de bancos con 98 % de aciertos en tus revisiones.</span>
+              <span className="small faint">Todo lo que llega por correo queda “Por revisar”. Revisa y confirma cada gasto: el formato y el remitente visible no prueban su autenticidad.</span>
             </span>
-            <input type="checkbox" checked={s.shadow} disabled={busy} onChange={(e) => setShadow(e.target.checked)} />
+            <input type="checkbox" checked disabled aria-label="Modo sombra: revisión manual obligatoria" />
           </label>
           {s.gemini_available && (
             <label className="settings-row">

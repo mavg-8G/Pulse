@@ -36,6 +36,11 @@ type Transaction struct {
 
 var ErrDuplicate = Conflict("ese correo ya fue importado")
 
+// Avoid unbounded decryption/aggregation allocations in the 256 MB container.
+const MaxQueryTransactions = 10000
+
+var ErrQueryLimit = errors.New("demasiados movimientos para una consulta")
+
 const txCols = `id, account_id, category_id, amount_cents, currency, occurred_at, kind, merchant_enc, description_enc, notes_enc, source, status, created_at, updated_at, version, last_op`
 
 func scanTx(row interface{ Scan(...any) error }, s *crypto.Sealer) (*Transaction, error) {
@@ -50,13 +55,13 @@ func scanTx(row interface{ Scan(...any) error }, s *crypto.Sealer) (*Transaction
 		return nil, err
 	}
 	t.OccurredAt, t.CreatedAt, t.UpdatedAt = ParseTS(occ), ParseTS(c), ParseTS(u)
-	if t.Merchant, err = s.Open("tx.merchant", m); err != nil {
+	if t.Merchant, err = s.OpenRecord(t.ID, "tx.merchant", m); err != nil {
 		return nil, err
 	}
-	if t.Description, err = s.Open("tx.description", d); err != nil {
+	if t.Description, err = s.OpenRecord(t.ID, "tx.description", d); err != nil {
 		return nil, err
 	}
-	if t.Notes, err = s.Open("tx.notes", n); err != nil {
+	if t.Notes, err = s.OpenRecord(t.ID, "tx.notes", n); err != nil {
 		return nil, err
 	}
 	return &t, nil
@@ -73,7 +78,7 @@ func (s *Store) CreateTransaction(ctx context.Context, userID string, sl *crypto
 		merchant_enc, description_enc, notes_enc, source, status, message_hash, parser, confidence, created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		t.ID, userID, t.AccountID, t.CategoryID, t.AmountCents, t.Currency, TS(t.OccurredAt), t.Kind,
-		sl.Seal("tx.merchant", t.Merchant), sl.Seal("tx.description", t.Description), sl.Seal("tx.notes", t.Notes),
+		sl.SealRecord(t.ID, "tx.merchant", t.Merchant), sl.SealRecord(t.ID, "tx.description", t.Description), sl.SealRecord(t.ID, "tx.notes", t.Notes),
 		t.Source, t.Status, hash, t.Parser, t.Confidence, TS(now), TS(now))
 	if isUnique(err) {
 		return ErrDuplicate
@@ -106,7 +111,7 @@ func (s *Store) UpdateTransactionIf(ctx context.Context, userID string, sl *cryp
 		merchant_enc = ?, description_enc = ?, notes_enc = ?, status = ?, updated_at = ?, version = version + 1, last_op = ?
 		WHERE id = ? AND user_id = ? AND (? = 0 OR version = ?)`,
 		t.AccountID, t.CategoryID, t.AmountCents, t.Currency, TS(t.OccurredAt), t.Kind,
-		sl.Seal("tx.merchant", t.Merchant), sl.Seal("tx.description", t.Description), sl.Seal("tx.notes", t.Notes),
+		sl.SealRecord(t.ID, "tx.merchant", t.Merchant), sl.SealRecord(t.ID, "tx.description", t.Description), sl.SealRecord(t.ID, "tx.notes", t.Notes),
 		t.Status, TS(t.UpdatedAt), op, t.ID, userID, expect, expect)
 	if isFK(err) {
 		return ErrNotFound
@@ -156,6 +161,8 @@ type TxFilter struct {
 	Source      string
 	Kind        string
 	Limit       int // 0 = sin límite
+	// Exclusivo para exportación administrativa local; nunca se lee de HTTP.
+	TrustedUnbounded bool
 }
 
 // Transactions lista movimientos del usuario, del más reciente al más antiguo.
@@ -190,9 +197,13 @@ func (s *Store) Transactions(ctx context.Context, userID string, sl *crypto.Seal
 		}
 	}
 	q.WriteString(` ORDER BY occurred_at DESC, id DESC`)
-	if f.Limit > 0 {
+	limit := f.Limit
+	if !f.TrustedUnbounded && (limit <= 0 || limit > MaxQueryTransactions) {
+		limit = MaxQueryTransactions + 1
+	}
+	if limit > 0 {
 		q.WriteString(` LIMIT ?`)
-		args = append(args, f.Limit)
+		args = append(args, limit)
 	}
 	rows, err := s.DB.QueryContext(ctx, q.String(), args...)
 	if err != nil {
@@ -201,6 +212,9 @@ func (s *Store) Transactions(ctx context.Context, userID string, sl *crypto.Seal
 	defer rows.Close()
 	out := []Transaction{}
 	for rows.Next() {
+		if !f.TrustedUnbounded && len(out) >= MaxQueryTransactions {
+			return nil, ErrQueryLimit
+		}
 		t, err := scanTx(rows, sl)
 		if err != nil {
 			return nil, err

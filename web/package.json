@@ -3,6 +3,12 @@
   "private": true,
   "version": "0.2.0",
   "type": "module",
+  "overrides": {
+    "glob": {
+      ".": "14.0.4",
+      "minimatch": "11.0.6"
+    }
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",

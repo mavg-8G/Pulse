@@ -62,7 +62,7 @@ func exportUser(ctx context.Context, a *app, email, out string) error {
 	if x.Budgets, err = a.store.Budgets(ctx, u.ID); err != nil {
 		return err
 	}
-	if x.Transactions, err = a.store.Transactions(ctx, u.ID, sl, store.TxFilter{}); err != nil {
+	if x.Transactions, err = a.store.Transactions(ctx, u.ID, sl, store.TxFilter{TrustedUnbounded: true}); err != nil {
 		return err
 	}
 	rules, err := a.store.Rules(ctx, u.ID)
@@ -85,7 +85,7 @@ func exportUser(ctx context.Context, a *app, email, out string) error {
 	if x.Security, err = a.store.AuditFor(ctx, u.ID, 100000); err != nil {
 		return err
 	}
-	f, err := os.OpenFile(out, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	f, err := os.OpenFile(out, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600) // #nosec G703 -- Destino explícito de CLI administrativa; O_EXCL impide sobrescribir archivos.
 	if err != nil {
 		return err
 	}
@@ -93,7 +93,7 @@ func exportUser(ctx context.Context, a *app, email, out string) error {
 	enc.SetIndent("", "  ")
 	if err := enc.Encode(x); err != nil {
 		f.Close()
-		os.Remove(out)
+		os.Remove(out) // #nosec G703 -- Limpieza del archivo de exportación recién creado por esta CLI, nunca ruta de HTTP.
 		return err
 	}
 	if err := f.Close(); err != nil {

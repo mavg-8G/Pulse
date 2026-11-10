@@ -37,6 +37,10 @@ func TestRegistroYLogin(t *testing.T) {
 func TestRegistroRechaza(t *testing.T) {
 	ch := passkey.NewChallenge()
 	cases := map[string]func(a *passkeytest.Authenticator) *passkey.RegistrationResponse{
+		"sin verificación local": func(a *passkeytest.Authenticator) *passkey.RegistrationResponse {
+			a.NoUserVerification = true
+			return a.Register(ch)
+		},
 		"otro desafío": func(a *passkeytest.Authenticator) *passkey.RegistrationResponse {
 			return a.Register(passkey.NewChallenge())
 		},
@@ -94,6 +98,14 @@ func TestLoginRechaza(t *testing.T) {
 		}
 		return nil, passkey.ErrUnknown
 	}
+	t.Run("firma válida sin verificación local", func(t *testing.T) {
+		ch := passkey.NewChallenge()
+		a.NoUserVerification = true
+		defer func() { a.NoUserVerification = false }()
+		if _, _, err := rp.FinishLogin(ch, a.Login(ch), look); err != passkey.ErrAuthData {
+			t.Fatalf("se aceptó una aserción sin UV: %v", err)
+		}
+	})
 
 	t.Run("firma alterada", func(t *testing.T) {
 		ch := passkey.NewChallenge()

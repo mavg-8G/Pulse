@@ -51,7 +51,7 @@ Después, cada persona conecta su Gmail desde Ajustes. La primera sincronizació
 
 Al sincronizar o cambiar la conexión, el aviso de éxito aparece después de actualizar el estado y el contador de importados en pantalla.
 
-**Ajustes → Gmail** muestra los aciertos por banco según tus revisiones: corregir monto, día, tipo o cuenta cuenta como una corrección; cambiar la categoría o el comercio no. Con el modo sombra apagado, también se pueden confirmar automáticamente gastos con categoría del diccionario cuando el banco alcanza al menos **20 revisiones y 98 % de aciertos**, siempre que la lectura tenga suficiente confianza. Revisa los resultados reales antes de desactivar el modo sombra.
+**Ajustes → Gmail** muestra los aciertos por banco según tus revisiones: corregir monto, día, tipo o cuenta cuenta como una corrección; cambiar la categoría o el comercio no. Todos los correos requieren confirmación manual, incluso con un parser preciso: su formato y remitente visible no prueban su autenticidad.
 
 Si un correo bancario no se reconoce, Pulse registra su asunto cifrado y una huella, sin guardar el cuerpo. Los avisos de los últimos 30 días aparecen en Ajustes → Gmail y se notifica por push a los administradores, como máximo una vez por banco y día.
 
@@ -111,7 +111,7 @@ Para crear un gasto fijo, abre **Nuevo gasto** y marca **Repetir cada mes este d
 
 Después de entrar con conexión, Pulse guarda en el navegador lo último de Inicio, Movimientos recientes y Plan, además de cuentas, categorías y gastos fijos. Sin red puedes verlo, y también crear, editar o borrar gastos, confirmar los de **Por revisar** y crear, cambiar o quitar gastos fijos. La cabecera muestra cuántos cambios faltan por enviar; se envían solos al volver la conexión (y cada 30 s mientras quede alguno), o con **Reintentar ahora**.
 
-- **Cifrado y aislamiento**: todo se guarda en IndexedDB cifrado con AES-256-GCM, con una clave no exportable propia de cada cuenta y en una base separada por persona. Sin conexión solo se abre lo de la última persona que entró en ese navegador, durante 7 días como máximo. Al cerrar sesión se borra todo (si quedan cambios sin enviar, la app avisa antes), y sin red no se puede cerrar sesión, para no dejarla abierta en el servidor.
+- **Cifrado y aislamiento**: todo se guarda en IndexedDB cifrado con AES-256-GCM, con una clave no exportable propia de cada cuenta y en una base separada por persona. La clave solo permanece en memoria tras verificar una sesión completa. Una pestaña ya desbloqueada puede seguir sin red; recargar exige reconectar para desbloquear. Tras 15 minutos sin interacción se bloquea el acceso local; la cola permanece cifrada. Al cerrar sesión se borra todo (si quedan cambios sin enviar, la app avisa antes), y sin red no se puede cerrar sesión, para no dejarla abierta en el servidor.
 - **Sin duplicados**: cada cambio lleva su propio `Idempotency-Key`; reenviarlo tras perder la respuesta no lo aplica dos veces. Varios cambios del mismo registro se combinan en uno.
 - **Conflictos**: las ediciones y los borrados llevan la versión que se vio (`If-Match`). Si el registro cambió en otro dispositivo, la app pregunta si usar tu versión o conservar la del servidor; si lo borraron allí, puedes volver a crearlo con tus cambios o descartarlos.
 - La caché del service worker sigue sin guardar respuestas de la API. Si el servidor rechaza un cambio de forma definitiva (datos inválidos), la app avisa y lo descarta.
@@ -260,7 +260,7 @@ Para instalar Chromium antes de las pruebas E2E: `cd web && npx playwright insta
 
 ## Despliegue
 
-Ver [`deploy/README.md`](deploy/README.md). Un push a `main` ejecuta las pruebas, construye y firma la imagen en GHCR y activa el despliegue del entorno `production`, sujeto a sus controles de GitHub. El servidor escucha por defecto en el puerto 8080.
+Ver [`deploy/README.md`](deploy/README.md) y los [pasos de endurecimiento y compatibilidad](deploy/HARDENING.md). Un push a `main` ejecuta las pruebas, construye y firma la imagen en GHCR y activa el despliegue del entorno `production`, sujeto a sus controles de GitHub. El servidor escucha por defecto en el puerto 8080.
 
 ### Comprobar la actualización del VPS
 

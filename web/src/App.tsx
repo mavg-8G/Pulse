@@ -42,10 +42,17 @@ function Authenticated() {
 }
 
 export function App() {
-  const { state, userId } = useAuth()
+  const { state, userId, offline, refresh } = useAuth()
   if (state === 'loading') return <p className="loading">Cargando…</p>
   if (state === 'mfa') return <VerifyPage />
   if (state === 'enroll') return <EnrollPage />
+  if (state === 'none' && offline) return (
+    <main className="loading">
+      <h1>Conéctate para desbloquear Pulse</h1>
+      <p>Necesitamos verificar tu sesión. Los cambios pendientes siguen cifrados en este dispositivo.</p>
+      <button className="btn" onClick={() => refresh()}>Reintentar conexión</button>
+    </main>
+  )
   if (state === 'none')
     return (
       <Routes>

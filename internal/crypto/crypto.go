@@ -3,8 +3,8 @@
 //	KEK (clave maestra, Docker secret) ──HKDF──► clave de envoltura ──AES-GCM──► DEK por usuario
 //	DEK por usuario ──AES-GCM──► campos sensibles (comercio, notas, secreto TOTP…)
 //
-// Cada texto cifrado lleva como dato asociado el id del usuario y el nombre del campo,
-// así que no puede copiarse a otra fila, a otro campo ni a otro usuario sin que falle.
+// Cada texto cifrado autentica usuario y campo. SealRecord añade el identificador
+// de fila para los movimientos, gastos recurrentes y alertas de plantillas.
 package crypto
 
 import (
@@ -15,6 +15,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -84,6 +85,9 @@ func LoadKEKFile(path string) (*Keyring, error) {
 	b, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("leyendo la KEK: %w", err)
+	}
+	if strings.HasPrefix(strings.TrimSpace(string(b)), "{") {
+		return loadBundle(b)
 	}
 	kek, err := base64.StdEncoding.DecodeString(strings.TrimSpace(string(b)))
 	if err != nil {
@@ -166,6 +170,54 @@ type Sealer struct {
 }
 
 func (s *Sealer) aad(field string) []byte { return []byte(s.userID + "|" + field) }
+
+// Record ciphertexts use a distinct format and never fall back to the old AAD.
+// A JSON tuple keeps boundaries unambiguous even for arbitrary identifiers.
+func (s *Sealer) recordAAD(id, field string) []byte {
+	b, _ := json.Marshal([]string{"pulse/record/v2", s.userID, id, field})
+	return b
+}
+
+func (s *Sealer) SealRecord(id, field, plaintext string) []byte {
+	if plaintext == "" {
+		return nil
+	}
+	b := seal(s.g, []byte(plaintext), s.recordAAD(id, field))
+	b[0] = 2
+	return b
+}
+
+func (s *Sealer) OpenRecord(id, field string, blob []byte) (string, error) {
+	if len(blob) == 0 {
+		return "", nil
+	}
+	if blob[0] != 2 {
+		return "", ErrDecrypt
+	}
+	b := append([]byte(nil), blob...)
+	b[0] = version
+	pt, err := open(s.g, b, s.recordAAD(id, field))
+	if err != nil {
+		return "", err
+	}
+	return string(pt), nil
+}
+
+// RebindRecord is only used by the startup data migration, never by normal reads.
+func (s *Sealer) RebindRecord(id, field string, blob []byte) ([]byte, error) {
+	if len(blob) == 0 {
+		return nil, nil
+	}
+	if blob[0] == 2 {
+		_, err := s.OpenRecord(id, field, blob)
+		return blob, err
+	}
+	pt, err := s.Open(field, blob)
+	if err != nil {
+		return nil, err
+	}
+	return s.SealRecord(id, field, pt), nil
+}
 
 // Seal cifra un texto. Un texto vacío se guarda como NULL (nil).
 func (s *Sealer) Seal(field, plaintext string) []byte {

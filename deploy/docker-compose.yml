@@ -73,3 +73,5 @@ secrets:
 networks:
   proxy:
     external: true
+    # Permite migrar a una red exclusiva con Caddy sin romper instalaciones existentes.
+    name: ${PULSE_PROXY_NETWORK:-proxy}

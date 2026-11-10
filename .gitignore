@@ -93,3 +93,7 @@ desktop.ini
 .vscode/
 *.swp
 *.log
+
+# Llavero de rotación generado por la CLI
+llavero*.json
+*keyring*.json

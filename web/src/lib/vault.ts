@@ -6,7 +6,8 @@
 // pendientes de enviar) va cifrado y autenticado con datos asociados que lo atan a esa persona y a esa entrada,
 // así que una entrada copiada a otra base o a otra clave no se descifra. Al cerrar sesión se borra todo.
 //
-// Sin conexión, la app vuelve a abrir el almacén de la última persona que entró, solo durante OFFLINE_DAYS.
+// La clave se obtiene del servidor tras autenticar y permanece solo en memoria.
+// Una recarga sin conexión no desbloquea datos; los cambios pendientes se conservan cifrados.
 
 const LAST_USER = 'pulse-last-user'
 const PREFIX = 'pulse-u-'
@@ -69,51 +70,103 @@ export function currentUser(): string | null {
 }
 
 async function openDB(uid: string): Promise<IDBDatabase> {
-  const r = indexedDB.open(PREFIX + uid, 1)
+  const r = indexedDB.open(PREFIX + uid, 2)
   r.onupgradeneeded = () => {
     const db = r.result
-    db.createObjectStore('meta')
-    db.createObjectStore('cache', { keyPath: 'k' })
-    db.createObjectStore('ops', { keyPath: 'k' })
+    if (!db.objectStoreNames.contains('meta')) db.createObjectStore('meta')
+    if (!db.objectStoreNames.contains('cache')) db.createObjectStore('cache', { keyPath: 'k' })
+    if (!db.objectStoreNames.contains('ops')) db.createObjectStore('ops', { keyPath: 'k' })
   }
   const db = await req(r)
   db.onversionchange = () => {
     db.close() // otra pestaña está borrando la base (cierre de sesión): se suelta
-    if (vault?.db === db) vault = null
+    if (vault?.db === db) {
+      closeVault()
+      window.dispatchEvent(new Event('pulse-vault-lock'))
+    }
   }
   return db
 }
 
-/** Abre (o crea) el almacén de esta persona. Cierra el de cualquier otra. */
-export async function openVault(uid: string): Promise<boolean> {
+let generation = 0
+
+/** Solo llamar con la clave entregada por una sesión completa del servidor. */
+export async function openVault(uid: string, secret?: string): Promise<boolean> {
   if (!supported() || !ID_RE.test(uid)) return false
   if (vault?.uid === uid) return true
+  if (!secret || !/^[A-Za-z0-9_-]{43}$/.test(secret)) return false
   closeVault()
-  opening = (async () => {
+  const epoch = generation
+  const pending = (async (): Promise<Vault | null> => {
+    const raw = Uint8Array.from(atob(secret.replace(/-/g, '+').replace(/_/g, '/') + '='), (c) => c.charCodeAt(0))
+    const key = await crypto.subtle.importKey('raw', raw, 'AES-GCM', false, ['encrypt', 'decrypt'])
+    raw.fill(0)
     const db = await openDB(uid)
-    const tx = db.transaction('meta', 'readwrite')
-    let key = (await req(tx.objectStore('meta').get('key'))) as CryptoKey | undefined
-    await done(tx).catch(() => {})
-    if (!key) {
-      key = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt'])
-      const w = db.transaction('meta', 'readwrite')
-      w.objectStore('meta').put(key, 'key')
-      await done(w)
-    }
-    return { uid, db, key }
+    try {
+      const v = { uid, db, key }
+      // Migrar el formato antiguo sin borrar caché, preferencias ni operaciones pendientes.
+      const read = db.transaction(['meta', 'cache', 'ops'])
+      const complete = done(read)
+      const [format, legacy, metaKeys, meta, cache, ops] = await Promise.all([
+        req(read.objectStore('meta').get('format')),
+        req(read.objectStore('meta').get('key')) as Promise<CryptoKey | undefined>,
+        req(read.objectStore('meta').getAllKeys()), req(read.objectStore('meta').getAll()),
+        req(read.objectStore('cache').getAll()) as Promise<Sealed[]>,
+        req(read.objectStore('ops').getAll()) as Promise<Sealed[]>,
+      ])
+      await complete
+      if (format === 'server-v2') {
+        const check = meta[metaKeys.indexOf('keycheck')] as Sealed | undefined
+        if (!check || await open<string>(v, 'meta', check) !== 'pulse-v2') throw new Error('Clave local incorrecta.')
+      }
+      if (format !== 'server-v2') {
+        const writes: { store: string; key?: IDBValidKey; sealed: Sealed }[] = []
+        const migrate = async (store: string, old: Sealed, metaKey?: IDBValidKey) => {
+          if (!legacy) throw new Error('No se puede recuperar la clave local anterior.')
+          const value = await open<unknown>({ uid, db, key: legacy }, store, old)
+          if (value === null) throw new Error('No se pueden descifrar los cambios locales anteriores.')
+          writes.push({ store, key: metaKey, sealed: await seal(v, store, old.k, value) })
+        }
+        for (const old of cache) await migrate('cache', old)
+        for (const old of ops) await migrate('ops', old)
+        for (let i = 0; i < metaKeys.length; i++) {
+          if (typeof metaKeys[i] === 'string' && String(metaKeys[i]).startsWith('preference:')) await migrate('meta', meta[i] as Sealed, metaKeys[i])
+        }
+        const check = await seal(v, 'meta', 'keycheck', 'pulse-v2')
+        const tx = db.transaction(['meta', 'cache', 'ops'], 'readwrite')
+        const finished = done(tx)
+        // Otra pestaña pudo completar la misma migración mientras hacíamos el cifrado.
+        if (await req(tx.objectStore('meta').get('format')) !== 'server-v2') {
+          for (const w of writes) {
+            if (w.store === 'meta') tx.objectStore('meta').put(w.sealed, w.key)
+            else tx.objectStore(w.store).put(w.sealed)
+          }
+          tx.objectStore('meta').put('server-v2', 'format')
+          tx.objectStore('meta').put(check, 'keycheck')
+          tx.objectStore('meta').delete('key')
+        }
+        await finished
+      }
+      if (epoch !== generation) { db.close(); return null }
+      return v
+    } catch (e) { db.close(); throw e }
   })()
+  opening = pending
   try {
-    vault = await opening
-    return true
+    const v = await pending
+    if (epoch !== generation) { v?.db.close(); return false }
+    vault = v
+    return !!v
   } catch {
-    vault = null
+    if (epoch === generation) vault = null
     return false
   } finally {
-    opening = null
+    if (opening === pending) opening = null
   }
 }
 
 export function closeVault() {
+  generation++
   vault?.db.close()
   vault = null
 }
@@ -224,7 +277,7 @@ export async function wipeVaults(): Promise<void> {
   if (typeof indexedDB === 'undefined') return
   const names: string[] = []
   if ('databases' in indexedDB) {
-    for (const d of await indexedDB.databases()) if (d.name) names.push(d.name)
+    for (const d of await indexedDB.databases()) if (d.name?.startsWith(PREFIX)) names.push(d.name)
   }
   await Promise.all(
     names.map(

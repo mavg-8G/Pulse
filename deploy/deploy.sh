@@ -34,7 +34,7 @@ flock -n 9 || die "ya hay un despliegue en curso"
 read -r -a ARGS <<<"${SSH_ORIGINAL_COMMAND:-$*}"
 ACTION="${ARGS[0]:-}"
 
-compose() { docker compose --env-file "$DIR/release.env" "$@"; }
+compose() { docker compose --env-file "$DIR/.env" --env-file "$DIR/release.env" "$@"; }
 current_image() { sed -n 's/^PULSE_IMAGE=//p' "$DIR/release.env" 2>/dev/null || true; }
 health() { docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' pulse 2>/dev/null || echo ausente; }
 
@@ -56,6 +56,9 @@ COMMIT="${ARGS[2]:-}"
   die "uso: deploy sha256:<64 hex> <commit de 40 hex>"
 NEW="$REPO_IMAGE@$DIGEST"
 PREV="$(current_image)"
+if [[ -n "$PREV" || -f "$DIR/data/pulse.db" ]] && [[ "$(health)" != healthy ]]; then
+  die "la instalación existente no está sana: diagnostica y verifica un respaldo antes de actualizar"
+fi
 [[ "$NEW" == "$PREV" && "$(health)" == healthy ]] && { log "= ${COMMIT:0:7} ya está desplegado"; exit 0; }
 
 log "→ desplegando ${COMMIT:0:7} ($DIGEST)"

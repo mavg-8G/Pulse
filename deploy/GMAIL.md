@@ -12,7 +12,7 @@ Sin Gmail también puedes subir un correo `.eml` desde **Movimientos → Importa
 - El correo se procesa en memoria y se descarta. Solo queda el HMAC del id del mensaje (para no repetirlo) y el gasto, con el comercio cifrado.
 - El email de la cuenta y el refresh token se guardan cifrados con la clave de cada usuario.
 - Una cuenta de Gmail solo puede estar conectada a un usuario de Pulse.
-- **Modo sombra** (activado por defecto): todo lo importado queda “Por revisar”. Si lo apagas, solo se confirman solos los gastos que el parser leyó con seguridad **y** cuyo comercio tiene una regla tuya (“usar siempre esta categoría”).
+- **Revisión manual obligatoria**: todo lo importado queda “Por revisar”. El formato del mensaje y el remitente visible no acreditan su autenticidad; el modo sombra ya no se puede desactivar.
 - **Gemini** (opcional, desactivado): solo para correos de un banco soportado con una plantilla que Pulse no reconoce. Se activa por usuario con step-up. Antes de enviar se quitan el nombre del titular (también del asunto), los emails y las secuencias de 6+ dígitos. Lo que lee Gemini se valida igual que un parser (monto, fecha cercana a la del correo) y siempre queda por revisar.
 - Desconectar detiene el aviso de Pub/Sub, revoca el token en Google y borra la conexión. Los gastos ya importados se quedan.
 

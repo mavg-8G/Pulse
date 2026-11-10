@@ -80,11 +80,15 @@ func (d *cborDecoder) value(depth int) (any, error) {
 		}
 		return -1 - int64(arg), nil
 	case 2, 3:
-		if arg > uint64(len(d.b)-d.i) {
+		if arg > math.MaxInt || d.i < 0 || d.i > len(d.b) {
 			return nil, errCBOR
 		}
-		s := d.b[d.i : d.i+int(arg)]
-		d.i += int(arg)
+		n := int(arg)
+		if n > len(d.b)-d.i {
+			return nil, errCBOR
+		}
+		s := d.b[d.i : d.i+n]
+		d.i += n
 		if major == 2 {
 			return append([]byte(nil), s...), nil
 		}

@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -47,6 +48,7 @@ func parseNullTS(s sql.NullString) *time.Time {
 type Store struct {
 	DB    *sql.DB
 	Clock clock.Clock
+	Log   *slog.Logger
 }
 
 func (s *Store) now() string { return TS(s.Clock.Now()) }

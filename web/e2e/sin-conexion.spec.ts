@@ -29,6 +29,27 @@ async function seed(page: Page) {
 
 const month = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Guayaquil', year: 'numeric', month: '2-digit' }).format(new Date())
 
+test('recargar sin red bloquea los datos y conserva la cola cifrada', async ({ page, context }) => {
+  await register(page)
+  await seed(page)
+  await page.goto('/movimientos')
+  await expect(page.getByText('Supermaxi')).toBeVisible()
+  await controlled(page)
+  await offline(context)
+  await page.getByText('Supermaxi').click()
+  const edit = page.getByRole('dialog', { name: 'Editar gasto' })
+  await edit.getByLabel('Monto').fill('12')
+  await edit.getByRole('button', { name: 'Guardar cambios' }).click()
+  await expect(page.getByText('Pendiente de enviar').first()).toBeVisible()
+  await page.reload()
+  await expect(page.getByRole('heading', { name: 'Conéctate para desbloquear Pulse' })).toBeVisible()
+  await expect(page.getByText('Supermaxi')).toHaveCount(0)
+  await online(context)
+  // La vuelta de red verifica la sesión automáticamente; el botón puede desaparecer.
+  await expect(page.getByText('Supermaxi')).toBeVisible()
+  await expect(page.getByText('Pendiente de enviar')).toHaveCount(0)
+})
+
 test('sin conexión: muestra lo último guardado, edita, borra y crea; al reconectar llega una sola vez', async ({ page, context }) => {
   await register(page)
   const { a, b } = await seed(page)
@@ -44,7 +65,7 @@ test('sin conexión: muestra lo último guardado, edita, borra y crea; al recone
   })
 
   await offline(context)
-  await page.goto('/movimientos') // página nueva sin red: la sirve el service worker con datos del almacén cifrado
+  // La pestaña ya desbloqueada conserva acceso offline sin hacer una recarga.
   await expect(page.getByText('Supermaxi')).toBeVisible()
   await expect(page.getByTestId('sync-status')).toHaveText(/Sin conexión/)
   await expectAccessible(page, 'Movimientos sin conexión')

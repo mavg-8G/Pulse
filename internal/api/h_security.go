@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/base64"
 	"net/http"
 	"time"
 
@@ -45,6 +46,13 @@ func (s *Server) updateMe(w http.ResponseWriter, r *http.Request) error {
 
 func (s *Server) changePassword(w http.ResponseWriter, r *http.Request) error {
 	id := ident(r)
+	if !s.limPassword.Allow(id.user.ID) {
+		return errRateLimited
+	}
+	if !s.acquirePasswordWork() {
+		return errRateLimited
+	}
+	defer s.releasePasswordWork()
 	var in struct {
 		Current string `json:"current_password"`
 		New     string `json:"new_password"`
@@ -72,6 +80,14 @@ func (s *Server) changePassword(w http.ResponseWriter, r *http.Request) error {
 	}
 	s.audit(r, id.user.ID, "password_changed", nil)
 	w.WriteHeader(204)
+	return nil
+}
+
+// La clave que protege el almacén local solo se entrega tras verificar una sesión completa.
+// El navegador la conserva en memoria; nunca en IndexedDB/localStorage.
+func (s *Server) vaultKey(w http.ResponseWriter, r *http.Request) error {
+	id := ident(r)
+	writeJSON(w, 200, map[string]string{"key": base64.RawURLEncoding.EncodeToString(s.keys.Lookup("offline-vault", []byte(id.user.ID)))})
 	return nil
 }
 

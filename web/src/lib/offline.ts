@@ -53,6 +53,7 @@ export async function cachedGet<T>(path: string, signal?: AbortSignal, load = ()
     if (owner !== currentUser()) throw new DOMException('La sesión cambió', 'AbortError')
     if (e instanceof ApiError && e.status === 0 && cacheable(path)) {
       const c = await getCache<T>(path).catch(() => null)
+      if (owner !== currentUser()) throw new DOMException('La sesión cambió', 'AbortError')
       if (c) {
         setNet({ offline: true, cachedAt: Math.min(c.at, net.cachedAt ?? c.at) })
         return c.value

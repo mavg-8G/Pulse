@@ -84,8 +84,9 @@ func (s *Store) Passkeys(ctx context.Context, userID string) ([]Passkey, error) 
 }
 
 func (s *Store) UpdatePasskeyCounter(ctx context.Context, userID string, credID []byte, count uint32) error {
-	return affected(s.DB.ExecContext(ctx, `UPDATE webauthn_credentials SET sign_count = ?, last_used_at = ? WHERE user_id = ? AND credential_id = ?`,
-		count, s.now(), userID, credID))
+	return affected(s.DB.ExecContext(ctx, `UPDATE webauthn_credentials SET sign_count = ?, last_used_at = ? WHERE user_id = ? AND credential_id = ?
+		AND ((sign_count = 0 AND ? = 0) OR sign_count < ?)`,
+		count, s.now(), userID, credID, count, count))
 }
 
 func (s *Store) DeletePasskey(ctx context.Context, userID, id string) error {

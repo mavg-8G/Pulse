@@ -16,6 +16,82 @@ func ring(t testing.TB) *Keyring {
 	return k
 }
 
+func TestRecordBindingAndLegacyMigration(t *testing.T) {
+	k := ring(t)
+	s, _ := k.Sealer("ana", k.NewDEK("ana"))
+	b := s.SealRecord("tx-1", "tx.notes", "privado")
+	if got, err := s.OpenRecord("tx-1", "tx.notes", b); err != nil || got != "privado" {
+		t.Fatal(got, err)
+	}
+	for _, target := range [][2]string{{"tx-2", "tx.notes"}, {"tx-1", "tx.merchant"}} {
+		if _, err := s.OpenRecord(target[0], target[1], b); err == nil {
+			t.Fatal("copia entre registros aceptada")
+		}
+	}
+	old := s.Seal("tx.notes", "anterior")
+	if _, err := s.OpenRecord("tx-1", "tx.notes", old); err == nil {
+		t.Fatal("lectura aceptó formato antiguo")
+	}
+	bound, err := s.RebindRecord("tx-1", "tx.notes", old)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, err := s.OpenRecord("tx-1", "tx.notes", bound); err != nil || got != "anterior" {
+		t.Fatal(got, err)
+	}
+	if again, err := s.RebindRecord("tx-1", "tx.notes", bound); err != nil || !bytes.Equal(again, bound) {
+		t.Fatal("migración no idempotente", err)
+	}
+	bound[0] = 1
+	if _, err := s.Open("tx.notes", bound); err == nil {
+		t.Fatal("downgrade de versión aceptado")
+	}
+}
+
+func TestRotatedBundlePreservesIndexesButChangesWrapping(t *testing.T) {
+	k := ring(t)
+	oldDEK := k.NewDEK("ana")
+	sl, _ := k.Sealer("ana", oldDEK)
+	ct := sl.SealRecord("t1", "tx.notes", "secreto")
+	next, raw, err := k.RotateBundle()
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(t.TempDir(), "keys.json")
+	if err := os.WriteFile(path, raw, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	next, err = LoadKEKFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wrapped, err := k.RewrapDEK("ana", oldDEK, next)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := k.Sealer("ana", wrapped); err == nil {
+		t.Fatal("la clave antigua abre el nuevo sobre")
+	}
+	if _, err := next.Sealer("ana", oldDEK); err == nil {
+		t.Fatal("la nueva abre el sobre antiguo")
+	}
+	nsl, err := next.Sealer("ana", wrapped)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, err := nsl.OpenRecord("t1", "tx.notes", ct); err != nil || got != "secreto" {
+		t.Fatal(got, err)
+	}
+	if !bytes.Equal(k.Lookup("session", []byte("t")), next.Lookup("session", []byte("t"))) || !bytes.Equal(k.Pepper("pw"), next.Pepper("pw")) {
+		t.Fatal("rotación rompió índices o contraseñas")
+	}
+	for _, bad := range []string{`{}`, `{"version":2,"id":"x"}`, string(raw) + `{}`} {
+		if _, err := loadBundle([]byte(bad)); err == nil {
+			t.Fatal("llavero inválido aceptado")
+		}
+	}
+}
+
 func TestIdaYVuelta(t *testing.T) {
 	k := ring(t)
 	w := k.NewDEK("u1")

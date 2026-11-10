@@ -1,0 +1,41 @@
+# Correcciones de seguridad — 10 de noviembre de 2026
+
+Implementación sobre la revisión de [SEGURIDAD-PLAN.md](SEGURIDAD-PLAN.md). No se ha desplegado en producción ni se han cambiado claves reales, políticas del proveedor o permisos de GitHub.
+
+## Cambios por hallazgo
+
+| Hallazgo | Corrección en el repositorio | Alcance pendiente |
+|---|---|---|
+| S01 — WebAuthn | UV obligatorio en opciones y validación del servidor, rechazo de aserciones firmadas sin UV y contador con actualización condicional atómica. | Comprobar compatibilidad de llaves existentes; conservar TOTP/recuperación antes de desplegar. |
+| S02 — offline | Clave entregada solo a una sesión completa, importada como no exportable y retenida solo en memoria. Migración transaccional del almacén antiguo sin perder cola/preferencias. Recarga offline bloqueada, estado offline distinto de full, bloqueo de memoria por inactividad y coordinación entre pestañas al cerrar sesión. Respuestas de autenticación antiguas no reabren un almacén ya bloqueado. | No protege frente a scripts maliciosos ejecutados en el mismo origen ni frente a acceso a una sesión válida en línea; la recarga valida la cookie vigente con el servidor. El uso offline tras reiniciar requiere conexión. |
+| S03 — correo | Se elimina la autoconfirmación por parser/regla/historial; el API rechaza desactivar revisión y la UI lo explica. .eml y Gmail siempre quedan pendientes. | No se declara autenticidad bancaria. Implementar procedencia verificable antes de reconsiderar autoconfirmación. |
+| S04 — CI | Gosec de alto impacto y confianza media/alta bloquea el camino de publicación. npm audit incluye build y ejecución nocturna. Se corrigieron glob/minimatch y se fijó ZAP por digest. | ZAP baseline sigue público: DAST autenticado y pentest independiente requieren staging y configuración operativa. |
+| S05 — auditoría | Error retornado, log sin datos secretos, contador y estado en healthz. Escritura con contexto propio acotado. Operaciones con step-up y altas de factores no se ejecutan si falla el registro durable previo de acceso. | El evento de acceso previo no hace atómico el resultado de todos los cambios. Enviar evidencia a un destino independiente y configurar alertas. |
+| S06 — cifrado | Formato v2 con AAD usuario+registro+campo para movimientos, recurrentes y alertas. Lecturas normales no aceptan formato antiguo ni fallback. Migración de arranque en lotes reanudables y esquema 0015 como frontera de compatibilidad. | Otros campos cifrados mantienen su contexto actual. Un atacante con escritura de BD todavía puede alterar datos en claro o borrar valores; no se promete integridad completa de la BD. |
+| S07 — claves | Llavero v2 identificado y separado por propósitos. `rotate-keys` prepara otra base y llavero, reenvuelve DEK, vuelve a cifrar ajustes y revoca sesiones sin sustituir el origen. Se prueba lectura con la nueva clave y rechazo de la antigua. | Es rotación de mantenimiento de envoltura/ajustes. Conserva lookup y pepper; no es remediación completa de compromiso. Activación conjunta en mantenimiento, KMS y custodia externa quedan operativos. |
+| S08 — abuso | Máximo de buckets; rechazo cerrado sin expulsar claves activas. Límite de cambios de contraseña, dos trabajos de hash y dos lecturas/importaciones costosas simultáneas; plazo de 25 s y 10.000 movimientos por consulta remota. Exportación administrativa local conserva lectura completa. | Validar carga con el volumen real y reforzar límites en el borde según el VPS. |
+| S09 — infraestructura | Compose admite red exclusiva; el script carga la configuración para interpolarla. Guía concreta para Caddy/IP confiable y reemplazar pertenencia de deploy al grupo Docker por sudo de comando fijo. | Aplicar y comprobar en VPS; no se cambió la red efectiva ni la cuenta remota. |
+| S10 — suministro | Digests de Node, Go, distroless y ZAP comprobados en registros oficiales. Docker comprueba versiones. Publicación del artefacto probado sin segundo build, validación de su configuración remota y SBOM firmado con cosign. | Ejecutar construcción/publicación en CI con Docker y comprobar controles reales de main/production. |
+| S11 — despliegue | Una instalación existente no sana se rechaza antes de cambiar release o migrar datos; respaldo previo y rollback existentes se conservan. Documentado que revertir cifrado exige restaurar base y clave. | Ensayar recuperación externa real y configurar inmutabilidad, retención y RPO/RTO. |
+
+## Compatibilidad y operación
+
+Leer [deploy/HARDENING.md](../deploy/HARDENING.md) antes de publicar esta actualización. Las migraciones de servidor y navegador conservan los datos, pero un binario antiguo no entiende el cifrado v2. Crear y comprobar un respaldo antes del cambio. No se rotaron ni activaron claves de producción automáticamente.
+
+El bloqueo local vacía claves, consultas y cola en memoria, conservando la cola cifrada en disco. No revoca por sí solo la cookie del servidor: una conexión posterior puede verificar esa sesión vigente. El cierre de sesión explícito sí revoca la sesión y borra el almacén local. Las garantías frente al dispositivo dependen también del bloqueo del sistema operativo.
+
+## Comprobaciones
+
+Los resultados finales de esta entrega se registran a continuación. Los registros reproducibles de la sesión están en `artifacts/security-*` (ignorados por Git); no contienen datos de producción.
+
+- TypeScript y compilación PWA correctos; Vitest: 83 pruebas correctas, incluyendo migración del almacén, cola preservada, ausencia de clave persistida, rechazo de otra clave y clasificación de respuestas de red interrumpidas.
+- Suite Go completa con CGO: todos los paquetes correctos en la ejecución con `-work -p 1`, que evita un bloqueo de Windows al limpiar ejecutables temporales. `go vet ./...` correcto. Las nuevas pruebas cubren UV, cifrado por fila, migración repetida, rotación, auditoría fallida/cancelación y límites de coste/consulta.
+- Detector de carreras correcto en auth, crypto, passkey, store, api y gmail. En Windows/Zig se enlazó `api-ms-win-core-synch-l1-2-0` y se usó el adaptador PE de pruebas existente del proyecto; CI Linux conserva `go test -race` normal. Las últimas correcciones de logout, auditoría y exportación se volvieron a comprobar en API/store/crypto/CLI.
+- Gosec, política alta con confianza media/alta: cero hallazgos. Las excepciones puntuales documentan rutas administrativas de CLI y aleatoriedad reproducible para simulación; el autenticador exclusivamente de pruebas se excluye del análisis de producción.
+- `actionlint` y sintaxis Bash del script correctos.
+- `govulncheck`: cero vulnerabilidades alcanzables. Informa una vulnerabilidad en un módulo requerido sin uso de los símbolos afectados; no se presenta como un árbol de dependencias sin avisos.
+- npm audit: cero avisos moderados/altos/críticos, cuatro bajos en la cadena PWA por deepmerge, sin versión corregida publicada al verificar. No se fuerza una degradación incompatible de PWA.
+- Primera ejecución E2E: 31 de 34 escenarios correctos; detectó una carrera del test al volver la red y esperas transitorias durante autenticación/Gmail. Se corrigió la espera por estado actualizado, se acotaron las peticiones y se añadió un reintento limitado de lectura de sesión. La revalidación de seis flujos críticos dio cinco correctos inicialmente y el caso Gmail de escritorio pasó en ejecución separada tras ajustar las esperas a los plazos de OAuth/sync. No se declara una única pasada completa de 34/34; quedan registradas las intermitencias observadas y conviene repetir la suite íntegra en CI Linux.
+- La imagen Docker, Trivy, firma/publicación y despliegue no se ejecutaron localmente porque no hay Docker disponible. Los cambios del workflow pasaron actionlint; esto no sustituye su ejecución real.
+
+No hay una garantía de impenetrabilidad ni una certificación ASVS. Las tareas operativas y la verificación independiente de la tabla siguen abiertas y no se ocultan como hallazgos resueltos.

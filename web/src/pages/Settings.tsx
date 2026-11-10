@@ -21,6 +21,8 @@ import { deviceName, passkeyError, passkeysSupported, registerPasskey } from '..
 import { RecoveryCodes, TotpSetup } from './AuthPages'
 
 const eventText: Record<string, string> = {
+  sensitive_access: 'Acceso autorizado a una operación sensible',
+  factor_enrollment_started: 'Inicio de configuración de segundo factor',
   register: 'Cuenta creada',
   login_password_ok: 'Contraseña correcta',
   login_ok: 'Inicio de sesión',

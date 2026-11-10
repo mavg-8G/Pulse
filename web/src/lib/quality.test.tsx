@@ -9,6 +9,10 @@ import { warmCache } from './offline'
 
 afterEach(() => { cleanup(); clearViewContext(); onStepUpRequired(null); vi.unstubAllGlobals(); vi.useRealTimers() })
 describe('contexto de navegación', () => {
+  it('una respuesta interrumpida conserva la clasificación de fallo de red', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ status: 200, text: async () => { throw new TypeError('connection lost') } })))
+    await expect(get('/api/me')).rejects.toMatchObject({ status: 0, code: 'network' })
+  })
   it('la preparación sin conexión comparte lecturas con las vistas y otras preparaciones simultáneas', async () => {
     const client = new QueryClient()
     vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify([]), { status: 200 })))

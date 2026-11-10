@@ -96,6 +96,10 @@ func (s *Server) register(w http.ResponseWriter, r *http.Request) error {
 	if !s.limRegister.Allow(clientIP(r)) {
 		return errRateLimited
 	}
+	if !s.acquirePasswordWork() {
+		return errRateLimited
+	}
+	defer s.releasePasswordWork()
 	var in struct {
 		Email      string `json:"email"`
 		Password   string `json:"password"`
@@ -148,6 +152,10 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) error {
 	if !s.limLogin.Allow(clientIP(r)) {
 		return errRateLimited
 	}
+	if !s.acquirePasswordWork() {
+		return errRateLimited
+	}
+	defer s.releasePasswordWork()
 	var in struct {
 		Email    string `json:"email"`
 		Password string `json:"password"`
@@ -218,7 +226,9 @@ func contains(xs []string, x string) bool {
 
 func (s *Server) logout(w http.ResponseWriter, r *http.Request) error {
 	id := ident(r)
-	s.store.DeleteSession(r.Context(), id.user.ID, id.sess.ID)
+	if err := s.store.DeleteSession(r.Context(), id.user.ID, id.sess.ID); err != nil && !errors.Is(err, store.ErrNotFound) {
+		return err
+	}
 	s.clearCookie(w)
 	s.audit(r, id.user.ID, "logout", nil)
 	w.WriteHeader(204)

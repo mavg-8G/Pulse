@@ -22,6 +22,8 @@ type bucket struct {
 	last   time.Time
 }
 
+const maxBuckets = 4096
+
 // NewLimiter permite `burst` intentos seguidos y recupera `per` intentos por `every`.
 func NewLimiter(c clock.Clock, burst int, per int, every time.Duration) *Limiter {
 	return &Limiter{clock: c, burst: float64(burst), rate: float64(per) / every.Seconds(), buckets: map[string]*bucket{}}
@@ -41,6 +43,10 @@ func (l *Limiter) Allow(key string) bool {
 	}
 	b, ok := l.buckets[key]
 	if !ok {
+		// Fallar cerrado: no expulsar una clave activa (permitiría reiniciar su límite).
+		if len(l.buckets) >= maxBuckets {
+			return false
+		}
 		b = &bucket{tokens: l.burst, last: now}
 		l.buckets[key] = b
 	}
