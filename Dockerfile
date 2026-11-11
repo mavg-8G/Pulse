@@ -3,7 +3,7 @@
 
 # CI pasa estos valores desde .node-version y go.mod. Los defaults permiten construir localmente.
 ARG NODE_VERSION=26.13.0
-ARG GO_VERSION=1.27.3
+ARG GO_VERSION=1.27.4
 
 # 1) Frontend (React + Vite) → internal/webui/dist
 FROM node:${NODE_VERSION}-alpine3.24@sha256:8996bb5821d62a8fd9bb27c1cb07462f3fdce6e47d640c6a881ead0b064ce216 AS web
@@ -16,7 +16,7 @@ COPY web/ ./
 RUN npm run build
 
 # 2) Backend Go. SQLite (mattn/go-sqlite3) necesita CGO: se enlaza estático con musl.
-FROM golang:${GO_VERSION}-alpine3.24@sha256:fa3d596898d9f126af7c01d14ee7597bab3f39cccf392ef36b69fe77cd681f18 AS api
+FROM golang:${GO_VERSION}-alpine3.24@sha256:0a5f7fe796599ff487605987432e7619ae45beeb2fba4c2ce0b907879932aebf AS api
 ARG GO_VERSION
 RUN test "$(go env GOVERSION)" = "go${GO_VERSION}"
 RUN apk add --no-cache build-base

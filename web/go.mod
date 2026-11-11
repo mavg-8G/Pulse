@@ -2,4 +2,4 @@
 // (algunos paquetes de npm traen archivos .go). No es un módulo real.
 module pulse-web-ignore
 
-go 1.27.3
+go 1.27.4

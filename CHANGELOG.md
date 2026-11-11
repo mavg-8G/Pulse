@@ -4,6 +4,12 @@ Cambios relevantes de Pulse. Las entradas «Sin publicar» describen cambios pos
 
 La guía de uso y desarrollo está en [`README.md`](README.md); el roadmap y las aceptaciones pendientes, en [`PLAN.md`](PLAN.md).
 
+## Sin publicar — parche de seguridad de Go (11 nov 2026)
+
+- Go 1.27.4 en ambos módulos, Docker y requisitos de desarrollo para corregir GO-2026-6859 en `net/http`, detectada por la ejecución diaria con Go 1.27.3. CI toma la versión de `go.mod` y conserva el bloqueo ante vulnerabilidades alcanzables.
+- Actualizado el digest de la imagen oficial `golang:1.27.4-alpine3.24`, comprobado contra Docker Hub.
+- Verificación local con Go 1.27.4 y CGO habilitado: `go vet ./...`, `go test ./...` y `govulncheck` correctos. Cero vulnerabilidades alcanzables y cero en paquetes importados; se conserva un aviso en un módulo requerido cuyo código afectado no se invoca. La construcción Docker queda pendiente de CI/Linux.
+
 ## Sin publicar — endurecimiento de seguridad (10 nov 2026)
 
 - Corregida la pérdida de filtros de Reportes al navegar rápidamente, reproducida en móvil: cancelar una verificación inicial de sesión ya no borra las preferencias persistidas del mismo usuario. Se limpia la memoria y se mantiene el borrado completo ante sesión cerrada, bloqueo o cambio de persona. Añadidas tres pruebas de regresión; el caso E2E original pasa dos veces por dispositivo sin cambiar sus comprobaciones.

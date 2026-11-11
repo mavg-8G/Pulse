@@ -22,7 +22,7 @@ Ramas que no son `main`, pull requests y el fuzzing nocturno solo prueban; nunca
 
 | Componente | Versión | Fuente de configuración |
 |---|---|---|
-| Go | 1.27.3 | `go.mod`; CI la pasa como argumento a Docker |
+| Go | 1.27.4 | `go.mod`; CI la pasa como argumento a Docker |
 | Node LTS | 26.13.0 | `.node-version`; CI la pasa como argumento a Docker |
 | Imágenes de compilación | Alpine 3.24 | `Dockerfile` |
 | Imagen de ejecución | Distroless static Debian 13, nonroot | `Dockerfile` |
