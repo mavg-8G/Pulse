@@ -4,6 +4,11 @@ Cambios relevantes de Pulse. Las entradas «Sin publicar» describen cambios pos
 
 La guía de uso y desarrollo está en [`README.md`](README.md); el roadmap y las aceptaciones pendientes, en [`PLAN.md`](PLAN.md).
 
+## Sin publicar — instalación de Chromium en CI (11 nov 2026)
+
+- Separada la compilación del frontend de la instalación de Chromium y sus dependencias del sistema. La instalación de Playwright se reintenta hasta tres veces ante fallos transitorios de red/DNS de los repositorios de Ubuntu; conserva el error final y un límite de veinte minutos. Las pruebas E2E siguen siendo obligatorias antes de publicar la imagen.
+- Verificación: `actionlint`, compilación del frontend y ejecución del bloque Bash con éxito inmediato, recuperación tras un fallo y rechazo tras tres fallos simulados. La instalación de paquetes Ubuntu queda pendiente de la siguiente ejecución de CI.
+
 ## Sin publicar — parche de seguridad de Go (11 nov 2026)
 
 - Go 1.27.4 en ambos módulos, Docker y requisitos de desarrollo para corregir GO-2026-6859 en `net/http`, detectada por la ejecución diaria con Go 1.27.3. CI toma la versión de `go.mod` y conserva el bloqueo ante vulnerabilidades alcanzables.

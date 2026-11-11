@@ -152,7 +152,25 @@ jobs:
         with: { go-version-file: go.mod }
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with: { node-version-file: .node-version, cache: npm, cache-dependency-path: web/package-lock.json }
-      - run: cd web && npm ci && npm run build && npx playwright install --with-deps chromium
+      - name: Instalar dependencias y compilar el frontend
+        working-directory: web
+        run: npm ci && npm run build
+      - name: Instalar Chromium y dependencias (con reintentos de red)
+        working-directory: web
+        timeout-minutes: 20
+        shell: bash
+        run: |
+          for attempt in 1 2 3; do
+            if npx --no-install playwright install --with-deps chromium; then
+              exit 0
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              echo "::error::No se pudo instalar Chromium y sus dependencias tras 3 intentos."
+              exit 1
+            fi
+            echo "::warning::Falló la instalación de Chromium (intento $attempt/3); se reintentará en 15 segundos."
+            sleep 15
+          done
       - run: cd web && npx playwright test
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: failure()
