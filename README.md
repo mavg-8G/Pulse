@@ -258,6 +258,8 @@ La primera ejecución cubre los casos de Reportes; la segunda comprueba las proy
 
 Para instalar Chromium antes de las pruebas E2E: `cd web && npx playwright install chromium` (en Linux CI: `--with-deps chromium`). Para revisar dependencias: `npm audit` en `web/` y `go mod verify` en la raíz. La CI también comprueba vulnerabilidades Go alcanzables con `govulncheck`, escanea la imagen con Trivy y ejecuta OWASP ZAP baseline contra las páginas públicas del contenedor, bloqueando alertas de riesgo medio o alto.
 
+Dependabot revisa diariamente las dependencias npm de `web/` y abre pull requests con los cambios y el lockfile actualizado; la CI los comprueba antes de integrarlos. Para recibir también pull requests al publicarse avisos de seguridad, habilita **Dependabot alerts** y **Dependabot security updates** en la configuración de seguridad del repositorio. Estas actualizaciones no se integran automáticamente.
+
 ## Despliegue
 
 Ver [`deploy/README.md`](deploy/README.md) y los [pasos de endurecimiento y compatibilidad](deploy/HARDENING.md). Un push a `main` ejecuta las pruebas, construye y firma la imagen en GHCR y activa el despliegue del entorno `production`, sujeto a sus controles de GitHub. El servidor escucha por defecto en el puerto 8080.

@@ -1,0 +1,7 @@
+version: 2
+updates:
+  # Dependabot actualiza también el lockfile y abre PR que ejecutan la CI.
+  - package-ecosystem: npm
+    directory: /web
+    schedule:
+      interval: daily
