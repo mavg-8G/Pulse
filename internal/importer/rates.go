@@ -166,7 +166,7 @@ func (e ExchangeRatesAPI) EURUSD(ctx context.Context, _ time.Time) (RateQuote, e
 	if _, err := time.Parse("2006-01-02", row.Date); err != nil {
 		return RateQuote{}, errors.New("fecha de tasa inválida")
 	}
-	q := RateQuote{Date: row.Date, Rate: row.Rates["USD"].String(), Source: "Exchange Rates API"}
+	q := RateQuote{Date: row.Date, Rate: row.Rates["USD"].String(), Source: exchangeSource}
 	if _, err := q.Convert(100); err != nil {
 		return RateQuote{}, err
 	}

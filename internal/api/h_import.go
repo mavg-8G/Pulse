@@ -34,6 +34,10 @@ func (s *Server) importEML(w http.ResponseWriter, r *http.Request) error {
 	}
 	out, err := s.importer().Import(r.Context(), id.user, e, "email")
 	if err != nil {
+		var exchangeErr *importer.ExchangeError
+		if errors.As(err, &exchangeErr) {
+			return errf(502, "exchange_unavailable", "El consumo se reconoció, pero no se pudo obtener una conversión válida. Revisa la clave en Ajustes → Cambio de moneda y vuelve a importar el correo.")
+		}
 		return err
 	}
 	s.audit(r, id.user.ID, "email_imported", map[string]string{"status": out.Status, "parser": out.Parser})

@@ -6,7 +6,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Sheet } from '../components/Sheet'
 import { QueryFeedback } from '../components/QueryFeedback'
 import { useMotion } from '../components/AppShell'
-import { IconPause, IconPulse } from '../components/icons'
+import { IconChevronRight, IconKey, IconPause, IconPulse, IconReport, IconTag, IconWallet } from '../components/icons'
+import { SettingsHeading, SettingsNavigation } from '../components/SettingsNavigation'
 import { BackupSettings } from '../components/BackupSettings'
 import { GmailSettings } from '../components/GmailSettings'
 import { NotificationSettings } from '../components/NotificationSettings'
@@ -57,6 +58,13 @@ const eventText: Record<string, string> = {
   backup_manual: 'Respaldo cifrado hecho a mano',
   backup_downloaded: 'Copia cifrada del respaldo descargada',
 }
+
+const dataLinks = [
+  { to: '/ajustes/cuenta', title: 'Mi cuenta', description: 'Contraseña, seguridad y sesiones', icon: IconKey },
+  { to: '/ajustes/cuentas', title: 'Cuentas y tarjetas', description: 'Bancos, tarjetas y moneda de cada cuenta', icon: IconWallet },
+  { to: '/ajustes/categorias', title: 'Categorías', description: 'Organiza tus gastos', icon: IconTag },
+  { to: '/reportes', title: 'Reportes y exportar', description: 'Resumen de gastos, conciliación y CSV', icon: IconReport },
+]
 
 function browserName(ua: string) {
   const b = /Edg\//.test(ua) ? 'Edge' : /Firefox\//.test(ua) ? 'Firefox' : /Chrome\//.test(ua) ? 'Chrome' : /Safari\//.test(ua) ? 'Safari' : 'Navegador'
@@ -253,20 +261,13 @@ export function Settings({ view = 'prefs' }: { view?: 'prefs' | 'account' }) {
 
       </> : <>
       <div className="page-head">
-        <div><p className="page-kicker">Hecho a tu medida</p><h1>Ajustes</h1><p className="page-description">Personaliza tu espacio y conecta lo que necesitas.</p></div>
+        <div><h1>Ajustes</h1><p className="page-description">Administra tu cuenta, tus preferencias y las conexiones con tus bancos.</p></div>
       </div>
-      <nav className="settings-index" aria-label="Secciones de ajustes">
-        <a href="#h-look">Apariencia</a>
-        <a href="#h-data">Tus datos</a>
-        <a href="#h-gmail">Correo del banco</a>
-        <a href="#h-exchange">Cambio de moneda</a>
-        <a href="#h-notifications">Notificaciones</a>
-        {me?.role === 'admin' && <a href="#h-backup">Respaldo</a>}
-        <a href="#h-legal">Privacidad</a>
-      </nav>
-
+      <div className="settings-workspace">
+      <SettingsNavigation admin={me?.role === 'admin'} />
+      <div className="settings-panels">
       <section aria-labelledby="h-look">
-        <div className="section-head"><h2 id="h-look">Apariencia</h2></div>
+        <SettingsHeading id="h-look" title="Apariencia" />
         <div className="list">
           <div className="settings-row">
             <span className="grow">Tema</span>
@@ -291,21 +292,18 @@ export function Settings({ view = 'prefs' }: { view?: 'prefs' | 'account' }) {
         </div>
       </section>
 
+      <NotificationSettings />
+
       <section className="section" aria-labelledby="h-data">
-        <div className="section-head"><h2 id="h-data">Tus datos</h2></div>
-        <div className="list">
-          <Link className="settings-row settings-link" to="/ajustes/cuenta">
-            <span className="grow">Mi cuenta<br /><span className="small faint">Sesiones abiertas, contraseña y seguridad</span></span><span className="faint">›</span>
-          </Link>
-          <Link className="settings-row settings-link" to="/reportes">
-            <span className="grow">Reportes y exportar<br /><span className="small faint">Gasto por mes, categoría y cuenta; conciliación; CSV</span></span><span className="faint">›</span>
-          </Link>
-          <Link className="settings-row settings-link" to="/ajustes/cuentas">
-            <span className="grow">Cuentas y tarjetas</span><span className="faint">›</span>
-          </Link>
-          <Link className="settings-row settings-link" to="/ajustes/categorias">
-            <span className="grow">Categorías</span><span className="faint">›</span>
-          </Link>
+        <SettingsHeading id="h-data" title="Tus datos" />
+        <div className="settings-shortcuts">
+          {dataLinks.map(({ to, title, description, icon: Icon }) => (
+            <Link className="settings-shortcut" key={to} to={to}>
+              <span className="settings-icon"><Icon /></span>
+              <span><strong>{title}</strong><small>{description}</small></span>
+              <span className="settings-nav-chevron"><IconChevronRight /></span>
+            </Link>
+          ))}
         </div>
       </section>
 
@@ -313,12 +311,8 @@ export function Settings({ view = 'prefs' }: { view?: 'prefs' | 'account' }) {
 
       <ExchangeSettings />
 
-      <NotificationSettings />
-
-      {me?.role === 'admin' && <BackupSettings tz={tz} />}
-
       <section className="section" aria-labelledby="h-legal">
-        <div className="section-head"><h2 id="h-legal">Privacidad</h2></div>
+        <SettingsHeading id="h-legal" title="Privacidad" />
         <div className="list">
           <a className="settings-row" href="/privacidad">
             <span className="grow">Política de privacidad<br /><span className="small muted">Qué datos usa Pulse y cómo descargar o eliminar los tuyos</span></span>
@@ -329,6 +323,9 @@ export function Settings({ view = 'prefs' }: { view?: 'prefs' | 'account' }) {
         </div>
       </section>
 
+      {me?.role === 'admin' && <BackupSettings tz={tz} />}
+      </div>
+      </div>
 
       </>}
 

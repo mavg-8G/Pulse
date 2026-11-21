@@ -4,6 +4,7 @@ import { errorMessage, get, getBlob, post } from '../lib/api'
 import { dateTimeLabel } from '../lib/dates'
 import type { BackupRun, BackupStatus } from '../lib/types'
 import { useToast } from './Toast'
+import { SettingsHeading } from './SettingsNavigation'
 import { QueryFeedback } from './QueryFeedback'
 
 const stateText: Record<BackupStatus['state'], string> = {
@@ -63,7 +64,7 @@ export function BackupSettings({ tz }: { tz: string }) {
 
   return (
     <section className="section" aria-labelledby="h-backup">
-      <div className="section-head"><h2 id="h-backup">Respaldo (admin)</h2></div>
+      <SettingsHeading id="h-backup" title="Respaldo (admin)" description="Estado y copias cifradas del servidor." />
       {!s ? (
         st.error ? <QueryFeedback error={st.error} retry={st.refetch} /> : <p className="hint">Cargando…</p>
       ) : !s.configured ? (

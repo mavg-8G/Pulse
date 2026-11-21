@@ -777,11 +777,12 @@ func TestReintentarConsumoEUR(t *testing.T) {
 	if _, err := e.st.AddTemplateAlert(ctx, u.ID, e.sealer(u), "produbanco-consumo-v1", "Consumo Tarjeta de Credito por EUR 200.00", h); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := e.s.RetryUnrecognized(ctx, u.ID); err == nil {
-		t.Fatal("debe fallar si no hay tasa")
+	e.g.Deliver("a@gmail.com", fixture(t, "produbanco-consumo"))
+	if r, err := e.s.RetryUnrecognized(ctx, u.ID); err != nil || r.ExchangePending != 1 || r.Created != 1 {
+		t.Fatalf("la tasa no disponible debe dejar el consumo pendiente y permitir importar otros: %+v %v", r, err)
 	}
-	if total, _ := e.txCount(u.ID); total != 0 {
-		t.Fatalf("se creó gasto sin tasa: %d", total)
+	if total, _ := e.txCount(u.ID); total != 1 {
+		t.Fatalf("debe importarse solo el consumo en USD: %d", total)
 	}
 	if found, err := e.st.HasTemplateAlert(ctx, u.ID, h); err != nil || !found {
 		t.Fatalf("debe conservar alerta: %v", err)
@@ -790,10 +791,10 @@ func TestReintentarConsumoEUR(t *testing.T) {
 	if r, err := e.s.RetryUnrecognized(ctx, u.ID); err != nil || r.Created != 1 {
 		t.Fatalf("reintento: %+v %v", r, err)
 	}
-	if len(e.imported) != 1 {
+	if len(e.imported) != 2 {
 		t.Fatalf("importados: %d", len(e.imported))
 	}
-	tx := e.imported[0].Transaction
+	tx := e.imported[1].Transaction
 	if tx.AmountCents != 21980 || tx.ForeignFeeCents != 196 || tx.Currency != "USD" || tx.Status != "pending_review" || !strings.Contains(tx.Notes, "EUR 200.00") || !strings.Contains(tx.Notes, "USD 1.96") || !strings.Contains(tx.Notes, "no incluido") {
 		t.Fatalf("gasto: %+v", tx)
 	}

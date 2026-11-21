@@ -42,6 +42,15 @@ type Outcome struct {
 	NewAccount  bool               `json:"new_account,omitempty"`
 }
 
+// ExchangeError indicates a recognized expense whose conversion could not be completed.
+type ExchangeError struct {
+	Parser string
+	Err    error
+}
+
+func (e *ExchangeError) Error() string { return e.Err.Error() }
+func (e *ExchangeError) Unwrap() error { return e.Err }
+
 // Import procesa un correo para el usuario. source: "email" (subido a mano) o "gmail".
 func (im *Importer) Import(ctx context.Context, u *store.User, e *mailparse.Email, source string) (*Outcome, error) {
 	loc, err := time.LoadLocation(u.Timezone)
@@ -83,25 +92,9 @@ func (im *Importer) ImportExpense(ctx context.Context, u *store.User, e *mailpar
 				loc = time.UTC
 			}
 		}
-		provider := im.Rates
-		if provider == nil {
-			keyEnc, err := im.Store.ExchangeKey(ctx, u.ID)
-			if err != nil {
-				return nil, err
-			}
-			if len(keyEnc) == 0 {
-				provider = Frankfurter{}
-			} else {
-				key, err := sl.Open("exchange.api_key", keyEnc)
-				if err != nil {
-					return nil, err
-				}
-				provider = ExchangeRatesAPI{Key: key}
-			}
-		}
-		quote, err := provider.EURUSD(ctx, x.OccurredAt.In(loc))
+		quote, err := im.exchangeRate(ctx, u.ID, sl, x.OccurredAt.In(loc))
 		if err != nil {
-			return nil, fmt.Errorf("no se pudo convertir %s a %s: %w", x.Currency, target, err)
+			return nil, &ExchangeError{Parser: x.Parser, Err: fmt.Errorf("no se pudo convertir %s a %s: %w", x.Currency, target, err)}
 		}
 		if x.Currency == "EUR" {
 			amount, err = quote.Convert(x.AmountCents)
@@ -109,7 +102,7 @@ func (im *Importer) ImportExpense(ctx context.Context, u *store.User, e *mailpar
 			amount, err = quote.ConvertInverse(x.AmountCents)
 		}
 		if err != nil {
-			return nil, err
+			return nil, &ExchangeError{Parser: x.Parser, Err: err}
 		}
 		if quote.Source == "" {
 			quote.Source = "tasa de referencia"
@@ -155,6 +148,24 @@ func (im *Importer) ImportExpense(ctx context.Context, u *store.User, e *mailpar
 	}
 	out.Status, out.Transaction, out.Account, out.Category, out.CategoryBy, out.NewAccount = "created", t, acc.Name, cat.Name, by, created
 	return out, nil
+}
+
+func (im *Importer) exchangeRate(ctx context.Context, userID string, sl *crypto.Sealer, when time.Time) (RateQuote, error) {
+	if im.Rates != nil {
+		return im.Rates.EURUSD(ctx, when)
+	}
+	keyEnc, err := im.Store.ExchangeKey(ctx, userID)
+	if err != nil {
+		return RateQuote{}, err
+	}
+	if len(keyEnc) == 0 {
+		return (Frankfurter{}).EURUSD(ctx, when)
+	}
+	key, err := sl.Open("exchange.api_key", keyEnc)
+	if err != nil {
+		return RateQuote{}, err
+	}
+	return im.cachedExchangeRate(ctx, key, ExchangeRatesAPI{Key: key})
 }
 
 // messageHash identifica el correo sin guardar su Message-ID: HMAC por usuario.

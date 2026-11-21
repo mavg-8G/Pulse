@@ -4,6 +4,7 @@ import { QueryFeedback } from './QueryFeedback'
 import { api, del, errorMessage, get, post } from '../lib/api'
 import { disablePush, enablePush, pushSupported, type NotificationPreferences, type PushDevice } from '../lib/push'
 import { useToast } from './Toast'
+import { SettingsHeading } from './SettingsNavigation'
 
 export function NotificationSettings() {
   const qc = useQueryClient()
@@ -21,7 +22,7 @@ export function NotificationSettings() {
   }
   return (
     <section className="section" aria-labelledby="h-notifications">
-      <div className="section-head"><h2 id="h-notifications">Notificaciones</h2></div>
+      <SettingsHeading id="h-notifications" title="Notificaciones" description="Elige qué avisos recibir y cuándo silenciarlos." />
       {error && <p className="error" role="alert">{error}</p>}
       {(config.error || devices.error || prefs.error) && <QueryFeedback error={config.error || devices.error || prefs.error} retry={() => [config, devices, prefs].filter((q) => q.error).forEach((q) => q.refetch())} />}
       {config.data && !config.data.enabled && <p className="hint">Las notificaciones todavía no están configuradas en el servidor.</p>}
@@ -61,7 +62,7 @@ function PreferenceForm({ prefs, onSave }: { prefs: NotificationPreferences; onS
   }
   const toggles = [['budgets', 'Alertas de presupuesto'], ['security', 'Avisos de seguridad'], ['weekly', 'Resumen semanal'], ['monthly', 'Resumen mensual'], ['hide_amounts', 'Ocultar montos en las notificaciones'], ['quiet_enabled', 'Horario silencioso']] as const
   return (
-    <form className="stack section" onSubmit={save}>
+    <form className="stack section settings-notification-form" onSubmit={save}>
       <div className="list toggle-list">{toggles.map(([key, label]) => <label key={key} className="settings-row"><span className="grow">{label}</span><input type="checkbox" checked={form[key]} onChange={(e) => setForm({ ...form, [key]: e.target.checked })} /></label>)}</div>
       {form.quiet_enabled && <div className="row-actions">
         <label className="field"><span>Silencio desde</span><input className="input" type="time" required value={timeText(form.quiet_start)} onChange={(e) => setForm({ ...form, quiet_start: minutes(e.target.value) })} /></label>

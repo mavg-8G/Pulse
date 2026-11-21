@@ -46,6 +46,15 @@ export const IconArrow = () => (
 export const IconPause = () => (
   <svg viewBox="0 0 24 24" {...base}><path d="M9 5v14M15 5v14" /></svg>
 )
+export const IconMail = () => (
+  <svg viewBox="0 0 24 24" {...base}><rect x="3" y="5" width="18" height="14" rx="2" /><path d="m4 7 8 6 8-6" /></svg>
+)
+export const IconExchange = () => (
+  <svg viewBox="0 0 24 24" {...base}><path d="M4 8h16m-4-4 4 4-4 4M20 16H4m4-4-4 4 4 4" /></svg>
+)
+export const IconBell = () => (
+  <svg viewBox="0 0 24 24" {...base}><path d="M18 8a6 6 0 0 0-12 0c0 6-2 6-2 8h16c0-2-2-2-2-8m-8 11a2 2 0 0 0 4 0" /></svg>
+)
 export const PulseMark = () => (
   <svg className="pulse-mark" viewBox="0 0 64 64" aria-hidden="true">
     <rect width="64" height="64" rx="16" fill="var(--accent)" />

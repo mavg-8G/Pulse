@@ -31,13 +31,14 @@ var (
 
 // Result resume una sincronización (se muestra al pulsar "Sincronizar ahora").
 type Result struct {
-	Found        int `json:"found"`
-	Created      int `json:"created"`
-	Confirmed    int `json:"confirmed"`
-	Duplicate    int `json:"duplicate"`
-	Ignored      int `json:"ignored"`
-	Unrecognized int `json:"unrecognized"`
-	Gemini       int `json:"gemini"`
+	Found           int `json:"found"`
+	Created         int `json:"created"`
+	Confirmed       int `json:"confirmed"`
+	Duplicate       int `json:"duplicate"`
+	Ignored         int `json:"ignored"`
+	Unrecognized    int `json:"unrecognized"`
+	ExchangePending int `json:"exchange_pending,omitempty"`
+	Gemini          int `json:"gemini"`
 }
 
 type Syncer struct {
@@ -367,6 +368,22 @@ func (s *Syncer) process(ctx context.Context, u *store.User, conn *store.GmailCo
 		return nil
 	}
 	out, err := s.Importer.Import(ctx, u, e, "gmail")
+	var exchangeErr *importer.ExchangeError
+	if errors.As(err, &exchangeErr) && ctx.Err() == nil {
+		sl, err := s.Keys.Sealer(u.ID, u.DEKEnc)
+		if err != nil {
+			return release(err)
+		}
+		if _, err := s.Store.AddTemplateAlert(ctx, u.ID, sl, exchangeErr.Parser, e.Subject, h); err != nil {
+			return release(err)
+		}
+		// Preserve the alert and release the claim so a later sync can try again.
+		if err := s.Store.ReleaseGmailMessage(ctx, u.ID, h); err != nil {
+			return err
+		}
+		res.ExchangePending++
+		return nil
+	}
 	if err != nil {
 		return release(err)
 	}

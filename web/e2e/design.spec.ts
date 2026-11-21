@@ -88,3 +88,30 @@ test('todas las vistas privadas conservan legibilidad, navegación y formularios
   await navigation.getByRole('link', { name: 'Reportes', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'Reportes', level: 1 })).toBeVisible()
 })
+
+test.describe('Ajustes', () => {
+  test.use({ serviceWorkers: 'block' })
+
+  test('agrupa sus secciones y permite abrir Cambio de moneda', async ({ page }, info) => {
+    test.setTimeout(120_000)
+    await register(page)
+    await page.route('**/api/exchange-settings', (route) => route.fulfill({ json: { configured: true } }))
+    for (const theme of ['light', 'dark'] as const) {
+      await page.emulateMedia({ colorScheme: theme, reducedMotion: 'reduce' })
+      await page.goto('/ajustes')
+      const menu = page.getByRole('navigation', { name: 'Secciones de ajustes' })
+      await expect(menu.getByText('Personal', { exact: true })).toBeVisible()
+      await expect(menu.getByText('Finanzas', { exact: true })).toBeVisible()
+      const exchange = menu.getByRole('link', { name: 'Cambio de moneda', exact: true })
+      const section = page.getByRole('region', { name: 'Cambio de moneda' })
+      await expect(section.getByRole('status')).toHaveText('Clave guardada', { timeout: 30_000 })
+      await page.screenshot({ path: info.outputPath(`ajustes-${theme}.png`), animations: 'disabled' })
+      await exchange.click()
+      await expect(page).toHaveURL(/#h-exchange$/)
+      await expect(exchange).toHaveAttribute('aria-current', 'location')
+      await expect(section.getByRole('heading', { name: 'Cambio de moneda' })).toBeInViewport()
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBeTruthy()
+      await expectAccessible(page, `Ajustes, ${theme}`)
+    }
+  })
+})

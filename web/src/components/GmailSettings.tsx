@@ -7,6 +7,7 @@ import { dateTimeLabel } from '../lib/dates'
 import { financeKeys } from '../lib/queries'
 import type { GmailStatus, GmailSyncResult } from '../lib/types'
 import { useToast } from './Toast'
+import { SettingsHeading } from './SettingsNavigation'
 import { GmailServerSettings } from './GmailServerSettings'
 import { useMe } from '../lib/queries'
 
@@ -20,7 +21,11 @@ const errorText: Record<string, string> = {
 }
 
 export function syncSummary(r: GmailSyncResult): string {
-  const pending = r.unrecognized ? ` ${r.unrecognized} correo${r.unrecognized > 1 ? 's siguen' : ' sigue'} sin reconocer; consulta los pendientes abajo.` : ''
+  const unrecognized = r.unrecognized ? ` ${r.unrecognized} correo${r.unrecognized > 1 ? 's siguen' : ' sigue'} sin reconocer; consulta los pendientes abajo.` : ''
+  const exchange = r.exchange_pending
+    ? ` ${r.exchange_pending === 1 ? 'Un consumo reconocido quedó pendiente' : `${r.exchange_pending} consumos reconocidos quedaron pendientes`} de conversión. Revisa Ajustes → Cambio de moneda y vuelve a intentarlo.`
+    : ''
+  const pending = unrecognized + exchange
   if (r.created === 0) return (r.found === 0 ? 'No hay correos nuevos del banco.' : 'No hay gastos nuevos.') + pending
   const confirmed = r.confirmed ? `, ${r.confirmed} confirmado${r.confirmed > 1 ? 's' : ''} solo${r.confirmed > 1 ? 's' : ''}` : ''
   return `${r.created} gasto${r.created > 1 ? 's' : ''} nuevo${r.created > 1 ? 's' : ''}${confirmed}. Revísalos en Movimientos.` + pending
@@ -59,10 +64,13 @@ export function GmailSettings({ tz }: { tz: string }) {
     })
   const sync = (retry = false) =>
     run(async () => {
-      const r = await post<GmailSyncResult>(`/api/gmail/sync${retry ? '?retry_unrecognized=true' : ''}`)
-      financeKeys.forEach((k) => qc.invalidateQueries({ queryKey: k }))
-      qc.invalidateQueries({ queryKey: ['accounts'] })
-      return retry ? `Reintento terminado. ${syncSummary(r)}` : syncSummary(r)
+      try {
+        const r = await post<GmailSyncResult>(`/api/gmail/sync${retry ? '?retry_unrecognized=true' : ''}`)
+        return retry ? `Reintento terminado. ${syncSummary(r)}` : syncSummary(r)
+      } finally {
+        financeKeys.forEach((k) => qc.invalidateQueries({ queryKey: k }))
+        qc.invalidateQueries({ queryKey: ['accounts'] })
+      }
     })
   const disconnect = async () => {
     if (!(await ask({ title: '¿Desconectar Gmail?', body: 'Pulse dejará de leer tus correos y Google revocará el acceso. Los gastos ya importados se conservan.', confirm: 'Desconectar Gmail', danger: true }))) return
@@ -81,7 +89,7 @@ export function GmailSettings({ tz }: { tz: string }) {
 
   return (
     <section className="section" aria-labelledby="h-gmail">
-      <div className="section-head"><h2 id="h-gmail">Correo del banco (Gmail)</h2></div>
+      <SettingsHeading id="h-gmail" title="Correo del banco (Gmail)" description="Conexión, sincronización y correos pendientes de importación." />
       {error && <p className="error" role="alert" style={{ marginBottom: 10 }}>{error}</p>}
       {status.error && <QueryFeedback error={status.error} retry={status.refetch} />}
       {s && !s.available && (
@@ -168,7 +176,7 @@ export function GmailSettings({ tz }: { tz: string }) {
           {s.connected && s.status === 'active' && (
             <p><button className="btn btn-sm" disabled={busy} onClick={() => sync(true)}>Reintentar correos pendientes</button></p>
           )}
-          <p className="hint">El reintento busca correos de los últimos 90 días y conserva los gastos ya importados. Si alguno sigue sin reconocerse, puedes importar su archivo .eml desde Movimientos para comprobarlo o registrar el gasto a mano.</p>
+          <p className="hint">Estos correos todavía no han generado movimientos. El reintento busca correos de los últimos 90 días y conserva los gastos ya importados. También puedes importar el archivo .eml desde Movimientos.</p>
           {pendingCount > s.template_alerts.length && <p className="small faint">Mostrando los {s.template_alerts.length} pendientes más recientes.</p>}
           <ul className="list" aria-label="Correos no reconocidos">
             {s.template_alerts.map((a, i) => (

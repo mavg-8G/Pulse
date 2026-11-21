@@ -201,6 +201,7 @@ export interface GmailServerConfig {
 }
 
 export interface GmailSyncResult {
+  exchange_pending?: number
   found: number
   created: number
   confirmed: number
