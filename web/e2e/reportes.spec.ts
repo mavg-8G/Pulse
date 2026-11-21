@@ -21,6 +21,10 @@ test('estadísticas, comparación, filtros y proyecciones de semana, mes y cierr
   await apiPost(page, '/api/transactions', { account_id: accounts[0].id, category_id: comida, amount_cents: 14000, occurred_at: ago(14), merchant: 'Supermaxi' })
   await apiPost(page, '/api/transactions', { account_id: accounts[0].id, category_id: servicios, amount_cents: 2800, occurred_at: ago(7), merchant: 'Claro' })
   await apiPost(page, '/api/transactions', { account_id: accounts[0].id, category_id: comida, kind: 'refund', amount_cents: 1400, occurred_at: ago(2), merchant: 'Supermaxi' })
+  // El cierre debe recuperarse si las consultas simultáneas saturan el servidor.
+  await page.route('**/api/reports/projection', (route) => route.fulfill({
+    status: 429, headers: { 'Retry-After': '1' }, json: { error: { code: 'rate_limited' } },
+  }), { times: 1 })
   const reportLoaded = page.waitForResponse((response) => response.url().includes('/api/reports/summary') && response.status() === 200)
   await page.reload()
   const report = await (await reportLoaded).json()
@@ -34,7 +38,7 @@ test('estadísticas, comparación, filtros y proyecciones de semana, mes y cierr
   await expect(page.getByRole('heading', { name: 'Evolución del gasto' })).toBeVisible()
   await expect(page.getByRole('region', { name: 'Comercios con más gasto' }).getByText('Supermaxi', { exact: true })).toBeVisible()
   await expect(page.getByRole('region', { name: 'Conclusiones' })).toContainText('El comercio con más gasto fue Supermaxi')
-  // Cierre del mes: siempre disponible, con su método explicado.
+  // El cierre muestra el método después del reintento.
   await expect(forecast.getByTestId('forecast-model')).toContainText('Método:')
   await forecast.getByRole('button', { name: 'Próxima semana', exact: true }).click()
   await expect(forecast.getByTestId('forecast-total')).toHaveText('$77,00')

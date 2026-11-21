@@ -8,7 +8,7 @@ import { useToast } from '../components/Toast'
 import { CategoriesSection, Delta, EvolutionSection, fullDate, MerchantsCard, SummarySection } from '../components/ReportAnalytics'
 import { ForecastSection } from '../components/ReportForecast'
 import { AccountEvolution, SpendingHeatmap, WeekdayChart } from '../components/ReportCharts'
-import { api, errorMessage, get } from '../lib/api'
+import { api, ApiError, errorMessage, get } from '../lib/api'
 import { monthLabel, monthOf, shiftMonth } from '../lib/dates'
 import { centsToInput, money, moneyShort, parseAmount } from '../lib/money'
 import { useAccounts, useCategories, useMe } from '../lib/queries'
@@ -23,6 +23,14 @@ const presets: { id: Preset; label: string; short: string }[] = [
   { id: '12', label: '12 meses', short: '12 m' },
   { id: 'custom', label: 'Elegir', short: 'Elegir' },
 ]
+
+// Las consultas de reportes comparten el límite de concurrencia del servidor.
+const reportRetry = {
+  retry: (attempt: number, error: Error) =>
+    attempt < 2 && (!(error instanceof ApiError) || error.status === 429 || error.status < 400 || error.status >= 500),
+  retryDelay: (attempt: number, error: Error) =>
+    error instanceof ApiError && error.status === 429 ? (error.retryAfterMs ?? 5000) : 1000 * 2 ** attempt,
+}
 
 export function Reports() {
   const { data: me } = useMe()
@@ -40,8 +48,8 @@ export function Reports() {
   const range = stateRange(state, current)
   const query = apiQuery(state, current)
   const filterQuery = apiQuery(state, current, false)
-  const { data: r, isLoading, isFetching, error, refetch } = useQuery({ queryKey: ['reports', query], queryFn: ({ signal }) => get<ReportSummary>(`/api/reports/summary?${query}`, signal) })
-  const projection = useQuery({ queryKey: ['projection', filterQuery], queryFn: ({ signal }) => get<Projection>(`/api/reports/projection${filterQuery ? `?${filterQuery}` : ''}`, signal) })
+  const { data: r, isLoading, isFetching, error, refetch } = useQuery({ ...reportRetry, queryKey: ['reports', query], queryFn: ({ signal }) => get<ReportSummary>(`/api/reports/summary?${query}`, signal) })
+  const projection = useQuery({ ...reportRetry, queryKey: ['projection', filterQuery], queryFn: ({ signal }) => get<Projection>(`/api/reports/projection${filterQuery ? `?${filterQuery}` : ''}`, signal) })
   useViewScroll('reports', query, !!r)
   const { data: categories = [] } = useCategories()
   const { data: accounts = [] } = useAccounts(true)
@@ -197,7 +205,7 @@ function AccountSpending({ report: r, accountName, account, category }: { report
 function ReconciliationCard({ current, accountName }: { current: string; accountName: (id: string) => string }) {
   const [month, setMonth] = useState(shiftMonth(current, -1))
   const qc = useQueryClient()
-  const { data, error, refetch } = useQuery({ queryKey: ['reconciliation', month], queryFn: () => get<Reconciliation>(`/api/reports/reconciliation?month=${month}`) })
+  const { data, error, refetch } = useQuery({ ...reportRetry, queryKey: ['reconciliation', month], queryFn: ({ signal }) => get<Reconciliation>(`/api/reports/reconciliation?month=${month}`, signal) })
   return (
     <section className="panel report-card section" aria-labelledby="h-recon">
       <div className="section-head">

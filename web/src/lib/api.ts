@@ -4,6 +4,7 @@
 export class ApiError extends Error {
   /** En un conflicto de versión (409 version_conflict), lo que hay ahora en el servidor. */
   current?: unknown
+  retryAfterMs?: number
   constructor(public status: number, public code: string, message: string) {
     super(message)
   }
@@ -55,6 +56,8 @@ async function raw<T>(method: string, path: string, body?: unknown, headers: Rec
   if (!res.ok) {
     const e = data?.error
     const err = new ApiError(res.status, e?.code ?? 'error', e?.message ?? 'Ocurrió un error inesperado.')
+    const retryAfter = res.headers.get('Retry-After')
+    if (retryAfter && /^\d+$/.test(retryAfter)) err.retryAfterMs = Number(retryAfter) * 1000
     if (data?.current) err.current = data.current
     throw err
   }
