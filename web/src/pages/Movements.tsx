@@ -98,8 +98,8 @@ export function Movements() {
         <aside className="mv-side" aria-label="Resumen de la lista">
           <div className="mv-kpis">
             <div className="mv-kpi"><span>Movimientos</span><strong className="num">{data ? data.total : '—'}</strong></div>
-            <div className="mv-kpi"><span>{filtered ? 'Total filtrado' : 'Total del mes'}</span><strong className="num" data-testid="list-sum">{data ? money(data.sum_cents) : '—'}</strong></div>
-            <div className="mv-kpi"><span>Promedio por gasto</span><strong className="num">{data && data.total > 0 ? money(Math.round(data.sum_cents / data.total)) : '—'}</strong></div>
+            <div className="mv-kpi"><span>{filtered ? 'Total filtrado' : 'Total del mes'}</span><strong className="num" data-testid="list-sum">{data ? Object.entries(data.sums_by_currency ?? { USD: data.sum_cents }).map(([currency, total]) => money(total, currency)).join(' · ') || money(0) : '—'}</strong></div>
+            <div className="mv-kpi"><span>Promedio por gasto</span><strong className="num">{data && data.total > 0 ? Object.entries(data.sums_by_currency ?? { USD: data.sum_cents }).map(([currency, total]) => money(Math.round(total / (data.counts_by_currency?.[currency] ?? data.total)), currency)).join(' · ') : '—'}</strong></div>
           </div>
           {month_ && month_.by_category.some((c) => c.spent_cents > 0) && (
             <section className="mv-cats" aria-labelledby="mv-cats-h">

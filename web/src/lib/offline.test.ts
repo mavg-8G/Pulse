@@ -368,4 +368,14 @@ describe('lectura sin conexión', () => {
     expect(localInputToISO('2026-07-01T12:00', 'America/New_York')).toBe('2026-07-01T16:00:00.000Z')
     expect(localInputToISO('2026-11-02T12:00', 'America/New_York')).toBe('2026-11-02T17:00:00.000Z')
   })
+
+  it('mantiene separados los importes pendientes en EUR y USD', () => {
+    const page: TxPage = { items: [tx()], total: 1, sum_cents: 1000, sums_by_currency: { USD: 1000 }, counts_by_currency: { USD: 1 }, limit: 50, offset: 0 }
+    const op = { seq: 1, at: Date.parse('2026-10-12T10:00:00Z'), state: 'pending' as const, label: '', id: 'eur', kind: 'tx.create' as const, entity: 'e1', body: { amount_cents: 2000, kind: 'purchase', category_id: 'c1', account_id: 'eur-account', occurred_at: '2026-10-12T08:30' } }
+    const accounts = [{ id: 'eur-account', name: 'EUR', type: 'bank' as const, institution: '', card_suffix: '', currency: 'EUR', color: '#000000', icon: '', archived: false }]
+    const out = overlayTransactions(page, [op], { month: '2026-10' }, 'America/Guayaquil', accounts)
+    expect(out.items.find((t) => t.id === 'e1')?.currency).toBe('EUR')
+    expect(out.sum_cents).toBe(1000)
+    expect(out.sums_by_currency).toEqual({ USD: 1000, EUR: 2000 })
+  })
 })

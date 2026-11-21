@@ -58,6 +58,7 @@ export function TxForm({ tx, onDone, defaultAccountId, onStateChange, onReplace 
   const choices = pickable(accounts, tx?.account_id).filter((a) => !a.archived || a.id === tx?.account_id)
   const eligible = (id?: string) => choices.some((a) => a.id === id) ? id! : ''
   const effectiveAccount = tx ? accountId : eligible(accountId) || eligible(defaultAccountId) || eligible(remembered) || choices[0]?.id || ''
+  const currency = tx && effectiveAccount === tx.account_id ? tx.currency : (accounts.find((a) => a.id === effectiveAccount)?.currency ?? 'USD')
   const tops = useMemo(() => categories.filter((c) => !c.parent_id && !c.archived), [categories])
   const children = (id: string) => categories.filter((c) => c.parent_id === id && !c.archived)
   const selectedParent = categories.find((c) => c.id === categoryId)?.parent_id || categoryId
@@ -84,7 +85,7 @@ export function TxForm({ tx, onDone, defaultAccountId, onStateChange, onReplace 
     lock.current = true
     setBusy(true)
     const body = { amount_cents: cents, kind, category_id: categoryId, account_id: effectiveAccount, occurred_at: when, merchant, notes }
-    const label = `${merchant.trim() || categoryName || 'Gasto'} ${money(cents)}`
+    const label = `${merchant.trim() || categoryName || 'Gasto'} ${money(cents, currency)}`
     const content = JSON.stringify({ body, repeat, learn, confirm: confirmRef.current })
     if (content !== operation.current.content) operation.current = { content, id: crypto.randomUUID(), entity: crypto.randomUUID() }
     try {
@@ -117,11 +118,11 @@ export function TxForm({ tx, onDone, defaultAccountId, onStateChange, onReplace 
   async function remove() {
     if (!tx || lock.current) return
     lock.current = true
-    if (!(await ask({ title: '¿Borrar este gasto?', body: `Se borrará ${tx.merchant || 'este gasto'} por ${money(tx.amount_cents)}. No se puede deshacer.`, confirm: 'Borrar gasto', danger: true }))) { lock.current = false; return }
+    if (!(await ask({ title: '¿Borrar este gasto?', body: `Se borrará ${tx.merchant || 'este gasto'} por ${money(tx.amount_cents, tx.currency)}. No se puede deshacer.`, confirm: 'Borrar gasto', danger: true }))) { lock.current = false; return }
     setBusy(true)
     setError('')
     try {
-      const label = `${tx.merchant || categoryName || 'Gasto'} ${money(tx.amount_cents)}`
+      const label = `${tx.merchant || categoryName || 'Gasto'} ${money(tx.amount_cents, tx.currency)}`
       const result = await sendOrQueue({ kind: 'tx.delete', entity: tx.id, version: tx.version || undefined, base: { ...tx }, label }, deletion.current)
       financeKeys.forEach((k) => qc.invalidateQueries({ queryKey: k }))
       toast(result === 'queued' ? 'Gasto borrado en este dispositivo: se enviará al volver la conexión' : 'Gasto borrado')
@@ -136,7 +137,7 @@ export function TxForm({ tx, onDone, defaultAccountId, onStateChange, onReplace 
     <form ref={form} onSubmit={submit} className="stack tx-form" noValidate aria-busy={busy}>
       <fieldset className="form-controls" disabled={busy}>
       <label className="amount-input">
-        <span aria-hidden="true">$</span>
+        <span aria-hidden="true">{currency === 'EUR' ? '€' : '$'}</span>
         <input
           aria-label="Monto"
           data-field="amount"

@@ -70,19 +70,20 @@ type reportForecast struct {
 }
 
 type reportSummaryData struct {
-	From          string          `json:"from"`
-	To            string          `json:"to"`
-	TotalCents    int64           `json:"total_cents"`
-	PurchaseCents int64           `json:"purchase_cents"`
-	RefundCents   int64           `json:"refund_cents"`
-	PurchaseCount int             `json:"purchase_count"`
-	ElapsedDays   int             `json:"elapsed_days"`
-	Months        []reportMonth   `json:"months"`
-	ByCategory    []reportIDTotal `json:"by_category"`
-	ByAccount     []reportIDTotal `json:"by_account"`
-	Forecast      reportForecast  `json:"forecast"`
-	Weekdays      []reportWeekday `json:"weekdays"`
-	Days          []reportDay     `json:"days"`
+	OtherCurrencies map[string]int64 `json:"other_currencies"`
+	From            string           `json:"from"`
+	To              string           `json:"to"`
+	TotalCents      int64            `json:"total_cents"`
+	PurchaseCents   int64            `json:"purchase_cents"`
+	RefundCents     int64            `json:"refund_cents"`
+	PurchaseCount   int              `json:"purchase_count"`
+	ElapsedDays     int              `json:"elapsed_days"`
+	Months          []reportMonth    `json:"months"`
+	ByCategory      []reportIDTotal  `json:"by_category"`
+	ByAccount       []reportIDTotal  `json:"by_account"`
+	Forecast        reportForecast   `json:"forecast"`
+	Weekdays        []reportWeekday  `json:"weekdays"`
+	Days            []reportDay      `json:"days"`
 	// Por cuenta y categoría principal, y número de compras de cada cuenta en el periodo.
 	AccountCategories []reportAccountCategory `json:"account_categories"`
 	AccountPurchases  map[string]int          `json:"account_purchases"`

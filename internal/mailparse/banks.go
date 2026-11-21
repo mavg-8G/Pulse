@@ -2,23 +2,25 @@ package mailparse
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 )
 
 // Expense es lo que se extrae de una notificación de consumo.
 type Expense struct {
-	Institution string    `json:"institution"`
-	AmountCents int64     `json:"amount_cents"`
-	Currency    string    `json:"currency"`
-	MerchantRaw string    `json:"merchant_raw"`
-	Merchant    string    `json:"merchant"`
-	CardSuffix  string    `json:"card_suffix"`
-	CardType    string    `json:"card_type"` // credit | debit
-	OccurredAt  time.Time `json:"occurred_at"`
-	Kind        string    `json:"kind"` // purchase | refund
-	Parser      string    `json:"parser"`
-	Confidence  float64   `json:"confidence"`
+	Institution     string    `json:"institution"`
+	AmountCents     int64     `json:"amount_cents"`
+	Currency        string    `json:"currency"`
+	MerchantRaw     string    `json:"merchant_raw"`
+	Merchant        string    `json:"merchant"`
+	CardSuffix      string    `json:"card_suffix"`
+	CardType        string    `json:"card_type"` // credit | debit
+	OccurredAt      time.Time `json:"occurred_at"`
+	Kind            string    `json:"kind"` // purchase | refund
+	Parser          string    `json:"parser"`
+	Confidence      float64   `json:"confidence"`
+	ForeignFeeCents int64     `json:"foreign_fee_cents,omitempty"`
 }
 
 // Status del análisis de un correo.
@@ -161,6 +163,9 @@ func (pichincha) Parse(e *Email, loc *time.Location) Result {
 
 type produbanco struct{}
 
+var produCurrency = regexp.MustCompile(`(?i)^\s*([a-z]{3})\s+`)
+var produFee = regexp.MustCompile(`(?i)esta transacci[oó]n tiene un cargo por el valor de\s*\$\s*([0-9]+(?:\.[0-9]{1,2})?)`)
+
 func (produbanco) Name() string { return "produbanco-consumo-v1" }
 
 func (produbanco) Sender(from string) bool { return fromDomain(from, "produbanco.com") }
@@ -184,9 +189,25 @@ func (produbanco) Parse(e *Email, loc *time.Location) Result {
 			break
 		}
 	}
-	exp, why := build("Produbanco", f["Valor"], '.', f["Establecimiento"], card, f["Fecha y Hora"], loc)
+	rawAmount := f["Valor"]
+	currency := "USD"
+	if m := produCurrency.FindStringSubmatch(rawAmount); m != nil {
+		currency = strings.ToUpper(m[1])
+		rawAmount = strings.TrimSpace(rawAmount[len(m[0]):])
+	}
+	// Solo EUR tiene conversión soportada; nunca tratar otra moneda como USD.
+	if currency != "USD" && currency != "EUR" {
+		return Result{Status: StatusUnrecognized, Reason: "moneda no soportada: " + currency}
+	}
+	exp, why := build("Produbanco", rawAmount, '.', f["Establecimiento"], card, f["Fecha y Hora"], loc)
 	if exp == nil {
 		return Result{Status: StatusUnrecognized, Reason: why}
+	}
+	exp.Currency = currency
+	if currency != "USD" {
+		if m := produFee.FindStringSubmatch(e.Text); m != nil {
+			exp.ForeignFeeCents, _ = ParseAmount(m[1], '.')
+		}
 	}
 	if reDMY.MatchString(f["Fecha y Hora"]) {
 		exp.OccurredAt = nearSent(exp.OccurredAt, e.Date, loc)
@@ -196,10 +217,16 @@ func (produbanco) Parse(e *Email, loc *time.Location) Result {
 	}
 	// Control cruzado: el monto del asunto debe coincidir con el del cuerpo.
 	// (se trabaja sobre el asunto ya normalizado: quitar tildes cambia la longitud en bytes)
-	if fs := Fold(e.Subject); strings.Contains(fs, "por usd") {
-		_, rest, _ := strings.Cut(fs, "por usd")
-		if subj, err := ParseAmount(rest, '.'); err == nil && subj != exp.AmountCents {
-			return Result{Status: StatusUnrecognized, Reason: fmt.Sprintf("el asunto dice %d centavos y el cuerpo %d", subj, exp.AmountCents)}
+	if fs := Fold(e.Subject); strings.Contains(fs, "por ") {
+		_, rest, _ := strings.Cut(fs, "por ")
+		if m := produCurrency.FindStringSubmatch(rest); m != nil {
+			if !strings.EqualFold(m[1], currency) {
+				return Result{Status: StatusUnrecognized, Reason: "la moneda del asunto no coincide con la del cuerpo"}
+			}
+			rest = rest[len(m[0]):]
+			if subj, err := ParseAmount(rest, '.'); err == nil && subj != exp.AmountCents {
+				return Result{Status: StatusUnrecognized, Reason: fmt.Sprintf("el asunto dice %d centavos y el cuerpo %d", subj, exp.AmountCents)}
+			}
 		}
 	}
 	return Result{Status: StatusExpense, Expense: exp}

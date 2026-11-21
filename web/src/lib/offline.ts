@@ -4,7 +4,7 @@ import type { QueryClient } from '@tanstack/react-query'
 import { ApiError, get } from './api'
 import { monthOf } from './dates'
 import { snapshot, subscribe, type Op } from './outbox'
-import type { Recurring, Transaction, TxPage } from './types'
+import type { Account, Recurring, Transaction, TxPage } from './types'
 import { currentUser, getCache, putCache } from './vault'
 
 // Solo se guarda lo que hace falta para Inicio, Movimientos recientes y Plan.
@@ -97,39 +97,49 @@ function applyTxBody(t: Transaction, body: Record<string, unknown> | undefined, 
 const signed = (t: Pick<Transaction, 'kind' | 'amount_cents'>) => (t.kind === 'refund' ? -t.amount_cents : t.amount_cents)
 
 /** Muestra en la lista lo hecho sin conexión: gastos nuevos, ediciones y borrados pendientes. */
-export function overlayTransactions(page: TxPage, ops: Op[], f: { month?: string; category_id?: string; account_id?: string; q?: string; status?: string }, tz: string): TxPage {
+export function overlayTransactions(page: TxPage, ops: Op[], f: { month?: string; category_id?: string; account_id?: string; q?: string; status?: string }, tz: string, accounts: Account[] = []): TxPage {
   const txOps = ops.filter((o) => o.kind.startsWith('tx.'))
   if (txOps.length === 0) return page
   let items = [...page.items]
   let total = page.total
   let sum = page.sum_cents
+  const sums = { ...(page.sums_by_currency ?? { USD: page.sum_cents }) }
+  const counts = { ...(page.counts_by_currency ?? { USD: page.total }) }
+  const adjust = (t: Transaction, factor: number) => {
+    sums[t.currency] = (sums[t.currency] ?? 0) + factor * signed(t)
+    counts[t.currency] = (counts[t.currency] ?? 0) + factor
+    if (!counts[t.currency]) { delete sums[t.currency]; delete counts[t.currency] }
+    sum = sums.USD ?? 0
+  }
   for (const op of txOps) {
     const i = items.findIndex((t) => t.id === op.entity)
     if (op.kind === 'tx.delete' && op.state === 'pending') {
       if (i >= 0) {
-        sum -= signed(items[i])
+        adjust(items[i], -1)
         items.splice(i, 1)
         total--
       }
     } else if (op.kind === 'tx.update' || (op.kind === 'tx.delete' && op.state === 'conflict')) {
       if (i >= 0) {
         const next = applyTxBody(items[i], op.kind === 'tx.update' ? op.body : undefined, tz)
-        sum += signed(next) - signed(items[i])
+        adjust(items[i], -1)
+        adjust(next, 1)
         items[i] = next
       }
     } else if (op.kind === 'tx.create' && i < 0 && !f.q && !f.status) {
       const t = applyTxBody({ id: op.entity, account_id: '', category_id: '', amount_cents: 0, currency: 'USD', occurred_at: new Date(op.at).toISOString(), kind: 'purchase',
         merchant: '', description: '', notes: '', source: 'manual', status: 'confirmed', version: 0 }, op.body, tz)
+      t.currency = accounts.find((a) => a.id === t.account_id)?.currency ?? 'USD'
       if (f.month && monthOf(new Date(t.occurred_at), tz) !== f.month) continue
       if (f.account_id && t.account_id !== f.account_id) continue
       if (f.category_id && t.category_id !== f.category_id) continue
       items.push(t)
       total++
-      sum += signed(t)
+      adjust(t, 1)
     }
   }
   items = items.sort((a, b) => (a.occurred_at < b.occurred_at ? 1 : a.occurred_at > b.occurred_at ? -1 : 0))
-  return { ...page, items, total, sum_cents: sum }
+  return { ...page, items, total, sum_cents: sum, sums_by_currency: sums, counts_by_currency: counts }
 }
 
 /** Lo mismo para los gastos fijos. */

@@ -64,6 +64,8 @@ export function Home() {
         <div><p className="page-kicker">Centro de mando</p><h1>Inicio</h1><p className="page-description">Tu mes de un vistazo: cuánto llevas, a qué ritmo y qué viene.</p></div>
         <MonthSwitch month={month} onChange={setMonth} label={label} />
       </div>
+      <p className="small muted">El resumen incluye gastos en USD. Los gastos en EUR se muestran por separado en Movimientos.</p>
+      {d && Object.entries(d.other_currencies ?? {}).length > 0 && <p className="small">Otras monedas este mes: {Object.entries(d.other_currencies ?? {}).map(([currency, total]) => money(total, currency)).join(' · ')}</p>}
       {isLoading && <div className="bento bento-skeleton" role="status" aria-label="Cargando resumen"><div className="tile tile-hero" /><div className="tile tile-budget" /><div className="tile tile-third" /><div className="tile tile-third" /><div className="tile tile-third" /></div>}
       <QueryFeedback error={error} retry={refetch} updating={isFetching && !isLoading} />
       {d && (
@@ -157,7 +159,7 @@ function Hero({ d, prev, label, today, days }: { d: Dashboard; prev?: Dashboard;
         {delta !== null && <span className={`delta ${delta > 0 ? 'is-up' : 'is-down'}`}><span aria-hidden="true">{delta > 0 ? '▲' : '▼'}</span> {Math.abs(delta)}% <span className="delta-sub">vs. {prevName.toLowerCase()}{today ? ' a esta fecha' : ''}</span></span>}
       </div>
       <p className="hero-amount num" data-testid="month-total"><CountUp value={d.spent_cents} format={(v) => money(Math.round(v))} /></p>
-      <p className="hero-sub">{d.count === 0 ? `Sin gastos en ${label.toLowerCase()}.` : `${d.count} ${d.count === 1 ? 'movimiento' : 'movimientos'}${d.has_budgets ? ` · presupuesto ${money(d.budget.budget_cents)}` : ''}`}</p>
+      <p className="hero-sub">{d.count === 0 ? `Sin gastos en USD en ${label.toLowerCase()}.` : `${d.count} ${d.count === 1 ? 'movimiento' : 'movimientos'} en USD${d.has_budgets ? ` · presupuesto ${money(d.budget.budget_cents)}` : ''}`}</p>
       <PulseArea current={now} previous={before} previousName={prevName} days={days} budget={d.has_budgets ? d.budget.budget_cents : undefined}
         label={`Gasto acumulado de ${label.toLowerCase()}: ${money(d.spent_cents)}${before ? `; ${prevName.toLowerCase()} a la misma fecha, ${money(beforeSameDay)}` : ''}.`} />
     </section>

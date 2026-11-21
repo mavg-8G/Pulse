@@ -11,6 +11,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"errors"
+	"fmt"
 	"sort"
 	"strings"
 	"time"
@@ -27,6 +28,7 @@ type Importer struct {
 	Keys      *crypto.Keyring
 	Clock     clock.Clock
 	DefaultTZ string
+	Rates     RateProvider
 }
 
 type Outcome struct {
@@ -60,9 +62,72 @@ func (im *Importer) ImportExpense(ctx context.Context, u *store.User, e *mailpar
 	if err != nil {
 		return nil, err
 	}
-	acc, created, err := im.account(ctx, u.ID, x)
+	accounts, err := im.Store.Accounts(ctx, u.ID, true)
 	if err != nil {
 		return nil, err
+	}
+	matched := MatchAccount(accounts, x.Institution, x.CardSuffix)
+	target := "USD"
+	if matched != nil {
+		target = matched.Currency
+	}
+	amount, notes := x.AmountCents, ""
+	if x.Currency != target {
+		if (x.Currency != "EUR" && x.Currency != "USD") || (target != "EUR" && target != "USD") {
+			return nil, fmt.Errorf("conversión no soportada: %s a %s", x.Currency, target)
+		}
+		loc, err := time.LoadLocation(u.Timezone)
+		if err != nil {
+			loc, err = time.LoadLocation(im.DefaultTZ)
+			if err != nil {
+				loc = time.UTC
+			}
+		}
+		provider := im.Rates
+		if provider == nil {
+			keyEnc, err := im.Store.ExchangeKey(ctx, u.ID)
+			if err != nil {
+				return nil, err
+			}
+			if len(keyEnc) == 0 {
+				provider = Frankfurter{}
+			} else {
+				key, err := sl.Open("exchange.api_key", keyEnc)
+				if err != nil {
+					return nil, err
+				}
+				provider = ExchangeRatesAPI{Key: key}
+			}
+		}
+		quote, err := provider.EURUSD(ctx, x.OccurredAt.In(loc))
+		if err != nil {
+			return nil, fmt.Errorf("no se pudo convertir %s a %s: %w", x.Currency, target, err)
+		}
+		if x.Currency == "EUR" {
+			amount, err = quote.Convert(x.AmountCents)
+		} else {
+			amount, err = quote.ConvertInverse(x.AmountCents)
+		}
+		if err != nil {
+			return nil, err
+		}
+		if quote.Source == "" {
+			quote.Source = "tasa de referencia"
+		}
+		notes = fmt.Sprintf("Conversión estimada: %s %d.%02d; tasa %s USD/EUR (%s, %s). Verifica el valor liquidado por el banco.", x.Currency, x.AmountCents/100, x.AmountCents%100, quote.Rate, quote.Source, quote.Date)
+	}
+	if x.ForeignFeeCents > 0 {
+		notes += fmt.Sprintf(" El correo informa un cargo adicional de USD %d.%02d, no incluido en este monto.", x.ForeignFeeCents/100, x.ForeignFeeCents%100)
+	}
+	acc, created := matched, false
+	if acc == nil {
+		acc, created, err = im.account(ctx, u.ID, x)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if acc.Currency != target {
+		return nil, errors.New("la moneda de la cuenta cambió durante la importación; vuelve a intentarlo")
 	}
 	cat, by, err := im.category(ctx, u.ID, sl, x.Merchant)
 	if err != nil {
@@ -76,7 +141,7 @@ func (im *Importer) ImportExpense(ctx context.Context, u *store.User, e *mailpar
 		conf -= 0.15
 	}
 	t := &store.Transaction{
-		ID: auth.NewID(), AccountID: acc.ID, CategoryID: cat.ID, AmountCents: x.AmountCents, Currency: x.Currency,
+		ID: auth.NewID(), AccountID: acc.ID, CategoryID: cat.ID, AmountCents: amount, Currency: target, Notes: strings.TrimSpace(notes),
 		OccurredAt: x.OccurredAt, Kind: x.Kind, Merchant: x.Merchant, Source: source,
 		Status:      "pending_review", // modo sombra: todo lo importado se revisa al principio
 		MessageHash: im.messageHash(u.ID, e), Parser: x.Parser, Confidence: &conf,

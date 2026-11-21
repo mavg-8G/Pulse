@@ -104,14 +104,14 @@ func (s *Store) MergeAccount(ctx context.Context, userID, id, into string) error
 		return Conflict("una cuenta no se puede fusionar consigo misma")
 	}
 	return s.Tx(ctx, func(tx *sql.Tx) error {
-		var aliasOf, mainOf string
-		err := tx.QueryRowContext(ctx, `SELECT COALESCE(merged_into, '') FROM accounts WHERE id = ? AND user_id = ?`, id, userID).Scan(&aliasOf)
+		var aliasOf, mainOf, sourceCurrency, targetCurrency string
+		err := tx.QueryRowContext(ctx, `SELECT COALESCE(merged_into, ''), currency FROM accounts WHERE id = ? AND user_id = ?`, id, userID).Scan(&aliasOf, &sourceCurrency)
 		if errors.Is(err, sql.ErrNoRows) {
 			return ErrNotFound
 		} else if err != nil {
 			return err
 		}
-		err = tx.QueryRowContext(ctx, `SELECT COALESCE(merged_into, '') FROM accounts WHERE id = ? AND user_id = ?`, into, userID).Scan(&mainOf)
+		err = tx.QueryRowContext(ctx, `SELECT COALESCE(merged_into, ''), currency FROM accounts WHERE id = ? AND user_id = ?`, into, userID).Scan(&mainOf, &targetCurrency)
 		if errors.Is(err, sql.ErrNoRows) {
 			return ErrNotFound
 		} else if err != nil {
@@ -119,6 +119,9 @@ func (s *Store) MergeAccount(ctx context.Context, userID, id, into string) error
 		}
 		if mainOf != "" {
 			return Conflict("esa cuenta ya está fusionada con otra: elige la cuenta principal")
+		}
+		if sourceCurrency != targetCurrency {
+			return Conflict("solo se pueden fusionar cuentas con la misma moneda")
 		}
 		if aliasOf == into {
 			return nil

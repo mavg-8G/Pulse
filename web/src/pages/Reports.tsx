@@ -81,6 +81,8 @@ export function Reports() {
       <div className="page-head">
         <div><p className="page-kicker">Una mirada más amplia</p><h1>Reportes</h1><p className="page-description">En qué gastas, cómo cambia tu consumo y cuánto podrías gastar después.</p></div>
       </div>
+      <p className="small muted">Los reportes y la conciliación incluyen movimientos en USD. Los gastos en EUR se muestran por separado en Movimientos y se incluyen en la exportación CSV.</p>
+      {r && Object.entries(r.other_currencies ?? {}).length > 0 && <p className="small">Otras monedas en este período: {Object.entries(r.other_currencies ?? {}).map(([currency, total]) => money(total, currency)).join(' · ')}</p>}
       <section className="panel report-toolbar" aria-label="Periodo y filtros">
         <div className="report-toolbar-main">
           <div className="seg report-presets" role="group" aria-label="Periodo">

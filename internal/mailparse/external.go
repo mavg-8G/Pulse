@@ -30,6 +30,19 @@ func FromExtraction(e *Email, amount, merchant, card, date string, loc *time.Loc
 	if inst == "" {
 		return nil, "remitente no soportado"
 	}
+	// La extracción de Gemini no entrega moneda. No convertir por accidente una
+	// notificación extranjera en un gasto en dólares si el lector no pudo procesarla.
+	if inst == "Produbanco" {
+		value := fields(e.Text, "Valor")["Valor"]
+		if m := produCurrency.FindStringSubmatch(value); m != nil && !strings.EqualFold(m[1], "USD") {
+			return nil, "moneda extranjera requiere revisión"
+		}
+		if _, rest, ok := strings.Cut(Fold(e.Subject), "por "); ok {
+			if m := produCurrency.FindStringSubmatch(rest); m != nil && !strings.EqualFold(m[1], "USD") {
+				return nil, "moneda extranjera requiere revisión"
+			}
+		}
+	}
 	if d := onlyDigits(card); card != "" && (len(d) < 3 || len(d) > 4) {
 		card = ""
 	} else {

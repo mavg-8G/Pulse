@@ -86,7 +86,24 @@ func (s *Server) reportSummary(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	out.Merchants = merchantRanking(txs, loc, rootOf(cats), opt.Filter, from.In(loc), end, prevFrom, prevEnd, 8)
+	usd := make([]store.Transaction, 0, len(txs))
+	out.OtherCurrencies = map[string]int64{}
+	root := rootOf(cats)
+	for _, t := range txs {
+		if t.Currency == "USD" {
+			usd = append(usd, t)
+			continue
+		}
+		if t.OccurredAt.Before(from) || !t.OccurredAt.Before(end) || t.OccurredAt.After(now) || (opt.Filter.Category != "" && root(t.CategoryID) != opt.Filter.Category) {
+			continue
+		}
+		v := t.AmountCents
+		if t.Kind == "refund" {
+			v = -v
+		}
+		out.OtherCurrencies[t.Currency] += v
+	}
+	out.Merchants = merchantRanking(usd, loc, root, opt.Filter, from.In(loc), end, prevFrom, prevEnd, 8)
 	if out.Forecast.Ready {
 		if err := s.horizonModels(r, id, today, cats, opt.Filter, &out.Forecast); err != nil {
 			return err
@@ -287,6 +304,9 @@ func (s *Server) reconciliation(w http.ResponseWriter, r *http.Request) error {
 	}
 	out := []row{}
 	for _, a := range accs {
+		if a.Currency != "USD" {
+			continue
+		}
 		if a.MergedInto != "" {
 			continue
 		}
@@ -325,6 +345,8 @@ func (s *Server) putStatement(w http.ResponseWriter, r *http.Request) error {
 		return err
 	} else if a.MergedInto != "" {
 		return badRequest("La cuenta está fusionada: ingresa el estado en su cuenta principal.")
+	} else if a.Currency != "USD" {
+		return badRequest("La conciliación solo admite cuentas en USD.")
 	}
 	if in.TotalCents == nil {
 		if err := s.store.DeleteStatement(r.Context(), id.user.ID, in.AccountID, in.Month); err != nil {
@@ -386,6 +408,14 @@ func (s *Server) applyRecurring(r *http.Request, id *identity, in *recurringInpu
 			return err
 		} else if a.Archived {
 			return badRequest("La cuenta está archivada.")
+		} else if rec.AccountID != "" {
+			previous, err := s.store.Account(ctx, id.user.ID, rec.AccountID)
+			if err != nil {
+				return err
+			}
+			if previous.Currency != a.Currency {
+				return badRequest("No puedes mover un gasto fijo a una cuenta con otra moneda.")
+			}
 		}
 		rec.AccountID = *in.AccountID
 	}
@@ -562,11 +592,15 @@ func (s *Server) runRecurring(ctx context.Context, u *store.User) error {
 	var cats []string
 	var whens []time.Time
 	for _, rec := range due {
+		acc, err := s.store.Account(ctx, u.ID, rec.AccountID)
+		if err != nil {
+			return err
+		}
 		next := rec.NextDate
 		for i := 0; next <= today && i < 12; i++ { // como mucho un año de cobros atrasados
 			d, _ := time.ParseInLocation("2006-01-02", next, loc)
 			t := &store.Transaction{ID: auth.NewID(), AccountID: rec.AccountID, CategoryID: rec.CategoryID, AmountCents: rec.AmountCents,
-				Currency: "USD", OccurredAt: d.Add(12 * time.Hour).UTC(), Kind: "purchase", Merchant: rec.Merchant,
+				Currency: acc.Currency, OccurredAt: d.Add(12 * time.Hour).UTC(), Kind: "purchase", Merchant: rec.Merchant,
 				Description: "Gasto recurrente", Source: "manual", Status: "confirmed",
 				MessageHash: s.keys.Lookup("recurring", []byte(u.ID+"|"+rec.ID+"|"+next))}
 			if err := s.store.CreateTransaction(ctx, u.ID, sl, t); err != nil && !errors.Is(err, store.ErrDuplicate) {

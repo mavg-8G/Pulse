@@ -153,6 +153,9 @@ func (s *Server) Handler() http.Handler {
 	// Finanzas
 	// Importación de correos y reglas de categoría
 	mux.HandleFunc("POST /api/import/eml", s.full(s.importEML))
+	mux.HandleFunc("GET /api/exchange-settings", s.full(s.exchangeStatus))
+	mux.HandleFunc("PUT /api/exchange-settings", s.withStepUp(s.exchangeSet))
+	mux.HandleFunc("DELETE /api/exchange-settings", s.withStepUp(s.exchangeDelete))
 	mux.HandleFunc("GET /api/merchant-rules", s.full(s.listRules))
 	mux.HandleFunc("POST /api/merchant-rules", s.full(s.createRule))
 	mux.HandleFunc("DELETE /api/merchant-rules/{id}", s.full(s.deleteRule))

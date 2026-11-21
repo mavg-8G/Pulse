@@ -42,7 +42,7 @@ func (s *Server) budgetBreakdown(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	txs, err := s.store.Transactions(r.Context(), id.user.ID, id.seal(), store.TxFilter{From: from, To: to})
+	txs, err := s.store.Transactions(r.Context(), id.user.ID, id.seal(), store.TxFilter{From: from, To: to, Currency: "USD"})
 	if err != nil {
 		return err
 	}

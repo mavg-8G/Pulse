@@ -46,6 +46,7 @@ export function Accounts() {
                 <span className="tx-meta">
                   {typeText[a.type]}
                   {a.institution ? ` de ${a.institution}` : ''}
+                  {` · ${a.currency}`}
                   {a.card_suffix ? `, termina en ${a.card_suffix}` : ''}
                   {a.merged_into ? `. Sus gastos se ven en ${main(a.id)?.name ?? 'otra cuenta'}` : ''}
                   {linkedTo(accounts, a.id).length > 0 ? `. Incluye ${linkedTo(accounts, a.id).map((x) => x.name).join(', ')}` : ''}
@@ -73,6 +74,7 @@ function AccountForm({ acc, accounts, onDone }: { acc?: Account; accounts: Accou
     type: acc?.type ?? ('credit_card' as AccountType),
     institution: acc?.institution ?? '',
     card_suffix: acc?.card_suffix ?? '',
+    currency: acc?.currency ?? 'USD',
     color: acc?.color ?? '#0b7a53',
     icon: acc?.icon ?? '💳',
   })
@@ -84,7 +86,7 @@ function AccountForm({ acc, accounts, onDone }: { acc?: Account; accounts: Accou
     onDone()
   }
   // Fusión lógica: ninguna cuenta se borra; los correos siguen asignando gastos a cualquiera de las dos.
-  const targets = acc ? accounts.filter((a) => a.id !== acc.id && !a.merged_into && !a.archived) : []
+  const targets = acc ? accounts.filter((a) => a.id !== acc.id && !a.merged_into && !a.archived && a.currency === acc.currency) : []
   const [into, setInto] = useState('')
   const mainName = accounts.find((a) => a.id === acc?.merged_into)?.name ?? 'otra cuenta'
   const refreshAll = (msg: string) => {
@@ -123,7 +125,7 @@ function AccountForm({ acc, accounts, onDone }: { acc?: Account; accounts: Accou
     try {
       if (acc) await patch(`/api/accounts/${acc.id}`, f)
       else await post('/api/accounts', f)
-      done('Cuenta guardada')
+      refreshAll('Cuenta guardada')
     } catch (err) {
       setError(errorMessage(err))
     }
@@ -156,6 +158,13 @@ function AccountForm({ acc, accounts, onDone }: { acc?: Account; accounts: Accou
             <option key={k} value={k}>{v}</option>
           ))}
         </select>
+      </label>
+      <label className="field"><span>Moneda de la cuenta</span>
+        <select className="select" value={f.currency} onChange={set('currency')}>
+          <option value="USD">Dólares estadounidenses (USD)</option>
+          <option value="EUR">Euros (EUR)</option>
+        </select>
+        <small className="hint">Los nuevos consumos se registran en esta moneda. Los movimientos anteriores conservan su moneda.</small>
       </label>
       <div className="grid-2">
         <label className="field">

@@ -130,8 +130,40 @@ func (s *Server) updateAccount(w http.ResponseWriter, r *http.Request) error {
 	if err := decode(w, r, &in); err != nil {
 		return err
 	}
+	oldCurrency := a.Currency
 	if err := in.apply(a); err != nil {
 		return err
+	}
+	if a.Currency != oldCurrency {
+		as, err := s.store.Accounts(r.Context(), id.user.ID, true)
+		if err != nil {
+			return err
+		}
+		for _, other := range as {
+			if other.ID != a.ID && (other.ID == a.MergedInto || other.MergedInto == a.ID) && other.Currency != a.Currency {
+				return badRequest("Separa primero las cuentas fusionadas para cambiar la moneda.")
+			}
+		}
+		recurrings, err := s.store.Recurrings(r.Context(), id.user.ID, id.seal(), "")
+		if err != nil {
+			return err
+		}
+		for _, recurring := range recurrings {
+			if recurring.AccountID == a.ID {
+				return badRequest("Quita primero los gastos fijos de esta cuenta para cambiar su moneda.")
+			}
+		}
+		if a.Currency != "USD" {
+			budgets, err := s.store.Budgets(r.Context(), id.user.ID)
+			if err != nil {
+				return err
+			}
+			for _, b := range budgets {
+				if b.AccountID == a.ID {
+					return badRequest("Quita primero el presupuesto en USD de esta cuenta.")
+				}
+			}
+		}
 	}
 	if err := s.store.UpdateAccount(r.Context(), id.user.ID, a); err != nil {
 		return err
@@ -352,6 +384,9 @@ func (s *Server) applyTx(r *http.Request, id *identity, in *txInput, t *store.Tr
 		}
 		if a.Archived {
 			return badRequest("La cuenta está archivada.")
+		}
+		if !creating && t.Currency != a.Currency {
+			return badRequest("No puedes mover un gasto a una cuenta con otra moneda.")
 		}
 		t.AccountID, t.Currency = a.ID, a.Currency
 	}
@@ -661,18 +696,24 @@ func (s *Server) listTransactions(w http.ResponseWriter, r *http.Request) error 
 		all = filtered
 	}
 	var sum int64
+	sums := map[string]int64{}
+	counts := map[string]int{}
 	for _, t := range all {
+		counts[t.Currency]++
+		v := t.AmountCents
 		if t.Kind == "refund" {
-			sum -= t.AmountCents
-		} else {
-			sum += t.AmountCents
+			v = -v
+		}
+		sums[t.Currency] += v
+		if t.Currency == "USD" {
+			sum += v
 		}
 	}
 	page := []store.Transaction{}
 	if offset < len(all) {
 		page = all[offset:min(offset+limit, len(all))]
 	}
-	writeJSON(w, 200, map[string]any{"items": page, "total": len(all), "sum_cents": sum, "limit": limit, "offset": offset})
+	writeJSON(w, 200, map[string]any{"items": page, "total": len(all), "sum_cents": sum, "sums_by_currency": sums, "counts_by_currency": counts, "limit": limit, "offset": offset})
 	return nil
 }
 
@@ -761,6 +802,8 @@ func (s *Server) createBudget(w http.ResponseWriter, r *http.Request) error {
 			return badRequest("La cuenta está archivada.")
 		} else if a.MergedInto != "" {
 			return badRequest("La cuenta está fusionada: crea el presupuesto en su cuenta principal.")
+		} else if a.Currency != "USD" {
+			return badRequest("Los presupuestos por cuenta solo admiten USD.")
 		}
 		b.AccountID = *in.AccountID
 	default:
@@ -1167,7 +1210,18 @@ func (s *Server) dashboard(w http.ResponseWriter, r *http.Request) error {
 	}
 	days := budget.DaysIn(m, loc)
 	daily := make([]int64, days)
+	usdCount := 0
+	otherCurrencies := map[string]int64{}
 	for _, t := range txs {
+		if t.Currency != "USD" {
+			v := t.AmountCents
+			if t.Kind == "refund" {
+				v = -v
+			}
+			otherCurrencies[t.Currency] += v
+			continue
+		}
+		usdCount++
 		d := t.OccurredAt.In(loc).Day() - 1
 		if d >= 0 && d < days {
 			if t.Kind == "refund" {
@@ -1205,7 +1259,7 @@ func (s *Server) dashboard(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	writeJSON(w, 200, map[string]any{
-		"month": m, "spent_cents": sum.SpentCents, "count": len(txs), "daily_cents": daily,
+		"month": m, "spent_cents": sum.SpentCents, "count": usdCount, "daily_cents": daily, "other_currencies": otherCurrencies,
 		"by_category": byCat, "budget": sum.Totals, "has_budgets": hasCategoryBudget(sum.Lines),
 		"recent": recent, "alerts": alerts, "pending_review": pending,
 	})

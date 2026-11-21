@@ -748,6 +748,90 @@ func TestReintentarPendientesRecuperaConsumosSinDuplicar(t *testing.T) {
 	}
 }
 
+type testEURRate struct{ fail bool }
+
+func (p *testEURRate) EURUSD(_ context.Context, when time.Time) (importer.RateQuote, error) {
+	if p.fail {
+		return importer.RateQuote{}, errors.New("tasas no disponibles")
+	}
+	if when.Format("2006-01-02") != "2026-11-20" {
+		return importer.RateQuote{}, errors.New("fecha incorrecta")
+	}
+	return importer.RateQuote{Date: "2026-11-20", Rate: "1.099"}, nil
+}
+
+func TestReintentarConsumoEUR(t *testing.T) {
+	e := newEnv(t)
+	e.c.Set(time.Date(2026, 11, 21, 1, 0, 0, 0, time.UTC))
+	u := e.user()
+	e.connect(u, "a@gmail.com")
+	ctx := context.Background()
+	rates := &testEURRate{fail: true}
+	e.s.Importer.Rates = rates
+	raw := []byte("From: bancaenlinea@produbanco.com\r\nDate: Fri, 20 Nov 2026 18:05:38 -0500\r\nSubject: Consumo Tarjeta de Credito por EUR 200.00\r\nMessage-ID: <euros@pruebas.pulse>\r\nContent-Type: text/html; charset=utf-8\r\n\r\n<p>Fecha y Hora: 11/20/2026 18:05</p><p>Transacción: Consumo Tarjeta de Crédito</p><p>Tarjeta de Crédito XXX4321</p><p>Valor: EUR 200.00<br>Establecimiento: COMERCIO DE PRUEBA</p><p>Esta transacción tiene un cargo por el valor de $1.96 por concepto de cargos en consumos en el exterior</p>")
+	id := e.g.Deliver("a@gmail.com", raw)
+	h := e.keys.Lookup("gmail-msg", []byte(u.ID+"|"+id))
+	if _, err := e.st.ClaimGmailMessage(ctx, u.ID, h); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.st.AddTemplateAlert(ctx, u.ID, e.sealer(u), "produbanco-consumo-v1", "Consumo Tarjeta de Credito por EUR 200.00", h); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.s.RetryUnrecognized(ctx, u.ID); err == nil {
+		t.Fatal("debe fallar si no hay tasa")
+	}
+	if total, _ := e.txCount(u.ID); total != 0 {
+		t.Fatalf("se creó gasto sin tasa: %d", total)
+	}
+	if found, err := e.st.HasTemplateAlert(ctx, u.ID, h); err != nil || !found {
+		t.Fatalf("debe conservar alerta: %v", err)
+	}
+	rates.fail = false
+	if r, err := e.s.RetryUnrecognized(ctx, u.ID); err != nil || r.Created != 1 {
+		t.Fatalf("reintento: %+v %v", r, err)
+	}
+	if len(e.imported) != 1 {
+		t.Fatalf("importados: %d", len(e.imported))
+	}
+	tx := e.imported[0].Transaction
+	if tx.AmountCents != 21980 || tx.Currency != "USD" || tx.Status != "pending_review" || !strings.Contains(tx.Notes, "EUR 200.00") || !strings.Contains(tx.Notes, "USD 1.96") || !strings.Contains(tx.Notes, "no incluido") {
+		t.Fatalf("gasto: %+v", tx)
+	}
+	if found, err := e.st.HasTemplateAlert(ctx, u.ID, h); err != nil || found {
+		t.Fatalf("alerta no resuelta: %v", err)
+	}
+	if r, err := e.s.RetryUnrecognized(ctx, u.ID); err != nil || r.Created != 0 {
+		t.Fatalf("duplicado: %+v %v", r, err)
+	}
+}
+
+func TestImportarUsaMonedaDeCuenta(t *testing.T) {
+	e := newEnv(t)
+	u := e.user()
+	ctx := context.Background()
+	a := &store.Account{ID: auth.NewID(), Name: "Tarjeta EUR", Type: "credit_card", Institution: "Produbanco", CardSuffix: "4321", Currency: "EUR"}
+	if err := e.st.CreateAccount(ctx, u.ID, a); err != nil {
+		t.Fatal(err)
+	}
+	rates := &testEURRate{fail: true}
+	e.s.Importer.Rates = rates
+	eml := func(currency, id string) *mailparse.Email {
+		return parse(t, "From: bancaenlinea@produbanco.com\r\nDate: Fri, 20 Nov 2026 18:05:38 -0500\r\nSubject: Consumo Tarjeta de Credito por "+currency+" 200.00\r\nMessage-ID: <"+id+"@pruebas.pulse>\r\nContent-Type: text/plain; charset=utf-8\r\n\r\nFecha y Hora: 11/20/2026 18:05\r\nTransacción: Consumo Tarjeta de Crédito\r\nTarjeta de Crédito XXX4321\r\nValor: "+currency+" 200.00\r\nEstablecimiento: COMERCIO DE PRUEBA\r\n")
+	}
+	out, err := e.s.Importer.Import(ctx, u, eml("EUR", "eur"), "gmail")
+	if err != nil || out.Status != "created" || out.Transaction.Currency != "EUR" || out.Transaction.AmountCents != 20000 {
+		t.Fatalf("EUR sin conversión: %+v %v", out, err)
+	}
+	if _, err := e.s.Importer.Import(ctx, u, eml("USD", "usd"), "gmail"); err == nil {
+		t.Fatal("debe pedir tasa al convertir USD a EUR")
+	}
+	rates.fail = false
+	out, err = e.s.Importer.Import(ctx, u, eml("USD", "usd"), "gmail")
+	if err != nil || out.Transaction.Currency != "EUR" || out.Transaction.AmountCents != 18198 {
+		t.Fatalf("USD a EUR: %+v %v", out, err)
+	}
+}
+
 func TestHistorialDeAciertosNoAutenticaUnCorreo(t *testing.T) {
 	e := newEnv(t)
 	u := e.user()

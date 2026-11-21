@@ -55,6 +55,7 @@ export function Plan() {
           {s && s.lines.length > 0 && month >= current && <button className="btn btn-sm" onClick={copyPrevious}>Copiar plan de {monthLabel(prev).toLowerCase()}</button>}
         </div>
       </div>
+      <p className="small muted">Los presupuestos y sus totales incluyen movimientos en USD. Los gastos en EUR se muestran por separado en Movimientos.</p>
       {isLoading && <p className="loading">Cargando…</p>}
       <QueryFeedback error={error} retry={refetch} updating={isFetching && !isLoading} />
       {s && s.lines.length === 0 && (
@@ -227,7 +228,7 @@ function BudgetForm({ line, month, current, usedCategories, usedAccounts, onDone
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const availableCats = categories.filter((c) => !c.archived && (!usedCategories.includes(c.id) || c.id === line?.category_id))
-  const availableAccs = pickable(accounts, line?.account_id).filter((a) => !a.archived && (!usedAccounts.includes(a.id) || a.id === line?.account_id))
+  const availableAccs = pickable(accounts, line?.account_id).filter((a) => a.currency === 'USD' && !a.archived && (!usedAccounts.includes(a.id) || a.id === line?.account_id))
   const fromOptions = Array.from({ length: 13 }, (_, i) => shiftMonth(current, -i))
 
   const refresh = () => ['summary', 'dashboard', 'budgets'].forEach((k) => qc.invalidateQueries({ queryKey: [k] }))
@@ -350,10 +351,11 @@ function RecurringList({ tz }: { tz: string }) {
   if (list.length === 0) return error ? <section className="section" aria-label="Gastos fijos"><h2>Gastos fijos</h2><QueryFeedback error={error} retry={refetch} /></section> : null
   const cat = (id: string) => categories.find((c) => c.id === id)
   const name = (r: Recurring) => r.merchant || cat(r.category_id)?.name || 'Gasto fijo'
+  const currency = (r: Recurring) => accounts.find((a) => a.id === r.account_id)?.currency ?? 'USD'
   async function remove(r: Recurring) {
     if (!(await ask({ title: `¿Dejar de registrar “${name(r)}”?`, body: 'Los gastos ya registrados se conservan.', confirm: 'Quitar gasto fijo', danger: true }))) return
     try {
-      const res = await sendOrQueue({ kind: 'rec.delete', entity: r.id, version: r.version || undefined, base: { ...r }, label: `${name(r)} ${money(r.amount_cents)}` })
+      const res = await sendOrQueue({ kind: 'rec.delete', entity: r.id, version: r.version || undefined, base: { ...r }, label: `${name(r)} ${money(r.amount_cents, currency(r))}` })
       qc.invalidateQueries({ queryKey: ['recurring'] })
       financeKeys.forEach((k) => qc.invalidateQueries({ queryKey: k }))
       toast(res === 'queued' ? 'Gasto fijo quitado en este dispositivo: se enviará al volver la conexión' : 'Gasto fijo quitado')
@@ -362,15 +364,16 @@ function RecurringList({ tz }: { tz: string }) {
       qc.invalidateQueries({ queryKey: ['recurring'] })
     }
   }
-  const total = list.reduce((a, r) => a + r.amount_cents, 0)
+  const totals = new Map<string, number>()
+  for (const r of list) totals.set(currency(r), (totals.get(currency(r)) ?? 0) + r.amount_cents)
   return (
     <section className="section" aria-labelledby="h-recurring">
-      <div className="section-head"><h2 id="h-recurring">Gastos fijos</h2><span className="num muted">{money(total)} al mes</span></div>
+      <div className="section-head"><h2 id="h-recurring">Gastos fijos</h2><span className="num muted">{[...totals].map(([c, total]) => money(total, c)).join(' · ')} al mes</span></div>
       <ul className="list">
         {list.map((r) => (
           <li key={r.id} className="settings-row">
             <span className="grow">
-              <span aria-hidden="true">{cat(r.category_id)?.icon} </span>{name(r)} · <strong className="num">{money(r.amount_cents)}</strong>
+              <span aria-hidden="true">{cat(r.category_id)?.icon} </span>{name(r)} · <strong className="num">{money(r.amount_cents, currency(r))}</strong>
               {r.pending && <span className="badge pending">Pendiente de enviar</span>}
               <br />
               <span className="small faint">Cada día {r.day} en {accountResolver(accounts)(r.account_id)?.name ?? 'tu cuenta'}{r.next_date && ` · próximo ${new Intl.DateTimeFormat('es-EC', { day: 'numeric', month: 'long', timeZone: 'UTC' }).format(new Date(`${r.next_date}T12:00:00Z`))}`}</span>
@@ -413,7 +416,7 @@ function RecurringForm({ r, onDone }: { r: Recurring; tz: string; onDone: () => 
     if (account !== r.account_id) body.account_id = account
     if (Object.keys(body).length === 0) return onDone()
     try {
-      const res = await sendOrQueue({ kind: 'rec.update', entity: r.id, body, version: r.version || undefined, base: { ...r }, label: `${merchant || 'Gasto fijo'} ${money(cents)}` })
+      const res = await sendOrQueue({ kind: 'rec.update', entity: r.id, body, version: r.version || undefined, base: { ...r }, label: `${merchant || 'Gasto fijo'} ${money(cents, accounts.find((a) => a.id === account)?.currency ?? 'USD')}` })
       qc.invalidateQueries({ queryKey: ['recurring'] })
       financeKeys.forEach((k) => qc.invalidateQueries({ queryKey: k }))
       toast(res === 'queued' ? 'Cambio guardado en este dispositivo: se enviará al volver la conexión' : 'Gasto fijo actualizado')

@@ -56,6 +56,7 @@ export const useBreakdown = (month: string) =>
 
 export function useTransactions(f: TxQuery) {
   const { data: me } = useMe()
+  const { data: accounts = [] } = useAccounts(true)
   const tz = me?.timezone ?? 'America/Guayaquil'
   const ops = usePendingOps()
   const q = useQuery({ queryKey: ['transactions', f], queryFn: ({ signal }) => fetchTransactions(f, signal),
@@ -64,7 +65,7 @@ export function useTransactions(f: TxQuery) {
       return prior && txUrl({ ...prior, limit: 0 }) === txUrl({ ...f, limit: 0 }) ? previous : undefined
     },
   })
-  const data = useMemo(() => (q.data ? overlayTransactions(q.data, ops, f, tz) : q.data), [q.data, ops, f.month, f.category_id, f.account_id, f.q, f.status, tz]) // eslint-disable-line react-hooks/exhaustive-deps
+  const data = useMemo(() => (q.data ? overlayTransactions(q.data, ops, f, tz, accounts) : q.data), [q.data, ops, f.month, f.category_id, f.account_id, f.q, f.status, tz, accounts]) // eslint-disable-line react-hooks/exhaustive-deps
   return { ...q, data }
 }
 

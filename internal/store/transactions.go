@@ -160,6 +160,7 @@ type TxFilter struct {
 	Status      string
 	Source      string
 	Kind        string
+	Currency    string
 	Limit       int // 0 = sin límite
 	// Exclusivo para exportación administrativa local; nunca se lee de HTTP.
 	TrustedUnbounded bool
@@ -184,7 +185,7 @@ func (s *Store) Transactions(ctx context.Context, userID string, sl *crypto.Seal
 			WHERE a.user_id = ? AND a.id = COALESCE(k.merged_into, k.id) OR a.user_id = ? AND a.merged_into = COALESCE(k.merged_into, k.id))`)
 		args = append(args, f.AccountID, userID, userID)
 	}
-	for col, v := range map[string]string{"status": f.Status, "source": f.Source, "kind": f.Kind} {
+	for col, v := range map[string]string{"status": f.Status, "source": f.Source, "kind": f.Kind, "currency": f.Currency} {
 		if v != "" {
 			q.WriteString(` AND ` + col + ` = ?`)
 			args = append(args, v)
@@ -227,7 +228,7 @@ func (s *Store) Transactions(ctx context.Context, userID string, sl *crypto.Seal
 // SpentByCategory suma compras menos reversos por categoría en [from, to).
 func (s *Store) SpentByCategory(ctx context.Context, userID string, from, to time.Time) (map[string]int64, error) {
 	rows, err := s.DB.QueryContext(ctx, `SELECT category_id, SUM(CASE kind WHEN 'refund' THEN -amount_cents ELSE amount_cents END)
-		FROM transactions WHERE user_id = ? AND occurred_at >= ? AND occurred_at < ? GROUP BY category_id`, userID, TS(from), TS(to))
+		FROM transactions WHERE user_id = ? AND currency = 'USD' AND occurred_at >= ? AND occurred_at < ? GROUP BY category_id`, userID, TS(from), TS(to))
 	if err != nil {
 		return nil, err
 	}

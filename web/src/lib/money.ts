@@ -2,8 +2,9 @@ const fmt = new Intl.NumberFormat('es-EC', { style: 'currency', currency: 'USD',
 const fmtShort = new Intl.NumberFormat('es-EC', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })
 
 /** 1768 → "$17,68" (formato ecuatoriano). */
-export function money(cents: number): string {
-  return fmt.format(cents / 100)
+export function money(cents: number, currency = 'USD'): string {
+  if (currency === 'USD') return fmt.format(cents / 100)
+  return new Intl.NumberFormat('es-EC', { style: 'currency', currency, minimumFractionDigits: 2 }).format(cents / 100)
 }
 
 export function moneyShort(cents: number): string {

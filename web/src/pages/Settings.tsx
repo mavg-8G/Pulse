@@ -1,4 +1,5 @@
 import { useConfirm } from '../components/Confirm'
+import { ExchangeSettings } from '../components/ExchangeSettings'
 import { useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -258,6 +259,7 @@ export function Settings({ view = 'prefs' }: { view?: 'prefs' | 'account' }) {
         <a href="#h-look">Apariencia</a>
         <a href="#h-data">Tus datos</a>
         <a href="#h-gmail">Correo del banco</a>
+        <a href="#h-exchange">Cambio de moneda</a>
         <a href="#h-notifications">Notificaciones</a>
         {me?.role === 'admin' && <a href="#h-backup">Respaldo</a>}
         <a href="#h-legal">Privacidad</a>
@@ -308,6 +310,8 @@ export function Settings({ view = 'prefs' }: { view?: 'prefs' | 'account' }) {
       </section>
 
       <GmailSettings tz={tz} />
+
+      <ExchangeSettings />
 
       <NotificationSettings />
 

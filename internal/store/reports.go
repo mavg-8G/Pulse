@@ -125,7 +125,7 @@ func (s *Store) ReportActivity(ctx context.Context, userID string, from, to, his
 	// Las cuentas fusionadas se reportan bajo su cuenta principal.
 	rows, err := s.DB.QueryContext(ctx, `SELECT COALESCE(a.merged_into, t.account_id), t.category_id, t.kind, t.amount_cents, t.occurred_at
 		FROM transactions t LEFT JOIN accounts a ON a.id = t.account_id AND a.user_id = t.user_id
-		WHERE t.user_id = ? AND t.occurred_at <= ?
+		WHERE t.user_id = ? AND t.currency = 'USD' AND t.occurred_at <= ?
 		AND ((t.occurred_at >= ? AND t.occurred_at < ?) OR t.occurred_at >= ?) ORDER BY t.occurred_at`, userID, TS(now), TS(from), TS(to), TS(historyFrom))
 	if err != nil {
 		return nil, err
@@ -150,7 +150,7 @@ func (s *Store) SpentByAccount(ctx context.Context, userID string, from, to time
 	rows, err := s.DB.QueryContext(ctx, `WITH g AS (
 			SELECT COALESCE(a.merged_into, t.account_id) AS main, SUM(CASE t.kind WHEN 'refund' THEN -t.amount_cents ELSE t.amount_cents END) AS total
 			FROM transactions t LEFT JOIN accounts a ON a.id = t.account_id AND a.user_id = t.user_id
-			WHERE t.user_id = ? AND t.occurred_at >= ? AND t.occurred_at < ? GROUP BY main)
+			WHERE t.user_id = ? AND t.currency = 'USD' AND t.occurred_at >= ? AND t.occurred_at < ? GROUP BY main)
 		SELECT main, total FROM g
 		UNION ALL
 		SELECT a.id, g.total FROM accounts a JOIN g ON g.main = a.merged_into WHERE a.user_id = ?`, userID, TS(from), TS(to), userID)
@@ -319,7 +319,7 @@ func (s *Store) ProjectionActivity(ctx context.Context, userID string, from, now
 	rows, err := s.DB.QueryContext(ctx, `SELECT COALESCE(a.merged_into, t.account_id), t.category_id, t.kind, t.amount_cents, t.occurred_at,
 		t.source = 'manual' AND t.message_hash IS NOT NULL
 		FROM transactions t LEFT JOIN accounts a ON a.id = t.account_id AND a.user_id = t.user_id
-		WHERE t.user_id = ? AND t.occurred_at >= ? AND t.occurred_at <= ? ORDER BY t.occurred_at`, userID, TS(from), TS(now))
+		WHERE t.user_id = ? AND t.currency = 'USD' AND t.occurred_at >= ? AND t.occurred_at <= ? ORDER BY t.occurred_at`, userID, TS(from), TS(now))
 	if err != nil {
 		return nil, err
 	}
@@ -350,7 +350,7 @@ type UpcomingCharge struct {
 func (s *Store) UpcomingRecurring(ctx context.Context, userID, from, to string) ([]UpcomingCharge, error) {
 	rows, err := s.DB.QueryContext(ctx, `SELECT COALESCE(a.merged_into, r.account_id), r.category_id, r.amount_cents, r.day, r.next_date
 		FROM recurring r LEFT JOIN accounts a ON a.id = r.account_id AND a.user_id = r.user_id
-		WHERE r.user_id = ? AND r.next_date <= ? ORDER BY r.next_date`, userID, to)
+		WHERE r.user_id = ? AND a.currency = 'USD' AND r.next_date <= ? ORDER BY r.next_date`, userID, to)
 	if err != nil {
 		return nil, err
 	}
@@ -378,7 +378,7 @@ func (s *Store) UpcomingRecurring(ctx context.Context, userID, from, to string) 
 // FirstActivity es la fecha del primer movimiento del usuario (cero si no tiene).
 func (s *Store) FirstActivity(ctx context.Context, userID string) (time.Time, error) {
 	var v sql.NullString
-	err := s.DB.QueryRowContext(ctx, `SELECT MIN(occurred_at) FROM transactions WHERE user_id = ?`, userID).Scan(&v)
+	err := s.DB.QueryRowContext(ctx, `SELECT MIN(occurred_at) FROM transactions WHERE user_id = ? AND currency = 'USD'`, userID).Scan(&v)
 	if err != nil || !v.Valid {
 		return time.Time{}, err
 	}

@@ -61,6 +61,8 @@ export interface TxPage {
   items: Transaction[]
   total: number
   sum_cents: number
+  sums_by_currency?: Record<string, number>
+  counts_by_currency?: Record<string, number>
   limit: number
   offset: number
 }
@@ -124,6 +126,7 @@ export interface Alert {
 }
 
 export interface Dashboard {
+  other_currencies?: Record<string, number>
   month: string
   spent_cents: number
   count: number
@@ -207,6 +210,7 @@ export interface GmailSyncResult {
 }
 
 export interface ReportSummary {
+  other_currencies?: Record<string, number>
   from: string
   to: string
   total_cents: number

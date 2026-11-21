@@ -27,7 +27,7 @@ export function TxRow({ tx, cat, acc, tz }: { tx: Transaction; cat?: Category; a
       <span className="tx-col tx-col-time num">{timeLabel(tx.occurred_at, tz)}</span>
       <span className={`tx-amount ${tx.kind === 'refund' ? 'refund' : ''}`}>
         {tx.kind === 'refund' ? '+' : ''}
-        {money(tx.amount_cents)}
+        {money(tx.amount_cents, tx.currency)}
       </span>
     </button>
   )
@@ -47,12 +47,13 @@ export function TxGroups({ items, categories, accounts, tz }: { items: Transacti
   return (
     <>
       {groups.map((g) => {
-        const sum = g.items.reduce((a, t) => a + (t.kind === 'refund' ? -t.amount_cents : t.amount_cents), 0)
+        const sums = new Map<string, number>()
+        for (const t of g.items) sums.set(t.currency, (sums.get(t.currency) ?? 0) + (t.kind === 'refund' ? -t.amount_cents : t.amount_cents))
         return (
           <section key={g.key} aria-label={dayLabel(g.key, today, yesterday)}>
             <div className="day-head">
               <span>{dayLabel(g.key, today, yesterday)}</span>
-              <span className="num">{money(sum)}</span>
+              <span className="num">{[...sums].map(([currency, sum]) => money(sum, currency)).join(' · ')}</span>
             </div>
             <ul className="list">
               {g.items.map((t) => (
