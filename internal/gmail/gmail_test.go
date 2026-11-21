@@ -794,8 +794,12 @@ func TestReintentarConsumoEUR(t *testing.T) {
 		t.Fatalf("importados: %d", len(e.imported))
 	}
 	tx := e.imported[0].Transaction
-	if tx.AmountCents != 21980 || tx.Currency != "USD" || tx.Status != "pending_review" || !strings.Contains(tx.Notes, "EUR 200.00") || !strings.Contains(tx.Notes, "USD 1.96") || !strings.Contains(tx.Notes, "no incluido") {
+	if tx.AmountCents != 21980 || tx.ForeignFeeCents != 196 || tx.Currency != "USD" || tx.Status != "pending_review" || !strings.Contains(tx.Notes, "EUR 200.00") || !strings.Contains(tx.Notes, "USD 1.96") || !strings.Contains(tx.Notes, "no incluido") {
 		t.Fatalf("gasto: %+v", tx)
+	}
+	saved, err := e.st.Transaction(ctx, u.ID, e.sealer(u), tx.ID)
+	if err != nil || saved.ForeignFeeCents != 196 || saved.AmountCents != 21980 {
+		t.Fatalf("gasto guardado: %+v %v", saved, err)
 	}
 	if found, err := e.st.HasTemplateAlert(ctx, u.ID, h); err != nil || found {
 		t.Fatalf("alerta no resuelta: %v", err)

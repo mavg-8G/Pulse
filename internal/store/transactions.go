@@ -29,9 +29,10 @@ type Transaction struct {
 	Version int64  `json:"version"`
 	LastOp  string `json:"-"`
 	// Solo para importados:
-	MessageHash []byte   `json:"-"`
-	Parser      string   `json:"parser,omitempty"`
-	Confidence  *float64 `json:"confidence,omitempty"`
+	ForeignFeeCents int64    `json:"foreign_fee_cents,omitempty"` // comisión informada en USD
+	MessageHash     []byte   `json:"-"`
+	Parser          string   `json:"parser,omitempty"`
+	Confidence      *float64 `json:"confidence,omitempty"`
 }
 
 var ErrDuplicate = Conflict("ese correo ya fue importado")
@@ -41,13 +42,13 @@ const MaxQueryTransactions = 10000
 
 var ErrQueryLimit = errors.New("demasiados movimientos para una consulta")
 
-const txCols = `id, account_id, category_id, amount_cents, currency, occurred_at, kind, merchant_enc, description_enc, notes_enc, source, status, created_at, updated_at, version, last_op`
+const txCols = `id, account_id, category_id, amount_cents, currency, occurred_at, kind, merchant_enc, description_enc, notes_enc, source, status, created_at, updated_at, version, last_op, foreign_fee_cents`
 
 func scanTx(row interface{ Scan(...any) error }, s *crypto.Sealer) (*Transaction, error) {
 	var t Transaction
 	var occ, c, u string
 	var m, d, n []byte
-	err := row.Scan(&t.ID, &t.AccountID, &t.CategoryID, &t.AmountCents, &t.Currency, &occ, &t.Kind, &m, &d, &n, &t.Source, &t.Status, &c, &u, &t.Version, &t.LastOp)
+	err := row.Scan(&t.ID, &t.AccountID, &t.CategoryID, &t.AmountCents, &t.Currency, &occ, &t.Kind, &m, &d, &n, &t.Source, &t.Status, &c, &u, &t.Version, &t.LastOp, &t.ForeignFeeCents)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -75,11 +76,11 @@ func (s *Store) CreateTransaction(ctx context.Context, userID string, sl *crypto
 		hash = t.MessageHash
 	}
 	_, err := s.DB.ExecContext(ctx, `INSERT INTO transactions (id, user_id, account_id, category_id, amount_cents, currency, occurred_at, kind,
-		merchant_enc, description_enc, notes_enc, source, status, message_hash, parser, confidence, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		merchant_enc, description_enc, notes_enc, source, status, message_hash, parser, confidence, created_at, updated_at, foreign_fee_cents)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		t.ID, userID, t.AccountID, t.CategoryID, t.AmountCents, t.Currency, TS(t.OccurredAt), t.Kind,
 		sl.SealRecord(t.ID, "tx.merchant", t.Merchant), sl.SealRecord(t.ID, "tx.description", t.Description), sl.SealRecord(t.ID, "tx.notes", t.Notes),
-		t.Source, t.Status, hash, t.Parser, t.Confidence, TS(now), TS(now))
+		t.Source, t.Status, hash, t.Parser, t.Confidence, TS(now), TS(now), t.ForeignFeeCents)
 	if isUnique(err) {
 		return ErrDuplicate
 	}

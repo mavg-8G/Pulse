@@ -6,6 +6,7 @@ import { getPreference, putPreference } from '../lib/vault'
 import { sendOrQueue } from '../lib/outbox'
 import { nowLocalInput, toLocalInput } from '../lib/dates'
 import { centsToInput, money, parseAmount } from '../lib/money'
+import { foreignFeeCents } from '../lib/foreignFee'
 import { pickable } from '../lib/accounts'
 import { financeKeys, useAccounts, useCategories, useMe } from '../lib/queries'
 import type { Transaction } from '../lib/types'
@@ -63,6 +64,7 @@ export function TxForm({ tx, onDone, defaultAccountId, onStateChange, onReplace 
   const children = (id: string) => categories.filter((c) => c.parent_id === id && !c.archived)
   const selectedParent = categories.find((c) => c.id === categoryId)?.parent_id || categoryId
   const cents = parseAmount(amount)
+  const fee = tx ? foreignFeeCents(tx) : 0
 
   const categoryChanged = !!tx && categoryId !== tx.category_id && merchant.trim() !== ''
   const categoryName = categories.find((c) => c.id === categoryId)?.name ?? ''
@@ -152,6 +154,7 @@ export function TxForm({ tx, onDone, defaultAccountId, onStateChange, onReplace 
         />
       </label>
       {fieldError === 'amount' && <p id="tx-amount-error" className="error" role="alert">{error}</p>}
+      {fee > 0 && <p className="small muted">Comisión informada por el banco: {money(fee)} USD. Se muestra aparte del importe del consumo.</p>}
       <div className="seg" role="group" aria-label="Tipo">
         <button type="button" aria-pressed={kind === 'purchase'} onClick={() => setKind('purchase')}>Gasto</button>
         <button type="button" aria-pressed={kind === 'refund'} onClick={() => { setKind('refund'); setRepeat(false) }}>Devolución</button>

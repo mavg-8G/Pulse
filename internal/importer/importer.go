@@ -141,7 +141,8 @@ func (im *Importer) ImportExpense(ctx context.Context, u *store.User, e *mailpar
 		conf -= 0.15
 	}
 	t := &store.Transaction{
-		ID: auth.NewID(), AccountID: acc.ID, CategoryID: cat.ID, AmountCents: amount, Currency: target, Notes: strings.TrimSpace(notes),
+		ForeignFeeCents: x.ForeignFeeCents,
+		ID:              auth.NewID(), AccountID: acc.ID, CategoryID: cat.ID, AmountCents: amount, Currency: target, Notes: strings.TrimSpace(notes),
 		OccurredAt: x.OccurredAt, Kind: x.Kind, Merchant: x.Merchant, Source: source,
 		Status:      "pending_review", // modo sombra: todo lo importado se revisa al principio
 		MessageHash: im.messageHash(u.ID, e), Parser: x.Parser, Confidence: &conf,

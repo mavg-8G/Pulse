@@ -40,6 +40,7 @@ export interface Category {
 }
 
 export interface Transaction {
+  foreign_fee_cents?: number
   id: string
   account_id: string
   category_id: string

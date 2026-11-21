@@ -1,5 +1,6 @@
 import { dayKey, dayLabel, timeLabel } from '../lib/dates'
 import { money } from '../lib/money'
+import { foreignFeeCents } from '../lib/foreignFee'
 import { accountResolver } from '../lib/accounts'
 import type { Account, Category, Transaction } from '../lib/types'
 import { useTxSheet } from './AppShell'
@@ -7,6 +8,7 @@ import { useTxSheet } from './AppShell'
 export function TxRow({ tx, cat, acc, tz }: { tx: Transaction; cat?: Category; acc?: Account; tz: string }) {
   const open = useTxSheet()
   const title = tx.merchant || cat?.name || 'Gasto'
+  const fee = foreignFeeCents(tx)
   return (
     <button className="tx" onClick={() => open(tx)}>
       <span className="tx-icon" style={{ background: `color-mix(in srgb, ${cat?.color ?? '#888'} 18%, transparent)` }} aria-hidden="true">
@@ -28,6 +30,7 @@ export function TxRow({ tx, cat, acc, tz }: { tx: Transaction; cat?: Category; a
       <span className={`tx-amount ${tx.kind === 'refund' ? 'refund' : ''}`}>
         {tx.kind === 'refund' ? '+' : ''}
         {money(tx.amount_cents, tx.currency)}
+        {fee > 0 && <span className="tx-fee">Comisión +{money(fee)} USD</span>}
       </span>
     </button>
   )

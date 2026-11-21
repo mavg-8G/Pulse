@@ -21,17 +21,26 @@ export function ExchangeSettings() {
     e.preventDefault()
     void run(() => api('PUT', '/api/exchange-settings', { api_key: key }), 'Clave guardada')
   }
+  const configured = status.data?.configured === true
+  const keyStatus = status.isPending
+    ? 'Consultando si hay una clave guardada…'
+    : configured
+      ? 'Hay una clave de Exchange Rates API guardada en el servidor para tu usuario.'
+      : 'Tu usuario no tiene una clave de Exchange Rates API guardada.'
+
   return <section className="section" aria-labelledby="h-exchange">
     <div className="section-head"><h2 id="h-exchange">Cambio de moneda</h2></div>
-    <QueryFeedback error={status.error} retry={status.refetch} />
     <form className="stack" onSubmit={save}>
+      {status.isError
+        ? <QueryFeedback error={status.error} retry={status.refetch} />
+        : <p className="small" role="status">{keyStatus}</p>}
       <p className="small muted">Usa la tasa más reciente de Exchange Rates API para convertir entre EUR y USD. La clave se guarda cifrada para tu usuario. Sin clave se usa la tasa histórica de referencia del BCE.</p>
       <label className="field"><span>Clave de Exchange Rates API</span>
-        <input className="input" type="password" autoComplete="off" spellCheck={false} value={key} onChange={(e) => setKey(e.target.value)} placeholder={status.data?.configured ? 'Clave guardada; escribe otra para cambiarla' : 'Pega tu clave de API'} required />
+        <input className="input" type="password" autoComplete="off" spellCheck={false} value={key} onChange={(e) => setKey(e.target.value)} placeholder={configured ? 'Escribe una clave nueva para cambiarla' : 'Pega tu clave de API'} required />
       </label>
       {error && <p className="error" role="alert">{error}</p>}
       <div className="row-actions"><button className="btn btn-primary btn-sm" disabled={busy}>Guardar clave</button>
-        {status.data?.configured && <button type="button" className="btn btn-sm" disabled={busy} onClick={() => void run(() => del('/api/exchange-settings'), 'Clave eliminada')}>Quitar clave</button>}</div>
+        {configured && <button type="button" className="btn btn-sm" disabled={busy} onClick={() => void run(() => del('/api/exchange-settings'), 'Clave eliminada')}>Quitar clave</button>}</div>
       <a href="https://manage.exchangeratesapi.io/dashboard" target="_blank" rel="noreferrer">Abrir Exchange Rates API</a>
     </form>
   </section>

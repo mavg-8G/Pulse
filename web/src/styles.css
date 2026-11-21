@@ -676,6 +676,13 @@ a.settings-row {
 .tx-amount.refund {
   color: var(--ok);
 }
+.tx-fee {
+  display: block;
+  margin-top: 3px;
+  font-family: var(--font-ui);
+  font-size: 0.75rem;
+  color: var(--ink-2);
+}
 .badge {
   display: inline-block;
   font-size: 0.75rem;
