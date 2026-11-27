@@ -187,6 +187,19 @@ func TestStateYPKCE(t *testing.T) {
 	}
 }
 
+func TestStateRechazaFirmaBase64NoCanonica(t *testing.T) {
+	keys, _ := crypto.NewKeyring(bytes.Repeat([]byte{3}, 32))
+	now := time.Date(2026, 10, 14, 12, 0, 0, 0, time.UTC)
+	state := "eyJ1IjoidSIsInMiOiJzIiwibiI6IktzaWd0Y1JGTzdlSjV3UE1SZDJjM203QyIsImUiOjE3OTE5Nzk4MDB9.gdvWYYgqxLuXbiLSFG9yG_J0oOvY8XV2XkLFVCLILiO"
+	canonical := state[:len(state)-1] + "M"
+	if _, err := gmail.CheckState(keys.Lookup, canonical, "u", "s", now); err != nil {
+		t.Fatalf("state canónico rechazado: %v", err)
+	}
+	if _, err := gmail.CheckState(keys.Lookup, state, "u", "s", now); !errors.Is(err, gmail.ErrState) {
+		t.Fatalf("firma no canónica aceptada: %v", err)
+	}
+}
+
 func TestConsultaSoloRemitentesBancarios(t *testing.T) {
 	q := gmail.Query(2)
 	for _, want := range []string{"from:(servicios@tarjetasbancopichincha.com OR bancaenlinea@produbanco.com OR servicios@titanium.com.ec)", "newer_than:2d"} {

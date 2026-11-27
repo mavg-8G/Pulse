@@ -30,10 +30,16 @@ func FuzzCheckState(f *testing.F) {
 	keys, _ := crypto.NewKeyring(bytes.Repeat([]byte{3}, 32))
 	now := time.Date(2026, 10, 14, 12, 0, 0, 0, time.UTC)
 	good, _ := gmail.NewState(keys.Lookup, "u", "s", now)
-	f.Add(good[:len(good)-2] + "AA") // payload válido con la firma tocada
-	f.Add("x.y")
-	f.Add(".")
-	f.Fuzz(func(t *testing.T, state string) {
+	f.Add(uint64(0), byte('x'))
+	f.Add(uint64(len(good)-1), byte('O'))
+	f.Fuzz(func(t *testing.T, pos uint64, replacement byte) {
+		altered := []byte(good)
+		i := pos % uint64(len(altered))
+		if altered[i] == replacement {
+			return
+		}
+		altered[i] = replacement
+		state := string(altered)
 		if _, err := gmail.CheckState(keys.Lookup, state, "u", "s", now); err == nil {
 			t.Fatalf("state alterado aceptado: %q", state)
 		}

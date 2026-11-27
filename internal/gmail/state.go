@@ -51,7 +51,7 @@ func CheckState(mac MAC, state, userID, sessionID string, now time.Time) (string
 		return "", ErrState
 	}
 	got, err := b64.DecodeString(sig)
-	if err != nil || !hmac.Equal(got, mac("gmail-state", []byte(enc))) {
+	if err != nil || b64.EncodeToString(got) != sig || !hmac.Equal(got, mac("gmail-state", []byte(enc))) {
 		return "", ErrState
 	}
 	raw, err := b64.DecodeString(enc)
