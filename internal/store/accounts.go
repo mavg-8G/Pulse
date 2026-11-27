@@ -80,9 +80,29 @@ func (s *Store) CreateAccountTx(ctx context.Context, tx *sql.Tx, userID string, 
 	return insertAccount(ctx, tx, userID, a)
 }
 
-func (s *Store) UpdateAccount(ctx context.Context, userID string, a *Account) error {
-	return affected(s.DB.ExecContext(ctx, `UPDATE accounts SET name = ?, type = ?, institution = ?, card_suffix = ?, currency = ?, color = ?, icon = ?, archived = ?, updated_at = ?
-		WHERE id = ? AND user_id = ?`, a.Name, a.Type, a.Institution, a.CardSuffix, a.Currency, a.Color, a.Icon, boolInt(a.Archived), s.now(), a.ID, userID))
+func (s *Store) UpdateAccount(ctx context.Context, userID string, a *Account, archived *bool, archiveLinked bool) error {
+	now := s.now()
+	update := func(ex execer) error {
+		return affected(ex.ExecContext(ctx, `UPDATE accounts SET name = ?, type = ?, institution = ?, card_suffix = ?, currency = ?, color = ?, icon = ?, archived = COALESCE(?, archived), updated_at = ?
+			WHERE id = ? AND user_id = ?`, a.Name, a.Type, a.Institution, a.CardSuffix, a.Currency, a.Color, a.Icon, archived, now, a.ID, userID))
+	}
+	if !archiveLinked || archived == nil {
+		return update(s.DB)
+	}
+	return s.Tx(ctx, func(tx *sql.Tx) error {
+		if err := update(tx); err != nil {
+			return err
+		}
+		var linked bool
+		if err := tx.QueryRowContext(ctx, `SELECT merged_into IS NOT NULL FROM accounts WHERE id = ? AND user_id = ?`, a.ID, userID).Scan(&linked); err != nil {
+			return err
+		}
+		if linked {
+			return Conflict("archiva o reactiva el grupo desde la cuenta principal")
+		}
+		_, err := tx.ExecContext(ctx, `UPDATE accounts SET archived = ?, updated_at = ? WHERE user_id = ? AND merged_into = ?`, *archived, now, userID, a.ID)
+		return err
+	})
 }
 
 // DeleteAccount solo borra cuentas sin movimientos; las demás se archivan.

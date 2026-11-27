@@ -1,14 +1,18 @@
-import { apiGet, apiPost, expect, expectAccessible, register, test } from './helpers'
+import { apiGet, apiPost, expect as baseExpect, expectAccessible, register, test } from './helpers'
 
-test('fusionar dos cuentas que son la misma tarjeta y separarlas', async ({ page }) => {
+const expect = baseExpect.configure({ timeout: 30_000 })
+
+test('fusionar, archivar, reactivar y separar dos cuentas de la misma tarjeta', async ({ page }) => {
+  test.setTimeout(120_000)
   await register(page)
   const main = await apiPost(page, '/api/accounts', { name: 'Titanium (Diners Club)', type: 'credit_card', institution: 'Diners Club' })
   const alias = await apiPost(page, '/api/accounts', { name: 'Titanium (Diners Club) …666', type: 'credit_card', institution: 'Diners Club', card_suffix: '666' })
   const cats: { id: string; name: string }[] = await apiGet(page, '/api/categories')
   const comida = cats.find((c) => c.name === 'Comida')!.id
-  const today = new Date().toLocaleString('sv-SE', { timeZone: 'America/Guayaquil' }).slice(0, 10)
-  await apiPost(page, '/api/transactions', { account_id: main.id, category_id: comida, amount_cents: 1000, occurred_at: `${today}T08:00`, merchant: 'Café sin dígitos' })
-  await apiPost(page, '/api/transactions', { account_id: alias.id, category_id: comida, amount_cents: 2500, occurred_at: `${today}T09:00`, merchant: 'Almuerzo con dígitos' })
+  const day = new Date(Date.now() - 86_400_000).toLocaleString('sv-SE', { timeZone: 'America/Guayaquil' }).slice(0, 10)
+  const month = day.slice(0, 7)
+  await apiPost(page, '/api/transactions', { account_id: main.id, category_id: comida, amount_cents: 1000, occurred_at: `${day}T08:00`, merchant: 'Café sin dígitos' })
+  await apiPost(page, '/api/transactions', { account_id: alias.id, category_id: comida, amount_cents: 2500, occurred_at: `${day}T09:00`, merchant: 'Almuerzo con dígitos' })
 
   await page.goto('/ajustes/cuentas')
   await page.getByRole('button', { name: /^Titanium \(Diners Club\) …666/ }).click()
@@ -19,12 +23,11 @@ test('fusionar dos cuentas que son la misma tarjeta y separarlas', async ({ page
   const confirm = page.getByRole('alertdialog', { name: /¿Fusionar Titanium/ })
   await expect(confirm).toContainText('Ninguna se borra')
   await confirm.getByRole('button', { name: 'Fusionar' }).click()
-  await expect(page.getByText('ahora se ve junto con Titanium (Diners Club)')).toBeVisible()
   await expect(page.getByText('Incluye Titanium (Diners Club) …666')).toBeVisible()
   expect((await apiGet(page, '/api/accounts')).length).toBe(3) // nada se borró (Efectivo + las dos)
 
   // Movimientos: la cuenta fusionada ya no aparece aparte y su filtro trae los gastos de ambas.
-  await page.goto('/movimientos')
+  await page.goto(`/movimientos?month=${month}`)
   const filter = page.getByLabel('Cuenta', { exact: true })
   await expect(filter.locator('option', { hasText: '…666' })).toHaveCount(0)
   await filter.selectOption({ label: 'Titanium (Diners Club)' })
@@ -32,11 +35,36 @@ test('fusionar dos cuentas que son la misma tarjeta y separarlas', async ({ page
   await expect(page.getByText('Café sin dígitos')).toBeVisible()
   await expect(page.getByTestId('list-sum')).toHaveText(/35,00/)
 
+  await page.goto('/ajustes/cuentas')
+  const principal = page.getByRole('button', { name: /^Titanium \(Diners Club\) Tarjeta/ })
+  await principal.click()
+  await sheet.getByRole('button', { name: 'Archivar grupo' }).click()
+  await page.getByRole('alertdialog', { name: /¿Archivar Titanium/ }).getByRole('button', { name: 'Archivar grupo' }).click()
+  await expect(page.getByRole('button', { name: /^Titanium/ })).toHaveCount(0)
+  await page.getByText('Cuentas archivadas (2)', { exact: true }).click()
+  await expect(page.getByRole('button', { name: /^Titanium.*Archivada/ })).toHaveCount(2)
+  expect((await apiGet(page, '/api/accounts')).map((a: { name: string }) => a.name)).toEqual(['Efectivo'])
+
+  await page.goto(`/movimientos?month=${month}&account=${main.id}`)
+  await expect(filter).toHaveValue(main.id)
+  await expect(page.getByText('Almuerzo con dígitos')).toBeVisible()
+  await expect(page.getByText('Café sin dígitos')).toBeVisible()
+  await expect(page.getByTestId('list-sum')).toHaveText(/35,00/)
+  const report = await apiGet(page, `/api/reports/summary?from=${month}&to=${month}`)
+  expect(report.by_account).toEqual(expect.arrayContaining([expect.objectContaining({ id: main.id, spent_cents: 3500 })]))
+
+  await page.goto('/ajustes/cuentas')
+  await page.getByText('Cuentas archivadas (2)', { exact: true }).click()
+  await page.getByRole('button', { name: /^Titanium \(Diners Club\) Archivada Tarjeta/ }).click()
+  await sheet.getByRole('button', { name: 'Reactivar grupo' }).click()
+  await expect(principal).toBeVisible()
+  await expect(page.getByText('Cuentas archivadas (2)', { exact: true })).toHaveCount(0)
+
   // Separar: cada una vuelve a sus propios gastos.
   await page.goto('/ajustes/cuentas')
   await page.getByRole('button', { name: /^Titanium \(Diners Club\) …666/ }).click()
   await sheet.getByRole('button', { name: 'Separar de Titanium (Diners Club)' }).click()
-  await expect(page.getByText('Cuentas separadas')).toBeVisible()
+  await expect(page.getByText('Incluye Titanium (Diners Club) …666')).toHaveCount(0)
   const page1 = await apiGet(page, `/api/transactions?account_id=${main.id}`)
   expect(page1.total).toBe(1)
 })

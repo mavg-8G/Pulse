@@ -38,14 +38,15 @@ func (s *Server) userLoc(u *store.User) *time.Location {
 // ---------------- Cuentas ----------------
 
 type accountInput struct {
-	Name        *string `json:"name"`
-	Type        *string `json:"type"`
-	Institution *string `json:"institution"`
-	CardSuffix  *string `json:"card_suffix"`
-	Currency    *string `json:"currency"`
-	Color       *string `json:"color"`
-	Icon        *string `json:"icon"`
-	Archived    *bool   `json:"archived"`
+	Name          *string `json:"name"`
+	Type          *string `json:"type"`
+	Institution   *string `json:"institution"`
+	CardSuffix    *string `json:"card_suffix"`
+	Currency      *string `json:"currency"`
+	Color         *string `json:"color"`
+	Icon          *string `json:"icon"`
+	Archived      *bool   `json:"archived"`
+	ArchiveLinked bool    `json:"archive_linked"`
 }
 
 func (in *accountInput) apply(a *store.Account) error {
@@ -165,7 +166,10 @@ func (s *Server) updateAccount(w http.ResponseWriter, r *http.Request) error {
 			}
 		}
 	}
-	if err := s.store.UpdateAccount(r.Context(), id.user.ID, a); err != nil {
+	if in.ArchiveLinked && in.Archived == nil {
+		return badRequest("Indica si quieres archivar o reactivar las cuentas vinculadas.")
+	}
+	if err := s.store.UpdateAccount(r.Context(), id.user.ID, a, in.Archived, in.ArchiveLinked); err != nil {
 		return err
 	}
 	writeJSON(w, 200, a)

@@ -22,6 +22,32 @@ export function Accounts() {
   const { data: accounts = [], error, refetch, isFetching } = useAccounts(true)
   const [edit, setEdit] = useState<{ open: boolean; acc?: Account }>({ open: false })
   const main = accountResolver(accounts)
+  const ordered = groupedOrder(accounts)
+  const active = ordered.filter((a) => !a.archived)
+  const archived = ordered.filter((a) => a.archived)
+  const renderAccount = (a: Account) => (
+    <li key={a.id} className={a.archived ? 'is-archived' : ''} style={{ '--acc': a.color } as CSSProperties}>
+      <button className="tx" onClick={() => setEdit({ open: true, acc: a })}>
+        <span className="tx-icon" style={{ background: `color-mix(in srgb, ${a.color} 20%, transparent)` }} aria-hidden="true">{a.icon || '💳'}</span>
+        <span className="tx-main">
+          <span className="tx-title">
+            {a.name} {a.archived && <span className="badge warn">Archivada</span>}
+            {a.merged_into && <span className="badge">Fusionada</span>}
+          </span>
+          <span className="tx-meta">
+            {typeText[a.type]}
+            {a.institution ? ` de ${a.institution}` : ''}
+            {` · ${a.currency}`}
+            {a.card_suffix ? `, termina en ${a.card_suffix}` : ''}
+            {a.merged_into ? `. Sus gastos se ven en ${main(a.id)?.name ?? 'otra cuenta'}` : ''}
+            {linkedTo(accounts, a.id).length > 0 ? `. Incluye ${linkedTo(accounts, a.id).map((x) => x.name).join(', ')}` : ''}
+          </span>
+        </span>
+        <span className="faint">›</span>
+        {a.card_suffix && <span className="acc-number num" aria-hidden="true">•••• {a.card_suffix}</span>}
+      </button>
+    </li>
+  )
   return (
     <>
       <p className="small"><Link to="/ajustes">Ajustes</Link></p>
@@ -33,31 +59,13 @@ export function Accounts() {
         Los últimos dígitos de cada tarjeta permitirán asignar automáticamente los gastos que lleguen por correo.
       </p>
       <QueryFeedback error={error} retry={refetch} updating={isFetching} />
-      <ul className="list account-collection">
-        {groupedOrder(accounts).map((a) => (
-          <li key={a.id} className={a.archived ? 'is-archived' : ''} style={{ '--acc': a.color } as CSSProperties}>
-            <button className="tx" onClick={() => setEdit({ open: true, acc: a })}>
-              <span className="tx-icon" style={{ background: `color-mix(in srgb, ${a.color} 20%, transparent)` }} aria-hidden="true">{a.icon || '💳'}</span>
-              <span className="tx-main">
-                <span className="tx-title">
-                  {a.name} {a.archived && <span className="badge warn">Archivada</span>}
-                  {a.merged_into && <span className="badge">Fusionada</span>}
-                </span>
-                <span className="tx-meta">
-                  {typeText[a.type]}
-                  {a.institution ? ` de ${a.institution}` : ''}
-                  {` · ${a.currency}`}
-                  {a.card_suffix ? `, termina en ${a.card_suffix}` : ''}
-                  {a.merged_into ? `. Sus gastos se ven en ${main(a.id)?.name ?? 'otra cuenta'}` : ''}
-                  {linkedTo(accounts, a.id).length > 0 ? `. Incluye ${linkedTo(accounts, a.id).map((x) => x.name).join(', ')}` : ''}
-                </span>
-              </span>
-              <span className="faint">›</span>
-              {a.card_suffix && <span className="acc-number num" aria-hidden="true">•••• {a.card_suffix}</span>}
-            </button>
-          </li>
-        ))}
-      </ul>
+      {active.length > 0 && <ul className="list account-collection">{active.map(renderAccount)}</ul>}
+      {archived.length > 0 && (
+        <details className="more">
+          <summary>Cuentas archivadas ({archived.length})</summary>
+          <ul className="list account-collection">{archived.map(renderAccount)}</ul>
+        </details>
+      )}
       <Sheet open={edit.open} title={edit.acc ? 'Editar cuenta' : 'Nueva cuenta'} onClose={() => setEdit({ open: false })}>
         <AccountForm key={edit.acc?.id ?? 'new'} acc={edit.acc} accounts={accounts} onDone={() => setEdit({ open: false })} />
       </Sheet>
@@ -79,6 +87,7 @@ function AccountForm({ acc, accounts, onDone }: { acc?: Account; accounts: Accou
     icon: acc?.icon ?? '💳',
   })
   const [error, setError] = useState('')
+  const [archiving, setArchiving] = useState(false)
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setF({ ...f, [k]: e.target.value })
   const done = (msg: string) => {
     qc.invalidateQueries({ queryKey: ['accounts'] })
@@ -89,6 +98,10 @@ function AccountForm({ acc, accounts, onDone }: { acc?: Account; accounts: Accou
   const targets = acc ? accounts.filter((a) => a.id !== acc.id && !a.merged_into && !a.archived && a.currency === acc.currency) : []
   const [into, setInto] = useState('')
   const mainName = accounts.find((a) => a.id === acc?.merged_into)?.name ?? 'otra cuenta'
+  const linked = acc ? linkedTo(accounts, acc.id) : []
+  const group = linked.length > 0
+  const reactivating = !!acc?.archived && linked.every((a) => a.archived)
+  const archiveLabel = `${reactivating ? 'Reactivar' : 'Archivar'}${group ? ' grupo' : ''}`
   const refreshAll = (msg: string) => {
     financeKeys.forEach((k) => qc.invalidateQueries({ queryKey: k }))
     ;['reports', 'reconciliation', 'budgets'].forEach((k) => qc.invalidateQueries({ queryKey: [k] }))
@@ -131,9 +144,22 @@ function AccountForm({ acc, accounts, onDone }: { acc?: Account; accounts: Accou
     }
   }
   async function toggleArchive() {
-    if (!acc) return
-    await patch(`/api/accounts/${acc.id}`, { archived: !acc.archived })
-    done(acc.archived ? 'Cuenta reactivada' : 'Cuenta archivada')
+    if (!acc || archiving) return
+    if (!reactivating && !(await ask({
+      title: `¿Archivar ${acc.name}${group ? ' y sus cuentas vinculadas' : ''}?`,
+      body: 'Conservarás el historial en Movimientos y Reportes. Podrás reactivar estas cuentas desde Cuentas archivadas.',
+      confirm: archiveLabel,
+    }))) return
+    setError('')
+    setArchiving(true)
+    try {
+      await patch(`/api/accounts/${acc.id}`, { archived: !reactivating, archive_linked: group })
+      refreshAll(group ? (reactivating ? 'Grupo reactivado' : 'Grupo archivado') : (reactivating ? 'Cuenta reactivada' : 'Cuenta archivada'))
+    } catch (err) {
+      setError(errorMessage(err))
+    } finally {
+      setArchiving(false)
+    }
   }
   async function remove() {
     if (!acc || !(await ask({ title: `¿Borrar ${acc.name}?`, confirm: 'Borrar cuenta', danger: true }))) return
@@ -189,11 +215,11 @@ function AccountForm({ acc, accounts, onDone }: { acc?: Account; accounts: Accou
         </label>
       </div>
       {error && <p className="error" role="alert">{error}</p>}
-      <button className="btn btn-primary btn-block">Guardar cuenta</button>
+      <button className="btn btn-primary btn-block" disabled={archiving}>Guardar cuenta</button>
       {acc?.merged_into && (
         <div className="stack" role="group" aria-label="Cuenta fusionada">
           <p className="small muted">Fusionada con <strong>{mainName}</strong>: sus gastos se ven allí. Separarla no mueve ni borra ningún gasto.</p>
-          <button type="button" className="btn btn-sm" onClick={unmerge}>Separar de {mainName}</button>
+          <button type="button" className="btn btn-sm" disabled={archiving} onClick={unmerge}>Separar de {mainName}</button>
         </div>
       )}
       {acc && !acc.merged_into && targets.length > 0 && (
@@ -206,13 +232,13 @@ function AccountForm({ acc, accounts, onDone }: { acc?: Account; accounts: Accou
             </select>
             <small className="hint">Úsalo cuando dos cuentas son la misma tarjeta. Ninguna se borra.</small>
           </label>
-          <button type="button" className="btn btn-sm" disabled={!into} onClick={merge}>Fusionar</button>
+          <button type="button" className="btn btn-sm" disabled={!into || archiving} onClick={merge}>Fusionar</button>
         </div>
       )}
       {acc && (
         <div className="row-actions">
-          <button type="button" className="btn btn-sm" onClick={toggleArchive}>{acc.archived ? 'Reactivar' : 'Archivar'}</button>
-          <button type="button" className="btn btn-sm btn-danger" onClick={remove}>Borrar</button>
+          <button type="button" className="btn btn-sm" disabled={archiving} onClick={toggleArchive}>{archiveLabel}</button>
+          <button type="button" className="btn btn-sm btn-danger" disabled={archiving} onClick={remove}>Borrar</button>
         </div>
       )}
     </form>
